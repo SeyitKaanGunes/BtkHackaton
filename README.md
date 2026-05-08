@@ -25,8 +25,6 @@ npm run dev:web
 npm run dev:mobile
 ```
 
-Never commit `.env` files. Only `.env.example` files belong in git.
-
 ## Product Focus
 
 The main product is a personal AI Financial Digital Twin: Spending DNA, campaign readiness, what-if simulations, Emotional Delay, action center, receipt scanning, subscription leakage detection and explainable agent answers.
