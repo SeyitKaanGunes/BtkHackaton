@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Post } from "@nestjs/common";
+import { Body, Controller, Get, Headers, Inject, Post } from "@nestjs/common";
 import { IsEmail, IsString, MinLength } from "class-validator";
 import { AuthService } from "./auth.service.js";
 
@@ -24,7 +24,7 @@ class LoginDto {
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
   @Post("register")
   register(@Body() body: RegisterDto) {

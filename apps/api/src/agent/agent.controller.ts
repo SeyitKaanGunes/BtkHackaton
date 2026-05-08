@@ -1,9 +1,9 @@
-import { Body, Controller, Post } from "@nestjs/common";
+import { Body, Controller, Inject, Post } from "@nestjs/common";
 import { AgentService } from "./agent.service.js";
 
 @Controller("agent")
 export class AgentController {
-  constructor(private readonly agent: AgentService) {}
+  constructor(@Inject(AgentService) private readonly agent: AgentService) {}
 
   @Post("chat")
   chat(@Body() body: { message: string }) {

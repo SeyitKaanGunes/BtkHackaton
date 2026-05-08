@@ -1,10 +1,10 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, Inject } from "@nestjs/common";
 import { calculateDashboardSummary } from "@finshadow/shared";
 import { DataStoreService } from "../data/data-store.service.js";
 
 @Controller("dashboard")
 export class DashboardController {
-  constructor(private readonly store: DataStoreService) {}
+  constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
 
   @Get("personal")
   personal() {

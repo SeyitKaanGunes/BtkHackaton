@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import {
@@ -30,7 +30,7 @@ const AgentState = Annotation.Root({
 
 @Injectable()
 export class AgentService {
-  constructor(private readonly store: DataStoreService) {}
+  constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
 
   async chat(message: string): Promise<AgentResponse> {
     const graph = new StateGraph(AgentState)

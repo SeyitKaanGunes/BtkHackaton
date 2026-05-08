@@ -1,11 +1,11 @@
-import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Post } from "@nestjs/common";
 import type { Transaction } from "@finshadow/shared";
 import { DEMO_USER_ID } from "@finshadow/shared";
 import { DataStoreService } from "../data/data-store.service.js";
 
 @Controller("transactions")
 export class TransactionsController {
-  constructor(private readonly store: DataStoreService) {}
+  constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
 
   @Get()
   list() {

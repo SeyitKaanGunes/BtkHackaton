@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { DataStoreService } from "../data/data-store.service.js";
@@ -6,8 +6,8 @@ import { DataStoreService } from "../data/data-store.service.js";
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly store: DataStoreService,
-    private readonly jwt: JwtService
+    @Inject(DataStoreService) private readonly store: DataStoreService,
+    @Inject(JwtService) private readonly jwt: JwtService
   ) {}
 
   async register(input: { name: string; email: string; password: string }) {

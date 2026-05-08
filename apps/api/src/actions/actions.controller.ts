@@ -1,9 +1,9 @@
-import { Controller, Get, Param, Post } from "@nestjs/common";
+import { Controller, Get, Inject, Param, Post } from "@nestjs/common";
 import { DataStoreService } from "../data/data-store.service.js";
 
 @Controller("actions")
 export class ActionsController {
-  constructor(private readonly store: DataStoreService) {}
+  constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
 
   @Get()
   list() {
