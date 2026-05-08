@@ -16,8 +16,6 @@ coverage/
 !apps/**/.env.example
 
 # Mobile/native generated artifacts
-apps/mobile/ios/
-apps/mobile/android/
 *.keystore
 *.p8
 GoogleService-Info.plist

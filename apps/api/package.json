@@ -14,9 +14,7 @@
   },
   "dependencies": {
     "@finshadow/shared": "0.1.0",
-    "@google/genai": "^2.0.0",
     "@langchain/core": "^1.0.6",
-    "@langchain/google-genai": "^2.1.30",
     "@langchain/langgraph": "^1.3.0",
     "@nestjs/common": "^11.1.19",
     "@nestjs/config": "^4.0.2",

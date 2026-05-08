@@ -31,7 +31,7 @@ export function ReceiptScanner() {
       <label className="upload-zone">
         <Camera size={32} />
         <strong>Fiş veya fatura görseli seç</strong>
-        <span>Gemini Vision tutar, tarih, satıcı, KDV, kategori ve ödeme tipini çıkarır.</span>
+        <span>Qwen OCR akışı tutar, tarih, satıcı, KDV, kategori ve ödeme tipini çıkarır.</span>
         <input type="file" accept="image/*" onChange={(event) => onFile(event.target.files?.[0])} />
       </label>
       <button className="secondary-button" onClick={() => onFile()} disabled={loading}>

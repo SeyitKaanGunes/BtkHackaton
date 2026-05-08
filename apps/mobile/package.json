@@ -2,11 +2,11 @@
   "name": "@finshadow/mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "expo/AppEntry",
+  "main": "index.js",
   "scripts": {
-    "start": "expo start",
-    "ios": "expo start --ios",
-    "android": "expo start --android",
+    "start": "react-native start",
+    "ios": "react-native run-ios",
+    "android": "react-native run-android",
     "build": "npm run typecheck",
     "lint": "npm run typecheck",
     "typecheck": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @finshadow/shared && tsc -p tsconfig.json --noEmit",
@@ -14,16 +14,17 @@
   },
   "dependencies": {
     "@finshadow/shared": "0.1.0",
-    "expo": "^55.0.23",
-    "expo-image-picker": "^55.0.20",
-    "expo-speech": "^55.0.13",
-    "expo-status-bar": "^55.0.6",
     "lucide-react-native": "^0.562.0",
     "react": "^19.2.0",
     "react-native": "^0.83.6",
-    "react-native-svg": "^15.15.3"
+    "react-native-image-picker": "^8.2.1",
+    "react-native-svg": "^15.15.3",
+    "react-native-tts": "^4.1.1"
   },
   "devDependencies": {
+    "@react-native/babel-preset": "^0.83.6",
+    "@react-native/metro-config": "^0.83.6",
+    "@react-native-community/cli": "^20.0.2",
     "@types/react": "^19.2.7",
     "typescript": "^5.9.3",
     "vitest": "^4.0.15"

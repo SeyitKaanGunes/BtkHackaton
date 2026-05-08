@@ -32,7 +32,7 @@ export function AppShell({ children, active = "/" }: { children: React.ReactNode
         </nav>
         <div className="trust-note">
           <ShieldCheck size={18} />
-          <span>Gemini anahtarı yalnızca backend tarafında kalır.</span>
+          <span>Qwen/Gemini anahtarları yalnızca backend tarafında kalır.</span>
         </div>
       </aside>
       <main className="workspace">{children}</main>

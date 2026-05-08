@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { StatusBar } from "expo-status-bar";
-import * as ImagePicker from "expo-image-picker";
-import * as Speech from "expo-speech";
+import { ActivityIndicator, Alert, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { launchImageLibrary } from "react-native-image-picker";
+import Tts from "react-native-tts";
 import { Bot, BriefcaseBusiness, Camera, Gauge, PiggyBank, ReceiptText, WalletCards } from "lucide-react-native";
 import type {
   AgentResponse,
@@ -36,7 +35,7 @@ export default function App() {
 
   return (
     <View style={styles.screen}>
-      <StatusBar style="dark" />
+      <StatusBar barStyle="dark-content" />
       <ScrollView contentContainerStyle={styles.scroll}>
         {tab === "home" && (home ? <HomeScreen {...home} /> : <Loading />)}
         {tab === "agent" && <AgentScreen />}
@@ -69,7 +68,7 @@ function HomeScreen({
       <View style={styles.header}>
         <Text style={styles.eyebrow}>FINSHADOW Mobil</Text>
         <Text style={styles.title}>Finansal ikizin cebinde.</Text>
-        <Text style={styles.subtitle}>iOS öncelikli demo; Android uyumlu Expo temeli korunur.</Text>
+        <Text style={styles.subtitle}>iOS öncelikli demo; Android uyumlu React Native CLI temeli korunur.</Text>
       </View>
       <View style={styles.statGrid}>
         <Stat icon={<Gauge color={palette.accent} />} label="Sağlık" value={`${dashboard.financialHealthScore}/100`} />
@@ -115,7 +114,8 @@ function AgentScreen() {
     setLoading(true);
     const next = await sendAgentMessage(message);
     setResponse(next);
-    Speech.speak(next.answer, { language: "tr-TR" });
+    Tts.setDefaultLanguage("tr-TR").catch(() => undefined);
+    Tts.speak(next.answer);
     setLoading(false);
   }
 
@@ -153,20 +153,17 @@ function ScanScreen() {
   const [loading, setLoading] = useState(false);
 
   async function pickImage() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("İzin gerekli", "Fiş görseli seçmek için fotoğraf izni gerekiyor.");
-      return;
-    }
     setLoading(true);
-    const image = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      base64: true,
-      quality: 0.75
+    const image = await launchImageLibrary({
+      mediaType: "photo",
+      includeBase64: true
     });
-    if (!image.canceled) {
-      const asset = image.assets[0];
-      const next = await scanReceipt(asset?.base64 ?? undefined, asset?.mimeType ?? undefined);
+    if (image.errorMessage) {
+      Alert.alert("Görsel seçilemedi", image.errorMessage);
+    }
+    if (!image.didCancel) {
+      const asset = image.assets?.[0];
+      const next = await scanReceipt(asset?.base64 ?? undefined, asset?.type ?? undefined);
       setResult(next);
     }
     setLoading(false);
@@ -175,7 +172,7 @@ function ScanScreen() {
   return (
     <>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>Gemini Vision OCR</Text>
+        <Text style={styles.eyebrow}>Qwen OCR</Text>
         <Text style={styles.title}>Fişi finans kaydına çevir.</Text>
       </View>
       <Panel>

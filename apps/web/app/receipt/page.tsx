@@ -7,7 +7,7 @@ export default function ReceiptPage() {
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Mobil Fiş/Fatura Okuma</p>
-          <h1>Gemini Vision ile belgeyi finans kaydına dönüştür.</h1>
+          <h1>Qwen ile belgeyi finans kaydına dönüştür.</h1>
         </div>
       </header>
       <ReceiptScanner />

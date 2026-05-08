@@ -1,6 +1,6 @@
-import { Injectable } from "@nestjs/common";
-import { GoogleGenAI } from "@google/genai";
+import { Inject, Injectable } from "@nestjs/common";
 import type { ReceiptScanResult } from "@finshadow/shared";
+import { QwenService } from "../ai/qwen.service.js";
 
 const receiptSchema = {
   type: "object",
@@ -29,45 +29,48 @@ const receiptSchema = {
 
 @Injectable()
 export class DocumentsService {
-  async scanReceipt(input: { imageBase64?: string; mimeType?: string; textHint?: string }): Promise<ReceiptScanResult> {
-    if (!process.env.GOOGLE_API_KEY || !input.imageBase64) {
-      return {
-        merchant: "Demo Market",
-        totalAmount: 1249.9,
-        taxAmount: 113.63,
-        occurredAt: "2026-05-08",
-        categoryName: "Market",
-        paymentMethod: "credit_card",
-        confidence: 0.91,
-        lineItems: [
-          { name: "Temel gıda", amount: 720.4 },
-          { name: "Temizlik", amount: 529.5 }
-        ]
-      };
-    }
+  constructor(@Inject(QwenService) private readonly qwen: QwenService) {}
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
+  async scanReceipt(input: { imageBase64?: string; mimeType?: string; textHint?: string }): Promise<ReceiptScanResult> {
+    const fallback = this.fallbackReceipt();
+    if (!this.qwen.isConfigured()) return fallback;
+
+    const instruction =
+      "Bu fiş/fatura içeriğinden finans kaydı için JSON çıkar. Sadece JSON dön. " +
+      "Alanlar: merchant, totalAmount, taxAmount, occurredAt, categoryName, paymentMethod, confidence, lineItems. " +
+      `JSON schema: ${JSON.stringify(receiptSchema)}. ` +
+      (input.textHint ? `Kullanıcı notu: ${input.textHint}` : "");
+
+    return this.qwen.chatJson<ReceiptScanResult>(
+      [
+        { role: "system", content: "Finansal OCR asistanısın. Yanıtın geçerli JSON olmalı." },
         {
           role: "user",
-          parts: [
-            {
-              text:
-                "Bu fiş/fatura görselinden finans kaydı için alanları çıkar. " +
-                "Tarih yoksa bugüne yakın makul tarih değil, null yerine görüntüdeki en olası tarihi yaz. " +
-                (input.textHint ? `Kullanıcı notu: ${input.textHint}` : "")
-            },
-            { inlineData: { mimeType: input.mimeType ?? "image/jpeg", data: input.imageBase64 } }
-          ]
+          content: input.imageBase64
+            ? [
+                { type: "text", text: instruction },
+                { type: "image_url", image_url: { url: `data:${input.mimeType ?? "image/jpeg"};base64,${input.imageBase64}` } }
+              ]
+            : instruction
         }
       ],
-      config: {
-        responseMimeType: "application/json",
-        responseJsonSchema: receiptSchema
-      }
-    } as never);
-    return JSON.parse(response.text ?? "{}") as ReceiptScanResult;
+      fallback
+    );
+  }
+
+  private fallbackReceipt(): ReceiptScanResult {
+    return {
+      merchant: "Demo Market",
+      totalAmount: 1249.9,
+      taxAmount: 113.63,
+      occurredAt: "2026-05-08",
+      categoryName: "Market",
+      paymentMethod: "credit_card",
+      confidence: 0.91,
+      lineItems: [
+        { name: "Temel gıda", amount: 720.4 },
+        { name: "Temizlik", amount: 529.5 }
+      ]
+    };
   }
 }

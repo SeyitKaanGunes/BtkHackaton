@@ -18,7 +18,7 @@ import {
 } from "@finshadow/shared";
 
 const defaultUrl = Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
-const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? defaultUrl;
+const apiUrl = defaultUrl;
 
 async function request<T>(path: string, fallback: () => T, init?: RequestInit): Promise<T> {
   try {

@@ -1,6 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import {
   buildAgentEvidence,
   buildWhatIfScenarios,
@@ -11,6 +10,7 @@ import {
   type ActionItem,
   type AgentResponse
 } from "@finshadow/shared";
+import { QwenService } from "../ai/qwen.service.js";
 import { DataStoreService } from "../data/data-store.service.js";
 
 const AgentState = Annotation.Root({
@@ -30,7 +30,10 @@ const AgentState = Annotation.Root({
 
 @Injectable()
 export class AgentService {
-  constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
+  constructor(
+    @Inject(DataStoreService) private readonly store: DataStoreService,
+    @Inject(QwenService) private readonly qwen: QwenService
+  ) {}
 
   async chat(message: string): Promise<AgentResponse> {
     const graph = new StateGraph(AgentState)
@@ -94,13 +97,16 @@ export class AgentService {
     const result = await graph.invoke({ message });
     const dashboard = calculateDashboardSummary(this.store.accounts, this.store.transactions, this.store.goals, this.store.actions);
     const readiness = calculateCampaignReadiness(this.store.transactions);
+    const deterministicAnswer =
+      result.answer ??
+      `Finansal sağlık skorun ${dashboard.financialHealthScore}/100. Kampanya hazırlık skorun ${readiness.score}/100 ve güvenli limit ${readiness.safeLimit} TL.`;
+    const evidence = buildAgentEvidence();
+    const answer = await this.polishAnswer(message, deterministicAnswer, evidence);
     return {
-      answer:
-        result.answer ??
-        `Finansal sağlık skorun ${dashboard.financialHealthScore}/100. Kampanya hazırlık skorun ${readiness.score}/100 ve güvenli limit ${readiness.safeLimit} TL.`,
+      answer,
       confidence: result.confidence ?? 0.82,
       routedAgents: result.routedAgents,
-      evidence: buildAgentEvidence(),
+      evidence,
       assumptions: [
         "Hesaplama Mayıs 2026 demo verileriyle yapılmıştır.",
         "LLM açıklama üretir; tutar ve skorlar deterministik servislerden gelir.",
@@ -124,18 +130,42 @@ export class AgentService {
   }
 
   private async educationalAnswer(message: string) {
-    if (!process.env.GOOGLE_API_KEY) {
+    if (!this.qwen.isConfigured()) {
       return "Finansal okuryazarlık koçu: Kredi kartı asgari ödemesi borcu kapatmaz; kalan borca faiz işler ve gelecek ay bütçe baskısı yaratır.";
     }
-    const model = new ChatGoogleGenerativeAI({
-      model: "gemini-2.5-flash",
-      apiKey: process.env.GOOGLE_API_KEY,
-      temperature: 0.2
-    });
-    const response = await model.invoke([
-      ["system", "Türkçe, kısa ve finansal tavsiye yerine eğitim odaklı açıklama yap."],
-      ["human", message]
-    ]);
-    return String(response.content);
+    try {
+      const response = await this.qwen.chat([
+        { role: "system", content: "Türkçe, kısa ve finansal tavsiye yerine eğitim odaklı açıklama yap." },
+        { role: "user", content: message }
+      ]);
+      return response.content;
+    } catch {
+      return "Finansal okuryazarlık koçu: Kredi kartı asgari ödemesi borcu kapatmaz; kalan borca faiz işler ve gelecek ay bütçe baskısı yaratır.";
+    }
+  }
+
+  private async polishAnswer(message: string, draft: string, evidence: AgentResponse["evidence"]) {
+    if (!this.qwen.isConfigured()) return draft;
+    try {
+      const response = await this.qwen.chat([
+        {
+          role: "system",
+          content:
+            "FINSHADOW finans agentısın. Hesapları değiştirme; verilen deterministik sonucu daha anlaşılır Türkçe ile açıkla. " +
+            "Kısa konuş, yatırım tavsiyesi verme, kullanıcı onayı olmadan aksiyon kesinleştirme."
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            userQuestion: message,
+            deterministicDraft: draft,
+            evidence
+          })
+        }
+      ]);
+      return response.content || draft;
+    } catch {
+      return draft;
+    }
   }
 }

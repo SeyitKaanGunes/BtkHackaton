@@ -1,23 +1,4 @@
 {
-  "expo": {
-    "name": "FINSHADOW",
-    "slug": "finshadow",
-    "version": "0.1.0",
-    "orientation": "portrait",
-    "scheme": "finshadow",
-    "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.finshadow.app"
-    },
-    "android": {
-      "package": "com.finshadow.app",
-      "adaptiveIcon": {
-        "backgroundColor": "#17211d"
-      }
-    },
-    "extra": {
-      "apiUrl": "http://localhost:4000"
-    }
-  }
+  "name": "FinshadowMobile",
+  "displayName": "FINSHADOW"
 }

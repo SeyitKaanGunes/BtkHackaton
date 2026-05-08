@@ -4,6 +4,7 @@ import { JwtModule } from "@nestjs/jwt";
 import { ActionsController } from "./actions/actions.controller.js";
 import { AgentController } from "./agent/agent.controller.js";
 import { AgentService } from "./agent/agent.service.js";
+import { QwenService } from "./ai/qwen.service.js";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthService } from "./auth/auth.service.js";
 import { BusinessController } from "./business/business.controller.js";
@@ -21,7 +22,7 @@ import { TransactionsController } from "./transactions/transactions.controller.j
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: ["apps/api/.env", ".env"] }),
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: ["../../.env", "apps/api/.env", ".env"] }),
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET ?? "finshadow-local-dev-secret",
@@ -42,6 +43,6 @@ import { TransactionsController } from "./transactions/transactions.controller.j
     SubscriptionsController,
     TransactionsController
   ],
-  providers: [AgentService, AuthService, DataStoreService, DocumentsService, PrismaService]
+  providers: [AgentService, AuthService, DataStoreService, DocumentsService, PrismaService, QwenService]
 })
 export class AppModule {}
