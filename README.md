@@ -1,4 +1,4 @@
-# FINTRINK
+# FINTWIN
 
 AI-powered Financial Digital Twin platform for personal finance first, with a separate KOBI/AI CFO module.
 
