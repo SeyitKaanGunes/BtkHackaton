@@ -5,7 +5,9 @@ build/
 .next/
 .expo/
 .turbo/
+.playwright-mcp/
 coverage/
+*.tsbuildinfo
 
 # Environment and secrets
 .env
