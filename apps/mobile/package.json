@@ -1,0 +1,31 @@
+{
+  "name": "@finshadow/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo/AppEntry",
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo start --ios",
+    "android": "expo start --android",
+    "build": "npm run typecheck",
+    "lint": "npm run typecheck",
+    "typecheck": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @finshadow/shared && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@finshadow/shared": "0.1.0",
+    "expo": "^55.0.23",
+    "expo-image-picker": "^55.0.20",
+    "expo-speech": "^55.0.13",
+    "expo-status-bar": "^55.0.6",
+    "lucide-react-native": "^0.562.0",
+    "react": "^19.2.0",
+    "react-native": "^0.83.6",
+    "react-native-svg": "^15.15.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  }
+}
