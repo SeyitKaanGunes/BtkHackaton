@@ -15,6 +15,9 @@ coverage/
 !.env.example
 !apps/**/.env.example
 
+# Local prompt files may contain secrets (API keys etc.); never commit
+prompts/
+
 # Mobile/native generated artifacts
 *.keystore
 *.p8

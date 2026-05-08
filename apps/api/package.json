@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start:dev": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @finshadow/shared && tsx watch src/main.ts",
+    "start:dev": "npm run build -w @finshadow/shared && tsx watch src/main.ts",
     "start": "node dist/main.js",
-    "build": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @finshadow/shared && tsc -p tsconfig.json",
-    "lint": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @finshadow/shared && tsc -p tsconfig.json --noEmit",
-    "typecheck": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @finshadow/shared && tsc -p tsconfig.json --noEmit",
-    "test": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @finshadow/shared && vitest run",
+    "build": "npm run build -w @finshadow/shared && tsc -p tsconfig.json",
+    "lint": "npm run build -w @finshadow/shared && tsc -p tsconfig.json --noEmit",
+    "typecheck": "npm run build -w @finshadow/shared && tsc -p tsconfig.json --noEmit",
+    "test": "npm run build -w @finshadow/shared && vitest run",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma"
   },
   "dependencies": {
@@ -25,6 +25,7 @@
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
+    "openai": "^4.79.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },

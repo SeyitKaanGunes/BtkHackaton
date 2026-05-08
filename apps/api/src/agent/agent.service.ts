@@ -97,16 +97,13 @@ export class AgentService {
     const result = await graph.invoke({ message });
     const dashboard = calculateDashboardSummary(this.store.accounts, this.store.transactions, this.store.goals, this.store.actions);
     const readiness = calculateCampaignReadiness(this.store.transactions);
-    const deterministicAnswer =
-      result.answer ??
-      `Finansal sağlık skorun ${dashboard.financialHealthScore}/100. Kampanya hazırlık skorun ${readiness.score}/100 ve güvenli limit ${readiness.safeLimit} TL.`;
-    const evidence = buildAgentEvidence();
-    const answer = await this.polishAnswer(message, deterministicAnswer, evidence);
     return {
-      answer,
+      answer:
+        result.answer ??
+        `Finansal sağlık skorun ${dashboard.financialHealthScore}/100. Kampanya hazırlık skorun ${readiness.score}/100 ve güvenli limit ${readiness.safeLimit} TL.`,
       confidence: result.confidence ?? 0.82,
       routedAgents: result.routedAgents,
-      evidence,
+      evidence: buildAgentEvidence(),
       assumptions: [
         "Hesaplama Mayıs 2026 demo verileriyle yapılmıştır.",
         "LLM açıklama üretir; tutar ve skorlar deterministik servislerden gelir.",
@@ -129,43 +126,18 @@ export class AgentService {
     return match ? Number(match[1]) : 10000;
   }
 
-  private async educationalAnswer(message: string) {
-    if (!this.qwen.isConfigured()) {
-      return "Finansal okuryazarlık koçu: Kredi kartı asgari ödemesi borcu kapatmaz; kalan borca faiz işler ve gelecek ay bütçe baskısı yaratır.";
-    }
+  private async educationalAnswer(message: string): Promise<string> {
+    const fallback =
+      "Finansal okuryazarlık koçu: Kredi kartı asgari ödemesi borcu kapatmaz; kalan borca faiz işler ve gelecek ay bütçe baskısı yaratır.";
+    if (!this.qwen.isConfigured()) return fallback;
     try {
       const response = await this.qwen.chat([
         { role: "system", content: "Türkçe, kısa ve finansal tavsiye yerine eğitim odaklı açıklama yap." },
         { role: "user", content: message }
       ]);
-      return response.content;
+      return response.content || "";
     } catch {
-      return "Finansal okuryazarlık koçu: Kredi kartı asgari ödemesi borcu kapatmaz; kalan borca faiz işler ve gelecek ay bütçe baskısı yaratır.";
-    }
-  }
-
-  private async polishAnswer(message: string, draft: string, evidence: AgentResponse["evidence"]) {
-    if (!this.qwen.isConfigured()) return draft;
-    try {
-      const response = await this.qwen.chat([
-        {
-          role: "system",
-          content:
-            "FINSHADOW finans agentısın. Hesapları değiştirme; verilen deterministik sonucu daha anlaşılır Türkçe ile açıkla. " +
-            "Kısa konuş, yatırım tavsiyesi verme, kullanıcı onayı olmadan aksiyon kesinleştirme."
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            userQuestion: message,
-            deterministicDraft: draft,
-            evidence
-          })
-        }
-      ]);
-      return response.content || draft;
-    } catch {
-      return draft;
+      return fallback;
     }
   }
 }
