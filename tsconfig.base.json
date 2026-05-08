@@ -12,9 +12,6 @@
     "isolatedModules": false,
     "declaration": true,
     "sourceMap": true,
-    "baseUrl": ".",
-    "paths": {
-      "@finshadow/shared": ["packages/shared/src/index.ts"]
-    }
+    "baseUrl": "."
   }
 }

@@ -1,0 +1,14 @@
+import { Body, Controller, Post } from "@nestjs/common";
+import { DEMO_USER_ID } from "@finshadow/shared";
+import { DataStoreService } from "../data/data-store.service.js";
+
+@Controller("notifications")
+export class NotificationsController {
+  constructor(private readonly store: DataStoreService) {}
+
+  @Post("fcm-token")
+  saveToken(@Body() body: { token: string; platform: "ios" | "android" | "web" }) {
+    this.store.fcmTokens.push({ userId: DEMO_USER_ID, token: body.token, platform: body.platform });
+    return { saved: true, platform: body.platform };
+  }
+}
