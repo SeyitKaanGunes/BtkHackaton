@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  passwordHash String
+  persona      String        @default("young_professional")
+  monthlyIncome Decimal      @default(0)
+  payday       Int           @default(5)
+  createdAt    DateTime      @default(now())
+  accounts     Account[]
+  transactions Transaction[]
+  budgets      Budget[]
+  goals        Goal[]
+  actions      ActionItem[]
+  businesses   Business[]
+}
+
+model Account {
+  id          String        @id @default(cuid())
+  userId      String
+  name        String
+  type        String
+  balance     Decimal      @default(0)
+  currency    String       @default("TRY")
+  creditLimit Decimal?
+  user        User         @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+}
+
+model Category {
+  id           String        @id
+  name         String
+  kind         String
+  color        String
+  transactions Transaction[]
+  budgets      Budget[]
+  subscriptions Subscription[]
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  userId        String
+  accountId     String
+  categoryId    String
+  merchant      String
+  amount        Decimal
+  currency      String   @default("TRY")
+  type          String
+  occurredAt    DateTime
+  paymentMethod String
+  tags          String[] @default([])
+  recurring     Boolean  @default(false)
+  user          User     @relation(fields: [userId], references: [id])
+  account       Account  @relation(fields: [accountId], references: [id])
+  category      Category @relation(fields: [categoryId], references: [id])
+}
+
+model Budget {
+  id           String   @id @default(cuid())
+  userId       String
+  categoryId   String
+  monthlyLimit Decimal
+  user         User     @relation(fields: [userId], references: [id])
+  category     Category @relation(fields: [categoryId], references: [id])
+}
+
+model Goal {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String
+  targetAmount  Decimal
+  currentAmount Decimal
+  deadline      DateTime
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+model Subscription {
+  id             String   @id @default(cuid())
+  userId         String
+  merchant       String
+  categoryId     String
+  amount         Decimal
+  currency       String   @default("TRY")
+  cadence        String
+  lastUsedAt     DateTime?
+  previousAmount Decimal?
+  category       Category @relation(fields: [categoryId], references: [id])
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  userId      String
+  kind        String
+  merchant    String?
+  totalAmount Decimal?
+  taxAmount   Decimal?
+  occurredAt  DateTime?
+  rawResult    Json
+  createdAt    DateTime @default(now())
+}
+
+model ActionItem {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String
+  title       String
+  description String
+  dueAt       DateTime?
+  status      String   @default("pending")
+  source      String
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Simulation {
+  id          String   @id @default(cuid())
+  userId      String
+  kind        String
+  input       Json
+  output      Json
+  createdAt   DateTime @default(now())
+}
+
+model AgentConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  message   String
+  answer    String
+  evidence  Json
+  createdAt DateTime @default(now())
+}
+
+model FcmToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now())
+}
+
+model Business {
+  id        String   @id @default(cuid())
+  ownerId   String
+  name      String
+  sector    String
+  cashBalance Decimal @default(0)
+  owner     User     @relation(fields: [ownerId], references: [id])
+  customers BusinessCustomer[]
+  cashEvents BusinessCashEvent[]
+}
+
+model BusinessCustomer {
+  id                String   @id @default(cuid())
+  businessId        String
+  name              String
+  averageDelayDays  Int      @default(0)
+  invoicesPaid      Int      @default(0)
+  invoicesLate      Int      @default(0)
+  outstandingAmount Decimal  @default(0)
+  business          Business @relation(fields: [businessId], references: [id])
+}
+
+model BusinessCashEvent {
+  id         String   @id @default(cuid())
+  businessId String
+  title      String
+  amount     Decimal
+  type       String
+  dueAt      DateTime
+  business   Business @relation(fields: [businessId], references: [id])
+}

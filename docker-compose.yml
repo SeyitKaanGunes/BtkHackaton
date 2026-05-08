@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: finshadow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: finshadow
+      POSTGRES_PASSWORD: finshadow
+      POSTGRES_DB: finshadow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

@@ -1,0 +1,28 @@
+.DS_Store
+node_modules/
+dist/
+build/
+.next/
+.expo/
+.turbo/
+coverage/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!apps/**/.env.example
+
+# Mobile/native generated artifacts
+apps/mobile/ios/
+apps/mobile/android/
+*.keystore
+*.p8
+GoogleService-Info.plist
+google-services.json
+
+# Logs and local databases
+*.log
+*.sqlite
+*.sqlite3
+postgres-data/
