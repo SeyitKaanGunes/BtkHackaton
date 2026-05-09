@@ -199,6 +199,15 @@ export const styles = StyleSheet.create({
     backgroundColor: "#fbfcfa",
     textAlignVertical: "top"
   },
+  dateInput: {
+    minHeight: 44,
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    color: palette.ink,
+    backgroundColor: "#fbfcfa"
+  },
   primaryButton: {
     backgroundColor: palette.ink,
     borderRadius: 8,
@@ -215,5 +224,35 @@ export const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     gap: 6
+  },
+  segmented: {
+    flexDirection: "row",
+    backgroundColor: palette.surface2,
+    borderRadius: 8,
+    padding: 4,
+    gap: 4
+  },
+  segment: {
+    flex: 1,
+    borderRadius: 6,
+    paddingVertical: 9,
+    alignItems: "center"
+  },
+  segmentActive: {
+    backgroundColor: "#ffffff"
+  },
+  segmentText: {
+    color: palette.muted,
+    fontWeight: "800"
+  },
+  segmentTextActive: {
+    color: palette.ink,
+    fontWeight: "900"
+  },
+  subscriptionCard: {
+    borderTopColor: palette.line,
+    borderTopWidth: 1,
+    paddingTop: 12,
+    gap: 10
   }
 });

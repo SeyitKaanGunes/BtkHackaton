@@ -14,7 +14,7 @@ import type {
   SubscriptionLeak,
   WhatIfResponse
 } from "@fintwin/shared";
-import { importReceiptExpense, importStatement, loadBusiness, loadMobileHome, sendAgentMessage } from "./src/api";
+import { createSubscriptionReminder, importReceiptExpense, importStatement, loadBusiness, loadMobileHome, sendAgentMessage } from "./src/api";
 import { palette, Panel, PillButton, RiskBar, Stat, styles } from "./src/ui";
 
 type Tab = "home" | "agent" | "scan" | "business";
@@ -154,6 +154,9 @@ function ScanScreen({ onImported }: { onImported: () => void }) {
   const [statementResult, setStatementResult] = useState<StatementImportResult | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [statementLoading, setStatementLoading] = useState(false);
+  const [statementMode, setStatementMode] = useState<"items" | "subscriptions">("items");
+  const [reminderDates, setReminderDates] = useState<Record<string, string>>({});
+  const [scheduledReminderId, setScheduledReminderId] = useState<string | null>(null);
 
   async function captureReceipt() {
     setReceiptLoading(true);
@@ -188,9 +191,25 @@ function ScanScreen({ onImported }: { onImported: () => void }) {
       const asset = image.assets?.[0];
       const next = await importStatement(asset?.base64 ?? undefined, asset?.type ?? undefined);
       setStatementResult(next);
+      setReminderDates(Object.fromEntries(next.recurringSubscriptions.map((subscription) => [subscription.id, subscription.nextEstimatedAt])));
+      setStatementMode(next.recurringSubscriptions.length ? "subscriptions" : "items");
       onImported();
     }
     setStatementLoading(false);
+  }
+
+  async function scheduleSubscriptionReminder(subscriptionId: string) {
+    const subscription = statementResult?.recurringSubscriptions.find((item) => item.id === subscriptionId);
+    if (!subscription) return;
+    const remindAt = reminderDates[subscription.id] ?? subscription.nextEstimatedAt;
+    await createSubscriptionReminder({
+      merchant: subscription.merchant,
+      amount: subscription.amount,
+      remindAt,
+      note: `${statementResult?.statementMonth} ekstresinden tespit edildi`
+    });
+    setScheduledReminderId(subscription.id);
+    onImported();
   }
 
   return (
@@ -227,12 +246,39 @@ function ScanScreen({ onImported }: { onImported: () => void }) {
           <Text style={styles.sectionTitle}>{statementResult.statementMonth} ekstresi</Text>
           <Text style={styles.statValue}>{statementResult.totalAmount.toLocaleString("tr-TR")} TL</Text>
           <Text style={styles.muted}>{statementResult.importedCount} kalem giderlere eklendi.</Text>
-          {(statementResult.transactions.length ? statementResult.transactions : statementResult.items).slice(0, 6).map((item) => (
-            <View style={styles.row} key={`${item.merchant}-${item.amount}-${item.occurredAt}`}>
-              <Text style={styles.rowText}>{item.merchant}</Text>
-              <Text style={styles.muted}>{item.amount.toLocaleString("tr-TR")} TL</Text>
-            </View>
-          ))}
+          <View style={styles.segmented}>
+            <TouchableOpacity style={[styles.segment, statementMode === "items" && styles.segmentActive]} onPress={() => setStatementMode("items")}>
+              <Text style={statementMode === "items" ? styles.segmentTextActive : styles.segmentText}>Kalemler</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.segment, statementMode === "subscriptions" && styles.segmentActive]} onPress={() => setStatementMode("subscriptions")}>
+              <Text style={statementMode === "subscriptions" ? styles.segmentTextActive : styles.segmentText}>Abonelikler</Text>
+            </TouchableOpacity>
+          </View>
+          {statementMode === "items"
+            ? (statementResult.transactions.length ? statementResult.transactions : statementResult.items).slice(0, 6).map((item) => (
+                <View style={styles.row} key={`${item.merchant}-${item.amount}-${item.occurredAt}`}>
+                  <Text style={styles.rowText}>{item.merchant}</Text>
+                  <Text style={styles.muted}>{item.amount.toLocaleString("tr-TR")} TL</Text>
+                </View>
+              ))
+            : statementResult.recurringSubscriptions.map((subscription) => (
+                <View style={styles.subscriptionCard} key={subscription.id}>
+                  <Text style={styles.rowText}>{subscription.merchant}</Text>
+                  <Text style={styles.muted}>
+                    {subscription.amount.toLocaleString("tr-TR")} TL · {subscription.occurrenceCount} tekrar · önerilen {subscription.nextEstimatedAt}
+                  </Text>
+                  <TextInput
+                    value={reminderDates[subscription.id] ?? subscription.nextEstimatedAt}
+                    onChangeText={(value) => setReminderDates((current) => ({ ...current, [subscription.id]: value }))}
+                    style={styles.dateInput}
+                    placeholder="YYYY-MM-DD"
+                  />
+                  <TouchableOpacity style={styles.primaryButton} onPress={() => scheduleSubscriptionReminder(subscription.id)}>
+                    <Text style={styles.primaryButtonText}>{scheduledReminderId === subscription.id ? "Hatırlatma kuruldu" : "Bu tarihte hatırlat"}</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+          {statementMode === "subscriptions" && !statementResult.recurringSubscriptions.length ? <Text style={styles.muted}>Tekrar eden abonelik bulunamadı.</Text> : null}
         </Panel>
       ) : null}
     </>
