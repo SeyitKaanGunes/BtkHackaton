@@ -40,18 +40,16 @@ describe("API feature services", () => {
     expect(result.suggestedActions[0]?.type).toBe("delay_purchase");
   });
 
-  it("returns deterministic receipt OCR fallback without Qwen key", async () => {
+  it("rejects receipt OCR when no document is provided", async () => {
     const documents = new DocumentsService(new QwenService());
-    const result = await documents.scanReceipt({});
-    expect(result.merchant).toBe("Demo Market");
-    expect(result.totalAmount).toBeGreaterThan(0);
+    await expect(documents.scanReceipt({})).rejects.toThrow("imageBase64 is required");
   });
 
   it("imports a scanned receipt as an expense transaction", async () => {
     const store = createTestStore();
-    const receiptAgent = new ReceiptExpenseAgentService(new DocumentsService(new QwenService()), store);
+    const receiptAgent = new ReceiptExpenseAgentService(new DocumentsService(qwenWith(receiptJson)), store);
     const before = store.transactions.length;
-    const result = await receiptAgent.importReceipt({});
+    const result = await receiptAgent.importReceipt({ imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" });
     expect(result.agentName).toBe("Receipt Agent");
     expect(result.transaction.type).toBe("expense");
     expect(result.transaction.tags).toContain("receipt_agent");
@@ -60,9 +58,9 @@ describe("API feature services", () => {
 
   it("imports statement line items as categorized expense transactions", async () => {
     const store = createTestStore();
-    const statementAgent = new StatementExpenseAgentService(new DocumentsService(new QwenService()), store);
+    const statementAgent = new StatementExpenseAgentService(new DocumentsService(qwenWith(statementJson)), store);
     const before = store.transactions.length;
-    const result = await statementAgent.importStatement({});
+    const result = await statementAgent.importStatement({ statementText: "StreamPlus 219 TL 2026-05-01" });
     expect(result.agentName).toBe("Statement Agent");
     expect(result.importedCount).toBeGreaterThan(1);
     expect(result.recurringSubscriptions.length).toBeGreaterThan(0);
@@ -167,4 +165,33 @@ function createTestStore(): DataStoreService {
     }
   };
   return store as unknown as DataStoreService;
+}
+
+const receiptJson = JSON.stringify({
+  merchant: "Canli Market",
+  totalAmount: 1249.9,
+  taxAmount: 113.63,
+  occurredAt: "2026-05-08",
+  categoryName: "Market",
+  paymentMethod: "credit_card",
+  confidence: 0.91,
+  lineItems: [
+    { name: "Temel gida", amount: 720.4 },
+    { name: "Temizlik", amount: 529.5 }
+  ]
+});
+
+const statementJson = JSON.stringify({
+  statementMonth: "2026-05",
+  items: [
+    { merchant: "TeknoMarket", amount: 9800, occurredAt: "2026-05-07", categoryName: "Teknoloji", paymentMethod: "credit_card", confidence: 0.88 },
+    { merchant: "StreamPlus", amount: 219, occurredAt: "2026-05-01", categoryName: "Abonelik", paymentMethod: "credit_card", confidence: 0.9 }
+  ]
+});
+
+function qwenWith(content: string): QwenService {
+  return {
+    isConfigured: () => true,
+    chat: vi.fn(async () => ({ content, model: "test-qwen" }))
+  } as unknown as QwenService;
 }

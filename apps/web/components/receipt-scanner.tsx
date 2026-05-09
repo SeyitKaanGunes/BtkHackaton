@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, FileScan, Loader2, ReceiptText, Upload } from "lucide-react";
+import { Camera, Upload } from "lucide-react";
 import type { ReceiptExpenseImportResult, StatementImportResult } from "@fintwin/shared";
 import { postReceiptExpenseImport, postStatementImport, postSubscriptionReminder } from "../lib/api";
 
@@ -37,32 +37,45 @@ export function ReceiptScanner() {
   const [statementTab, setStatementTab] = useState<"transactions" | "subscriptions">("transactions");
   const [reminderDates, setReminderDates] = useState<Record<string, string>>({});
   const [scheduledReminderId, setScheduledReminderId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function onReceiptFile(file?: File) {
     setReceiptLoading(true);
-    const base64 = file ? await readFileAsBase64(file) : undefined;
-    const result = await postReceiptExpenseImport(base64, file?.type, file?.name);
-    setReceiptResult(result);
-    setReceiptLoading(false);
-    router.refresh();
+    setError(null);
+    try {
+      const base64 = file ? await readFileAsBase64(file) : undefined;
+      const result = await postReceiptExpenseImport(base64, file?.type, file?.name);
+      setReceiptResult(result);
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Fiş işlenemedi.");
+    } finally {
+      setReceiptLoading(false);
+    }
   }
 
   async function onStatementFile(file?: File) {
     setStatementLoading(true);
-    const [imageBase64, statementText] = file ? await Promise.all([readFileAsBase64(file), readFileAsText(file)]) : [undefined, undefined];
-    const result = await postStatementImport({
-      imageBase64: statementText ? undefined : imageBase64,
-      statementText,
-      mimeType: file?.type,
-      fileName: file?.name
-    });
-    setStatementResult(result);
-    setReminderDates(
-      Object.fromEntries(result.recurringSubscriptions.map((subscription) => [subscription.id, subscription.nextEstimatedAt]))
-    );
-    setStatementTab(result.recurringSubscriptions.length ? "subscriptions" : "transactions");
-    setStatementLoading(false);
-    router.refresh();
+    setError(null);
+    try {
+      const [imageBase64, statementText] = file ? await Promise.all([readFileAsBase64(file), readFileAsText(file)]) : [undefined, undefined];
+      const result = await postStatementImport({
+        imageBase64: statementText ? undefined : imageBase64,
+        statementText,
+        mimeType: file?.type,
+        fileName: file?.name
+      });
+      setStatementResult(result);
+      setReminderDates(
+        Object.fromEntries(result.recurringSubscriptions.map((subscription) => [subscription.id, subscription.nextEstimatedAt]))
+      );
+      setStatementTab(result.recurringSubscriptions.length ? "subscriptions" : "transactions");
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Ekstre işlenemedi.");
+    } finally {
+      setStatementLoading(false);
+    }
   }
 
   async function scheduleReminder(subscriptionId: string) {
@@ -83,14 +96,11 @@ export function ReceiptScanner() {
     <div className="receipt-grid">
       <label className="upload-zone">
         <Camera size={32} />
-        <strong>Fişi kameradan okut ve giderlere ekle</strong>
+        <strong>{receiptLoading ? "Fiş işleniyor" : "Fişi kameradan okut ve giderlere ekle"}</strong>
         <span>Receipt Agent tutar, tarih, satıcı, KDV, kategori ve ödeme tipini çıkarır; gider transaction'ını otomatik oluşturur.</span>
         <input type="file" accept="image/*" capture="environment" onChange={(event) => onReceiptFile(event.target.files?.[0])} />
       </label>
-      <button className="secondary-button" onClick={() => onReceiptFile()} disabled={receiptLoading}>
-        {receiptLoading ? <Loader2 size={18} className="spin" /> : <ReceiptText size={18} />}
-        Demo fişi giderlere ekle
-      </button>
+      {error ? <p className="form-message">{error}</p> : null}
       {receiptResult ? (
         <div className="panel receipt-result">
           <div className="section-title">
@@ -119,14 +129,10 @@ export function ReceiptScanner() {
       ) : null}
       <label className="upload-zone">
         <Upload size={32} />
-        <strong>Ay sonu ekstresini yükle</strong>
+        <strong>{statementLoading ? "Ekstre işleniyor" : "Ay sonu ekstresini yükle"}</strong>
         <span>Statement Agent ekstredeki aylık harcama kalemlerini ayrıştırır, kategorize eder ve her birini gider olarak ekler.</span>
         <input type="file" accept="image/*,.pdf,.txt,.csv" onChange={(event) => onStatementFile(event.target.files?.[0])} />
       </label>
-      <button className="secondary-button" onClick={() => onStatementFile()} disabled={statementLoading}>
-        {statementLoading ? <Loader2 size={18} className="spin" /> : <FileScan size={18} />}
-        Demo ekstresini içeri aktar
-      </button>
       {statementResult ? (
         <div className="panel receipt-result">
           <div className="section-title">

@@ -142,9 +142,9 @@ export class AgentService {
   }
 
   private async educationalAnswer(message: string): Promise<string> {
-    const fallback =
-      "Finansal okuryazarlık koçu: Kredi kartı asgari ödemesi borcu kapatmaz; kalan borca faiz işler ve gelecek ay bütçe baskısı yaratır.";
-    if (!this.qwen.isConfigured()) return fallback;
+    const unavailable =
+      "Finansal eğitim cevabı için Qwen yapılandırması gerekli. QWEN_API_KEY eklenmeden bu bölüm demo cevap üretmez.";
+    if (!this.qwen.isConfigured()) return unavailable;
     try {
       const response = await this.qwen.chat([
         { role: "system", content: "Türkçe, kısa ve finansal tavsiye yerine eğitim odaklı açıklama yap." },
@@ -152,7 +152,7 @@ export class AgentService {
     ]);
       return response.content || "";
     } catch {
-      return fallback;
+      return unavailable;
     }
   }
 }

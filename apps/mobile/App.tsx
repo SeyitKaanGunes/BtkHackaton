@@ -55,19 +55,21 @@ export default function App() {
   const [home, setHome] = useState<HomeData | null>(null);
   const [business, setBusiness] = useState<BusinessData | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadMobileHome().then(setHome);
-    void loadBusiness().then(setBusiness);
+    setLoadError(null);
+    void loadMobileHome().then(setHome).catch((error) => setLoadError(error instanceof Error ? error.message : "Veri yüklenemedi."));
+    void loadBusiness().then(setBusiness).catch((error) => setLoadError(error instanceof Error ? error.message : "Veri yüklenemedi."));
   }, []);
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={palette.bg} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {tab === "home" && (home ? <HomeScreen {...home} /> : <Loading />)}
+        {tab === "home" && (home ? <HomeScreen {...home} /> : loadError ? <LoadError message={loadError} /> : <Loading />)}
         {tab === "portfolio" && <PortfolioScreen />}
-        {tab === "business" && (business ? <BusinessScreen {...business} /> : <Loading />)}
+        {tab === "business" && (business ? <BusinessScreen {...business} /> : loadError ? <LoadError message={loadError} /> : <Loading />)}
       </ScrollView>
       <View style={styles.tabBar}>
         <BottomTabButton
@@ -989,8 +991,18 @@ function Loading() {
   return (
     <View style={localStyles.loading}>
       <ActivityIndicator color={palette.primary} />
-      <Text style={styles.bodyMuted}>Demo veriler hazırlanıyor...</Text>
+      <Text style={styles.bodyMuted}>Veriler yükleniyor...</Text>
     </View>
+  );
+}
+
+function LoadError({ message }: { message: string }) {
+  return (
+    <Panel>
+      <SectionTitle title="API bağlantısı kurulamadı" meta="demo kapalı" />
+      <Text style={styles.body}>{message}</Text>
+      <Text style={styles.bodyMuted}>Backend'i çalıştır ya da offline demo için EXPO_PUBLIC_ENABLE_DEMO_FALLBACK=true ayarla.</Text>
+    </Panel>
   );
 }
 

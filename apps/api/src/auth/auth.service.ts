@@ -37,13 +37,16 @@ export class AuthService {
   }
 
   async me(userId: string) {
-    const user = (await this.store.findUserById(userId)) ?? this.store.getDemoUser();
+    const user = await this.store.findUserById(userId);
+    if (!user) {
+      throw new UnauthorizedException("Kullanıcı bulunamadı.");
+    }
     const { passwordHash: _passwordHash, ...safeUser } = user;
     return safeUser;
   }
 
   verifyToken(token?: string) {
-    if (!token) return this.store.getDemoUser().id;
+    if (!token) throw new UnauthorizedException("Authorization token gerekli.");
     const cleaned = token.replace(/^Bearer\s+/i, "");
     const payload = this.jwt.verify<{ sub: string }>(cleaned);
     return payload.sub;

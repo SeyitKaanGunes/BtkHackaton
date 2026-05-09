@@ -26,6 +26,11 @@ npm run dev:mobile
 
 Never commit `.env` files. Only `.env.example` files belong in git.
 
+Demo fallbacks are opt-in. Web and mobile call the API by default and surface API errors instead of silently rendering local demo data. For an offline demo, set:
+
+- `NEXT_PUBLIC_ENABLE_DEMO_FALLBACK=true`
+- `EXPO_PUBLIC_ENABLE_DEMO_FALLBACK=true`
+
 Local Qwen defaults:
 
 - Text model: `qwen-plus`
@@ -51,3 +56,5 @@ The KOBI features live separately under the business module: AI CFO Lite, cash f
 - `Receipt Agent`: `POST /documents/receipt-agent/import` reads a receipt image, detects merchant, amount, tax, date, payment method and category, then adds one expense transaction.
 - `Statement Agent`: `POST /documents/statement-agent/import` reads an end-of-month statement image/text, extracts monthly spending rows, categorizes each row and adds them as expense transactions.
 - Subscription reminders: `POST /actions/subscription-reminder` creates a dated pending action from recurring subscriptions detected in the statement analysis.
+
+Document agents require `QWEN_API_KEY`; they no longer return demo receipt or statement results when the key or input document is missing.

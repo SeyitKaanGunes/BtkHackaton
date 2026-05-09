@@ -26,7 +26,9 @@ import {
 } from "@fintwin/shared";
 
 const defaultUrl = Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
-const apiUrl = defaultUrl;
+const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+const apiUrl = runtimeEnv.EXPO_PUBLIC_API_URL ?? defaultUrl;
+const demoFallbackEnabled = runtimeEnv.EXPO_PUBLIC_ENABLE_DEMO_FALLBACK === "true";
 
 async function request<T>(path: string, fallback: () => T, init?: RequestInit): Promise<T> {
   try {
@@ -36,9 +38,24 @@ async function request<T>(path: string, fallback: () => T, init?: RequestInit): 
     });
     if (!response.ok) throw new Error(`API ${response.status}`);
     return (await response.json()) as T;
-  } catch {
+  } catch (error) {
+    if (demoFallbackEnabled) {
+      return fallback();
+    }
+    const message = error instanceof Error ? error.message : "Unknown API error";
+    throw new Error(`Fintwin API request failed for ${path}: ${message}`);
+  }
+}
+
+export function isDemoFallbackEnabled() {
+  return demoFallbackEnabled;
+}
+
+export function fallbackOnly<T>(fallback: () => T): T {
+  if (demoFallbackEnabled) {
     return fallback();
   }
+  throw new Error("Demo fallback is disabled. Set EXPO_PUBLIC_ENABLE_DEMO_FALLBACK=true to use local demo responses.");
 }
 
 export async function loadMobileHome(): Promise<{

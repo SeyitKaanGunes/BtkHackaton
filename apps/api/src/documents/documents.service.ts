@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { BadGatewayException, BadRequestException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import type { ReceiptScanResult, StatementLineItem } from "@fintwin/shared";
 import { QwenService } from "../ai/qwen.service.js";
 
@@ -51,8 +51,12 @@ export class DocumentsService {
   constructor(@Inject(QwenService) private readonly qwen: QwenService) {}
 
   async scanReceipt(input: { imageBase64?: string; mimeType?: string; textHint?: string }): Promise<ReceiptScanResult> {
-    const fallback = this.fallbackReceipt();
-    if (!this.qwen.isConfigured() || !input.imageBase64) return fallback;
+    if (!input.imageBase64) {
+      throw new BadRequestException("imageBase64 is required for receipt scanning.");
+    }
+    if (!this.qwen.isConfigured()) {
+      throw new ServiceUnavailableException("QWEN_API_KEY is not configured for receipt scanning.");
+    }
 
     const dataUrl = `data:${input.mimeType ?? "image/jpeg"};base64,${input.imageBase64}`;
     const userText =
@@ -76,13 +80,17 @@ export class DocumentsService {
 
       return JSON.parse(extractJson(response.content)) as ReceiptScanResult;
     } catch {
-      return fallback;
+      throw new BadGatewayException("Receipt OCR response could not be parsed.");
     }
   }
 
   async extractStatement(input: { statementText?: string; imageBase64?: string; mimeType?: string; fileName?: string }): Promise<StatementExtraction> {
-    const fallback = this.fallbackStatement();
-    if (!this.qwen.isConfigured() || (!input.statementText && !input.imageBase64)) return fallback;
+    if (!input.statementText && !input.imageBase64) {
+      throw new BadRequestException("statementText or imageBase64 is required for statement extraction.");
+    }
+    if (!this.qwen.isConfigured()) {
+      throw new ServiceUnavailableException("QWEN_API_KEY is not configured for statement extraction.");
+    }
 
     const prompt =
       "Bu ay sonu ekstresinden harcama kalemlerini çıkar ve kategorize et." +
@@ -109,36 +117,8 @@ export class DocumentsService {
         items: sanitizeStatementItems(parsed.items)
       };
     } catch {
-      return fallback;
+      throw new BadGatewayException("Statement extraction response could not be parsed.");
     }
-  }
-
-  private fallbackReceipt(): ReceiptScanResult {
-    return {
-      merchant: "Demo Market",
-      totalAmount: 1249.9,
-      taxAmount: 113.63,
-      occurredAt: "2026-05-08",
-      categoryName: "Market",
-      paymentMethod: "credit_card",
-      confidence: 0.91,
-      lineItems: [
-        { name: "Temel gıda", amount: 720.4 },
-        { name: "Temizlik", amount: 529.5 }
-      ]
-    };
-  }
-
-  private fallbackStatement(): StatementExtraction {
-    return {
-      statementMonth: "2026-05",
-      items: [
-        { merchant: "TeknoMarket", amount: 9800, occurredAt: "2026-05-07", categoryName: "Teknoloji", paymentMethod: "credit_card", confidence: 0.88 },
-        { merchant: "Gece Burger", amount: 840, occurredAt: "2026-05-08", categoryName: "Yemek", paymentMethod: "credit_card", confidence: 0.86 },
-        { merchant: "ModaBox", amount: 4200, occurredAt: "2026-05-08", categoryName: "Giyim", paymentMethod: "credit_card", confidence: 0.84 },
-        { merchant: "StreamPlus", amount: 219, occurredAt: "2026-05-01", categoryName: "Abonelik", paymentMethod: "credit_card", confidence: 0.9 }
-      ]
-    };
   }
 }
 
