@@ -25,7 +25,7 @@ import { TransactionsController } from "./transactions/transactions.controller.j
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ["../../.env", "apps/api/.env", ".env"] }),
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET ?? "finshadow-local-dev-secret",
+      secret: process.env.JWT_SECRET ?? "fintwin-local-dev-secret",
       signOptions: { expiresIn: "7d" }
     })
   ],

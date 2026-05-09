@@ -1,5 +1,5 @@
 import { Controller, Get, Inject } from "@nestjs/common";
-import { calculateCampaignReadiness } from "@finshadow/shared";
+import { calculateCampaignReadiness } from "@fintwin/shared";
 import { DataStoreService } from "../data/data-store.service.js";
 
 @Controller("campaigns")

@@ -1,12 +1,12 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: finshadow-postgres
+    container_name: fintwin-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: finshadow
-      POSTGRES_PASSWORD: finshadow
-      POSTGRES_DB: finshadow
+      POSTGRES_USER: fintwin
+      POSTGRES_PASSWORD: fintwin
+      POSTGRES_DB: fintwin
     ports:
       - "5432:5432"
     volumes:

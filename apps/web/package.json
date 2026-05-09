@@ -1,17 +1,17 @@
 {
-  "name": "@finshadow/web",
+  "name": "@fintwin/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "next dev --port 3000",
-    "build": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @finshadow/shared && next build",
-    "lint": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @finshadow/shared && next typegen && tsc -p tsconfig.json --noEmit",
-    "typecheck": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @finshadow/shared && next typegen && tsc -p tsconfig.json --noEmit",
+    "build": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @fintwin/shared && next build",
+    "lint": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @fintwin/shared && next typegen && tsc -p tsconfig.json --noEmit",
+    "typecheck": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @fintwin/shared && next typegen && tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@finshadow/shared": "0.1.0",
+    "@fintwin/shared": "0.1.0",
     "lucide-react": "^0.562.0",
     "next": "^16.0.10",
     "react": "^19.2.0",

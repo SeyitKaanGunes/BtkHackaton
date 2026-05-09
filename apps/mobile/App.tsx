@@ -12,7 +12,7 @@ import type {
   SpendingDna,
   SubscriptionLeak,
   WhatIfResponse
-} from "@finshadow/shared";
+} from "@fintwin/shared";
 import { loadBusiness, loadMobileHome, scanReceipt, sendAgentMessage } from "./src/api";
 import { palette, Panel, PillButton, RiskBar, Stat, styles } from "./src/ui";
 
@@ -66,7 +66,7 @@ function HomeScreen({
   return (
     <>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>FINSHADOW Mobil</Text>
+        <Text style={styles.eyebrow}>Fintwin Mobil</Text>
         <Text style={styles.title}>Finansal ikizin cebinde.</Text>
         <Text style={styles.subtitle}>iOS öncelikli demo; Android uyumlu React Native CLI temeli korunur.</Text>
       </View>

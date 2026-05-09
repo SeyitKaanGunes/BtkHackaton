@@ -15,7 +15,7 @@ export function AppShell({ children, active = "/" }: { children: React.ReactNode
         <Link className="brand" href="/">
           <span className="brand-mark">FS</span>
           <span>
-            <strong>FINSHADOW</strong>
+            <strong>Fintwin</strong>
             <small>AI Financial Twin</small>
           </span>
         </Link>

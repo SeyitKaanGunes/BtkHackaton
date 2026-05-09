@@ -1,5 +1,5 @@
 import { Controller, Get, Inject } from "@nestjs/common";
-import { calculateSpendingDna } from "@finshadow/shared";
+import { calculateSpendingDna } from "@fintwin/shared";
 import { DataStoreService } from "../data/data-store.service.js";
 
 @Controller("spending-dna")

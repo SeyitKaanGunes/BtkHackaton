@@ -1,5 +1,5 @@
 import { Body, Controller, Inject, Post } from "@nestjs/common";
-import { DEMO_USER_ID } from "@finshadow/shared";
+import { DEMO_USER_ID } from "@fintwin/shared";
 import { DataStoreService } from "../data/data-store.service.js";
 
 @Controller("notifications")

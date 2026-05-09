@@ -7,7 +7,7 @@ import {
   detectSubscriptionLeakage
 } from "./finance.js";
 
-describe("FINSHADOW finance engines", () => {
+describe("Fintwin finance engines", () => {
   it("calculates a personal dashboard with a health score", () => {
     const dashboard = calculateDashboardSummary();
     expect(dashboard.financialHealthScore).toBeGreaterThan(0);

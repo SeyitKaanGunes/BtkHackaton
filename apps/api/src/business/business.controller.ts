@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
-import { calculateBusinessDashboard, calculateCollectionScore, simulateAiCfo } from "@finshadow/shared";
+import { calculateBusinessDashboard, calculateCollectionScore, simulateAiCfo } from "@fintwin/shared";
 
 @Controller("business")
 export class BusinessController {

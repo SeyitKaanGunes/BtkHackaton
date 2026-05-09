@@ -9,7 +9,7 @@ import {
   detectSubscriptionLeakage,
   type ActionItem,
   type AgentResponse
-} from "@finshadow/shared";
+} from "@fintwin/shared";
 import { QwenService } from "../ai/qwen.service.js";
 import { DataStoreService } from "../data/data-store.service.js";
 
@@ -134,7 +134,7 @@ export class AgentService {
       const response = await this.qwen.chat([
         { role: "system", content: "Türkçe, kısa ve finansal tavsiye yerine eğitim odaklı açıklama yap." },
         { role: "user", content: message }
-      ]);
+    ]);
       return response.content || "";
     } catch {
       return fallback;

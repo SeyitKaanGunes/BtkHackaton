@@ -100,7 +100,7 @@ export const actions: ActionItem[] = [
 export const business: Business = {
   id: DEMO_BUSINESS_ID,
   ownerUserId: DEMO_USER_ID,
-  name: "Finshadow Studio",
+  name: "Fintwin Studio",
   sector: "SaaS ve danışmanlık",
   cashBalance: 268000
 };

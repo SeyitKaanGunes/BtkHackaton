@@ -1,5 +1,5 @@
 import { Controller, Get, Inject } from "@nestjs/common";
-import { calculateDashboardSummary } from "@finshadow/shared";
+import { calculateDashboardSummary } from "@fintwin/shared";
 import { DataStoreService } from "../data/data-store.service.js";
 
 @Controller("dashboard")

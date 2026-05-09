@@ -1,4 +1,4 @@
-package com.finshadowmobile
+package com.fintwinmobile
 
 import android.app.Application
 import com.facebook.react.PackageList

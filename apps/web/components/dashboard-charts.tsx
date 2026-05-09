@@ -1,7 +1,7 @@
 "use client";
 
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { DashboardSummary, SpendingDna } from "@finshadow/shared";
+import type { DashboardSummary, SpendingDna } from "@fintwin/shared";
 
 export function SpendingCharts({ dashboard, dna }: { dashboard: DashboardSummary; dna: SpendingDna }) {
   const riskRows = dna.categories.slice(0, 5).map((item) => ({

@@ -11,8 +11,8 @@ import {
   goals,
   subscriptions,
   transactions
-} from "@finshadow/shared";
-import type { Account, ActionItem, Transaction, UserProfile } from "@finshadow/shared";
+} from "@fintwin/shared";
+import type { Account, ActionItem, Transaction, UserProfile } from "@fintwin/shared";
 
 interface StoredUser extends UserProfile {
   passwordHash: string;

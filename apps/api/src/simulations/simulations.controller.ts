@@ -1,5 +1,5 @@
 import { Body, Controller, Post } from "@nestjs/common";
-import { buildWhatIfScenarios, type WhatIfRequest } from "@finshadow/shared";
+import { buildWhatIfScenarios, type WhatIfRequest } from "@fintwin/shared";
 
 @Controller("simulations")
 export class SimulationsController {

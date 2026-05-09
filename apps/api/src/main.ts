@@ -13,7 +13,7 @@ async function bootstrap() {
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.listen(port);
-  console.log(`FINSHADOW API running on http://localhost:${port}`);
+  console.log(`Fintwin API running on http://localhost:${port}`);
 }
 
 void bootstrap();

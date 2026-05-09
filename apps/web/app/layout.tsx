@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FINSHADOW",
+  title: "Fintwin",
   description: "AI Financial Digital Twin dashboard"
 };
 

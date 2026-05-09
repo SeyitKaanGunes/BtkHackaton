@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Camera, FileScan, Loader2 } from "lucide-react";
-import type { ReceiptScanResult } from "@finshadow/shared";
+import type { ReceiptScanResult } from "@fintwin/shared";
 import { postReceiptScan } from "../lib/api";
 
 function readFileAsBase64(file: File) {

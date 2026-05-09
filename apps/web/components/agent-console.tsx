@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Bot, CheckCircle2, Send } from "lucide-react";
-import type { AgentResponse } from "@finshadow/shared";
+import type { AgentResponse } from "@fintwin/shared";
 import { postAgentMessage } from "../lib/api";
 
 export function AgentConsole() {

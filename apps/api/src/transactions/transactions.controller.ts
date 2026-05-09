@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Inject, Post } from "@nestjs/common";
-import type { Transaction } from "@finshadow/shared";
-import { DEMO_USER_ID } from "@finshadow/shared";
+import type { Transaction } from "@fintwin/shared";
+import { DEMO_USER_ID } from "@fintwin/shared";
 import { DataStoreService } from "../data/data-store.service.js";
 
 @Controller("transactions")

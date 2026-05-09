@@ -14,7 +14,7 @@ import {
   type SpendingDna,
   type SubscriptionLeak,
   type WhatIfResponse
-} from "@finshadow/shared";
+} from "@fintwin/shared";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 

@@ -1,19 +1,19 @@
 {
-  "name": "@finshadow/api",
+  "name": "@fintwin/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "start:dev": "npm run build -w @finshadow/shared && tsx watch src/main.ts",
+    "start:dev": "npm run build -w @fintwin/shared && tsx watch src/main.ts",
     "start": "node dist/main.js",
-    "build": "npm run build -w @finshadow/shared && tsc -p tsconfig.json",
-    "lint": "npm run build -w @finshadow/shared && tsc -p tsconfig.json --noEmit",
-    "typecheck": "npm run build -w @finshadow/shared && tsc -p tsconfig.json --noEmit",
-    "test": "npm run build -w @finshadow/shared && vitest run",
+    "build": "npm run build -w @fintwin/shared && tsc -p tsconfig.json",
+    "lint": "npm run build -w @fintwin/shared && tsc -p tsconfig.json --noEmit",
+    "typecheck": "npm run build -w @fintwin/shared && tsc -p tsconfig.json --noEmit",
+    "test": "npm run build -w @fintwin/shared && vitest run",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma"
   },
   "dependencies": {
-    "@finshadow/shared": "0.1.0",
+    "@fintwin/shared": "0.1.0",
     "@langchain/core": "^1.0.6",
     "@langchain/langgraph": "^1.3.0",
     "@nestjs/common": "^11.1.19",

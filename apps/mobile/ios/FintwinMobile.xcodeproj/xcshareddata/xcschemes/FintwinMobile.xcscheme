@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "FinshadowMobile.app"
-               BlueprintName = "FinshadowMobile"
-               ReferencedContainer = "container:FinshadowMobile.xcodeproj">
+               BuildableName = "FintwinMobile.app"
+               BlueprintName = "FintwinMobile"
+               ReferencedContainer = "container:FintwinMobile.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "FinshadowMobileTests.xctest"
-               BlueprintName = "FinshadowMobileTests"
-               ReferencedContainer = "container:FinshadowMobile.xcodeproj">
+               BuildableName = "FintwinMobileTests.xctest"
+               BlueprintName = "FintwinMobileTests"
+               ReferencedContainer = "container:FintwinMobile.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "FinshadowMobile.app"
-            BlueprintName = "FinshadowMobile"
-            ReferencedContainer = "container:FinshadowMobile.xcodeproj">
+            BuildableName = "FintwinMobile.app"
+            BlueprintName = "FintwinMobile"
+            ReferencedContainer = "container:FintwinMobile.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "FinshadowMobile.app"
-            BlueprintName = "FinshadowMobile"
-            ReferencedContainer = "container:FinshadowMobile.xcodeproj">
+            BuildableName = "FintwinMobile.app"
+            BlueprintName = "FintwinMobile"
+            ReferencedContainer = "container:FintwinMobile.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

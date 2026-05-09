@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { ReceiptScanResult } from "@finshadow/shared";
+import type { ReceiptScanResult } from "@fintwin/shared";
 import { QwenService } from "../ai/qwen.service.js";
 
 const RECEIPT_INSTRUCTION = `Sen bir Türkçe fiş/fatura çıkarıcı asistansın. Yalnızca aşağıdaki şemada saf JSON döndür, başka hiçbir metin/markdown/açıklama ekleme:

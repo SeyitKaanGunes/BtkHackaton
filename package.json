@@ -1,8 +1,8 @@
 {
-  "name": "finshadow",
+  "name": "fintwin",
   "version": "0.1.0",
   "private": true,
-  "description": "FINSHADOW AI Financial Digital Twin monorepo",
+  "description": "Fintwin AI Financial Digital Twin monorepo",
   "workspaces": [
     "apps/*",
     "packages/*"

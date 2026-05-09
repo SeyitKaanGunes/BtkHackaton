@@ -15,7 +15,7 @@ import {
   type SpendingDna,
   type SubscriptionLeak,
   type WhatIfResponse
-} from "@finshadow/shared";
+} from "@fintwin/shared";
 
 const defaultUrl = Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
 const apiUrl = defaultUrl;
