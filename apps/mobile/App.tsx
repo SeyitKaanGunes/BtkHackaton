@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Animated, Dimensions, Modal, PanResponder, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import { launchCamera, launchImageLibrary } from "react-native-image-picker";
 import Tts from "react-native-tts";
 import {
@@ -23,7 +23,6 @@ import {
   Send,
   ShieldAlert,
   Target,
-  Trash2,
   Upload,
   WalletCards,
   X
@@ -42,9 +41,10 @@ import type {
   WhatIfResponse
 } from "@fintwin/shared";
 import { loadBusiness, loadMobileHome, scanReceipt, sendAgentMessage } from "./src/api";
+import { PortfolioScreen } from "./src/screens/PortfolioScreen";
 import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles } from "./src/ui";
 
-type Tab = "home" | "agent" | "scan" | "business";
+type Tab = "home" | "portfolio" | "business";
 type HomeData = Awaited<ReturnType<typeof loadMobileHome>>;
 type BusinessData = Awaited<ReturnType<typeof loadBusiness>>;
 
@@ -54,6 +54,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("home");
   const [home, setHome] = useState<HomeData | null>(null);
   const [business, setBusiness] = useState<BusinessData | null>(null);
+  const [agentOpen, setAgentOpen] = useState(false);
 
   useEffect(() => {
     void loadMobileHome().then(setHome);
@@ -65,8 +66,7 @@ export default function App() {
       <StatusBar barStyle="dark-content" backgroundColor={palette.bg} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {tab === "home" && (home ? <HomeScreen {...home} /> : <Loading />)}
-        {tab === "agent" && <AgentScreen />}
-        {tab === "scan" && <ScanScreen />}
+        {tab === "portfolio" && <PortfolioScreen />}
         {tab === "business" && (business ? <BusinessScreen {...business} /> : <Loading />)}
       </ScrollView>
       <View style={styles.tabBar}>
@@ -77,16 +77,10 @@ export default function App() {
           icon={<WalletCards size={20} color={tab === "home" ? palette.secondary : palette.darkMuted} />}
         />
         <BottomTabButton
-          label="Agent"
-          active={tab === "agent"}
-          onPress={() => setTab("agent")}
-          icon={<Bot size={20} color={tab === "agent" ? palette.secondary : palette.darkMuted} />}
-        />
-        <BottomTabButton
-          label="Fiş"
-          active={tab === "scan"}
-          onPress={() => setTab("scan")}
-          icon={<ReceiptText size={20} color={tab === "scan" ? palette.secondary : palette.darkMuted} />}
+          label="Portföy"
+          active={tab === "portfolio"}
+          onPress={() => setTab("portfolio")}
+          icon={<Landmark size={20} color={tab === "portfolio" ? palette.secondary : palette.darkMuted} />}
         />
         <BottomTabButton
           label="KOBİ"
@@ -95,7 +89,79 @@ export default function App() {
           icon={<BriefcaseBusiness size={20} color={tab === "business" ? palette.secondary : palette.darkMuted} />}
         />
       </View>
+      <DraggableAgentBubble onOpen={() => setAgentOpen(true)} />
+      <AgentModal visible={agentOpen} onClose={() => setAgentOpen(false)} />
     </SafeAreaView>
+  );
+}
+
+function DraggableAgentBubble({ onOpen }: { onOpen: () => void }) {
+  const { width, height } = Dimensions.get("window");
+  const initial = useMemo(() => ({ x: width - 84, y: 112 }), [width]);
+  const position = useRef(new Animated.ValueXY(initial)).current;
+  const lastPosition = useRef(initial);
+  const moved = useRef(false);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 3 || Math.abs(gesture.dy) > 3,
+        onPanResponderGrant: () => {
+          moved.current = false;
+          position.setOffset(lastPosition.current);
+          position.setValue({ x: 0, y: 0 });
+        },
+        onPanResponderMove: (_, gesture) => {
+          moved.current = moved.current || Math.abs(gesture.dx) > 8 || Math.abs(gesture.dy) > 8;
+          position.setValue({ x: gesture.dx, y: gesture.dy });
+        },
+        onPanResponderRelease: (_, gesture) => {
+          const next = {
+            x: Math.min(Math.max(lastPosition.current.x + gesture.dx, 12), width - 76),
+            y: Math.min(Math.max(lastPosition.current.y + gesture.dy, 76), height - 176)
+          };
+          position.flattenOffset();
+          position.setValue(next);
+          lastPosition.current = next;
+          if (!moved.current) {
+            onOpen();
+          }
+        }
+      }),
+    [height, onOpen, position, width]
+  );
+
+  return (
+    <Animated.View style={[localStyles.agentBubble, { transform: position.getTranslateTransform() }]} {...panResponder.panHandlers}>
+      <View style={localStyles.agentBubbleInner}>
+        <Bot size={28} color={palette.surface} />
+        <Text style={localStyles.agentBubbleLabel}>İkiz</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
+function AgentModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={localStyles.agentModalBackdrop}>
+        <SafeAreaView style={localStyles.agentModalSheet}>
+          <View style={localStyles.agentModalHeader}>
+            <View>
+              <Text style={localStyles.overline}>Finansal İkiz</Text>
+              <Text style={localStyles.cardTitle}>Agent paneli</Text>
+            </View>
+            <IconButton onPress={onClose} tone="muted">
+              <X size={18} color={palette.ink} />
+            </IconButton>
+          </View>
+          <ScrollView contentContainerStyle={localStyles.agentModalContent} showsVerticalScrollIndicator={false}>
+            <AgentScreen />
+          </ScrollView>
+        </SafeAreaView>
+      </View>
+    </Modal>
   );
 }
 
@@ -155,6 +221,7 @@ function HomeScreen({
       <CategoryRiskList dna={dna} />
       <GoalsSection goals={dashboard.goals} />
       <ActionCenter actions={dashboard.upcomingActions} />
+      <ReceiptDock />
       <WhatIfPreview simulation={simulation} />
       <SubscriptionHunter leaks={subscriptionLeaks} />
     </>
@@ -553,6 +620,100 @@ function AgentResult({ response }: { response: AgentResponse }) {
   );
 }
 
+function ReceiptDock() {
+  const [result, setResult] = useState<ReceiptScanResult | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function scanFrom(source: "camera" | "library") {
+    setLoading(true);
+    const image = await (source === "camera" ? launchCamera : launchImageLibrary)({
+      mediaType: "photo",
+      includeBase64: true
+    });
+    if (image.errorMessage) {
+      Alert.alert("Görsel seçilemedi", image.errorMessage);
+    }
+    if (!image.didCancel) {
+      const asset = image.assets?.[0];
+      const next = await scanReceipt(asset?.base64 ?? undefined, asset?.type ?? undefined);
+      setResult(next);
+    }
+    setLoading(false);
+  }
+
+  if (loading) {
+    return (
+      <Panel>
+        <SectionTitle title="Fiş & Fatura" meta="kişisel sekmesi" />
+        <View style={localStyles.receiptLoading}>
+          <FileScan size={34} color={palette.primary} />
+          <ActivityIndicator color={palette.primary} />
+          <Text style={localStyles.cardTitle}>Tarama sürüyor</Text>
+          <Text style={styles.bodyMuted}>Qwen OCR tutar, KDV, kategori ve ödeme tipini ayrıştırıyor.</Text>
+        </View>
+      </Panel>
+    );
+  }
+
+  if (result) {
+    return <ReceiptInlineResult result={result} onScanAgain={() => scanFrom("camera")} />;
+  }
+
+  return (
+    <Panel>
+      <SectionTitle title="Fiş & Fatura" meta="kişisel sekmesi" />
+      <View style={localStyles.receiptDockFrame}>
+        <View style={localStyles.receiptIconLarge}>
+          <FileScan size={24} color={palette.primary} />
+        </View>
+        <View style={localStyles.alertCopy}>
+          <Text style={localStyles.cardTitle}>Fiş veya faturayı kişisel akışa ekle</Text>
+          <Text style={styles.bodyMuted}>OCR tutarı, KDV'yi, kategoriyi ve ödeme tipini otomatik çıkarır.</Text>
+        </View>
+      </View>
+      <View style={localStyles.actionButtons}>
+        <Button label="Kameradan çek" icon={<Camera size={15} color={palette.surface} />} onPress={() => scanFrom("camera")} style={localStyles.flexButton} />
+        <Button label="Galeriden seç" variant="secondary" icon={<Upload size={15} color={palette.primary} />} onPress={() => scanFrom("library")} style={localStyles.flexButton} />
+      </View>
+      <RecentScan title="BIM Mağaza · Şişli" category="Market · 7 May" amount="318,50 ₺" />
+      <RecentScan title="Shell İstinye" category="Ulaşım · 4 May" amount="1.480,00 ₺" />
+    </Panel>
+  );
+}
+
+function ReceiptInlineResult({ result, onScanAgain }: { result: ReceiptScanResult; onScanAgain: () => void }) {
+  return (
+    <Panel>
+      <View style={styles.rowBetween}>
+        <SectionTitle title="Fiş & Fatura" meta="kişisel sekmesi" />
+        <Badge label={`Güven %${Math.round(result.confidence * 100)}`} tone="primary" />
+      </View>
+      <View style={localStyles.receiptDockFrame}>
+        <View style={localStyles.receiptIconLarge}>
+          <ReceiptText size={24} color={palette.primary} />
+        </View>
+        <View style={localStyles.alertCopy}>
+          <Text style={localStyles.receiptMerchant}>{result.merchant}</Text>
+          <Text style={styles.bodyMuted}>Kadıköy / İstanbul · {result.occurredAt} 14:32</Text>
+        </View>
+      </View>
+      <View style={styles.metricGrid}>
+        <MiniFact label="Toplam" value={money(result.totalAmount)} />
+        <MiniFact label="KDV" value={money(result.taxAmount)} />
+        <MiniFact label="Kategori" value={result.categoryName} />
+        <MiniFact label="Ödeme" value={paymentLabel(result.paymentMethod)} />
+      </View>
+      <View style={localStyles.actionButtons}>
+        <Button label="İşlem olarak kaydet" icon={<Check size={15} color={palette.surface} />} style={localStyles.flexButton} />
+        <Button label="Tekrar tara" variant="secondary" icon={<RefreshCcw size={15} color={palette.primary} />} onPress={onScanAgain} style={localStyles.flexButton} />
+      </View>
+      <View style={localStyles.patternCard}>
+        <Text style={styles.body}>İkiz önerisi: Market kategorisi ay başından beri %18 üzerinde. Hafta sonu alışveriş hassasiyeti yüksek.</Text>
+      </View>
+    </Panel>
+  );
+}
+
 function ScanScreen() {
   const [result, setResult] = useState<ReceiptScanResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -891,6 +1052,64 @@ function withTrialLeak(leaks: SubscriptionLeak[]): SubscriptionLeak[] {
 }
 
 const localStyles = StyleSheet.create({
+  agentBubble: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    zIndex: 30,
+    elevation: 18
+  },
+  agentBubbleInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: palette.primary,
+    borderWidth: 3,
+    borderColor: palette.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { height: 8, width: 0 },
+    elevation: 18
+  },
+  agentBubbleLabel: {
+    color: palette.surface,
+    fontSize: 10,
+    fontWeight: "900"
+  },
+  agentModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.42)",
+    justifyContent: "flex-end"
+  },
+  agentModalSheet: {
+    maxHeight: "92%",
+    backgroundColor: palette.bg,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    paddingTop: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { height: -6, width: 0 },
+    elevation: 20
+  },
+  agentModalHeader: {
+    paddingHorizontal: 18,
+    paddingBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12
+  },
+  agentModalContent: {
+    paddingHorizontal: 18,
+    paddingBottom: 28,
+    gap: 14
+  },
   hero: {
     backgroundColor: "#FBFCFF",
     borderColor: "#D8E2F5"
@@ -1171,6 +1390,35 @@ const localStyles = StyleSheet.create({
   },
   uploadPanel: {
     gap: 14
+  },
+  receiptDockFrame: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: "#FBFCFA",
+    padding: 12,
+    gap: 12
+  },
+  receiptIconLarge: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: palette.primarySoft,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  receiptLoading: {
+    minHeight: 160,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: "#FBFCFA",
+    padding: 16
   },
   scanFrame: {
     minHeight: 220,
