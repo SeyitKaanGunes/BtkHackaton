@@ -123,6 +123,17 @@ export interface StatementLineItem {
   confidence: number;
 }
 
+export interface StatementSubscriptionCandidate {
+  id: string;
+  merchant: string;
+  amount: number;
+  categoryName: string;
+  occurrenceCount: number;
+  lastChargedAt: string;
+  nextEstimatedAt: string;
+  confidence: number;
+}
+
 export interface StatementImportResult {
   agentName: "Statement Agent";
   statementMonth: string;
@@ -131,7 +142,20 @@ export interface StatementImportResult {
   skippedCount: number;
   items: StatementLineItem[];
   transactions: Transaction[];
+  recurringSubscriptions: StatementSubscriptionCandidate[];
   evidence: string[];
+}
+
+export interface SubscriptionReminderRequest {
+  merchant: string;
+  amount?: number;
+  remindAt: string;
+  note?: string;
+}
+
+export interface SubscriptionReminderResult {
+  action: ActionItem;
+  scheduled: true;
 }
 
 export interface SpendingDnaCategory {

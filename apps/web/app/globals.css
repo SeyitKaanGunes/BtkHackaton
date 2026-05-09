@@ -423,6 +423,34 @@ h1 {
   overflow: auto;
 }
 
+.segmented-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px;
+  width: min(100%, 420px);
+}
+
+.segmented-tabs button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 9px 10px;
+}
+
+.segmented-tabs button.active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
 .transaction-row {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -434,6 +462,31 @@ h1 {
 
 .transaction-row small {
   color: var(--muted);
+}
+
+.subscription-row {
+  display: grid;
+  grid-template-columns: 1fr 150px auto;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.subscription-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.subscription-row small {
+  color: var(--muted);
+}
+
+.subscription-row input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
 }
 
 .spin {
@@ -464,7 +517,8 @@ h1 {
 
   .workspace-header,
   .chart-grid,
-  .split-layout {
+  .split-layout,
+  .subscription-row {
     grid-template-columns: 1fr;
     display: grid;
   }

@@ -15,6 +15,7 @@ import {
   type ReceiptScanResult,
   type SpendingDna,
   type StatementImportResult,
+  type SubscriptionReminderResult,
   type SubscriptionLeak,
   type WhatIfResponse
 } from "@fintwin/shared";
@@ -147,9 +148,41 @@ export function importStatement(imageBase64?: string, mimeType?: string): Promis
         { merchant: "StreamPlus", amount: 219, occurredAt: "2026-05-01", categoryName: "Abonelik", paymentMethod: "credit_card", confidence: 0.9 }
       ],
       transactions: [],
+      recurringSubscriptions: [
+        {
+          id: "recurring-streamplus-219",
+          merchant: "StreamPlus",
+          amount: 219,
+          categoryName: "Abonelik",
+          occurrenceCount: 2,
+          lastChargedAt: "2026-05-01",
+          nextEstimatedAt: "2026-06-01",
+          confidence: 0.9
+        }
+      ],
       evidence: ["Mobil fallback Statement Agent sonucu"]
     }),
     { method: "POST", body: JSON.stringify({ imageBase64, mimeType }) }
+  );
+}
+
+export function createSubscriptionReminder(input: { merchant: string; amount?: number; remindAt: string; note?: string }): Promise<SubscriptionReminderResult> {
+  return request<SubscriptionReminderResult>(
+    "/actions/subscription-reminder",
+    () => ({
+      scheduled: true,
+      action: {
+        id: `act-subscription-mobile-fallback-${input.merchant}`,
+        userId: "user-demo",
+        type: "calendar_bill",
+        title: `${input.merchant} aboneliğini hatırlat`,
+        description: `${input.merchant} aboneliği için hatırlatma oluşturuldu.`,
+        dueAt: `${input.remindAt}T09:00:00.000Z`,
+        status: "pending",
+        source: "agent"
+      }
+    }),
+    { method: "POST", body: JSON.stringify(input) }
   );
 }
 

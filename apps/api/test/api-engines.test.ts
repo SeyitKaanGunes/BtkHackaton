@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AgentService } from "../src/agent/agent.service.js";
 import { QwenService } from "../src/ai/qwen.service.js";
+import { ActionsController } from "../src/actions/actions.controller.js";
 import { DataStoreService } from "../src/data/data-store.service.js";
 import { DocumentsService } from "../src/documents/documents.service.js";
 import { ReceiptExpenseAgentService } from "../src/documents/receipt-expense-agent.service.js";
@@ -40,7 +41,18 @@ describe("API feature services", () => {
     const result = await statementAgent.importStatement({});
     expect(result.agentName).toBe("Statement Agent");
     expect(result.importedCount).toBeGreaterThan(1);
+    expect(result.recurringSubscriptions.length).toBeGreaterThan(0);
     expect(result.transactions.every((transaction) => transaction.type === "expense")).toBe(true);
     expect(store.transactions.length).toBe(before + result.importedCount);
+  });
+
+  it("creates dated reminders for detected subscriptions", () => {
+    const store = new DataStoreService();
+    const controller = new ActionsController(store);
+    const result = controller.createSubscriptionReminder({ merchant: "StreamPlus", amount: 219, remindAt: "2026-06-01" });
+    expect(result.scheduled).toBe(true);
+    expect(result.action.type).toBe("calendar_bill");
+    expect(result.action.dueAt).toBe("2026-06-01T09:00:00.000Z");
+    expect(store.actions[0]?.id).toBe(result.action.id);
   });
 });

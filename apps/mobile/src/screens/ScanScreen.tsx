@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from "react-native";
 import { launchCamera, launchImageLibrary } from "react-native-image-picker";
-import { Camera, FileText, Image as ImageIcon, ReceiptText, ShieldCheck, X } from "lucide-react-native";
+import { Bell, Camera, FileText, Image as ImageIcon, ReceiptText, ShieldCheck, X } from "lucide-react-native";
 import type { ReceiptExpenseImportResult, StatementImportResult } from "@fintwin/shared";
-import { importReceiptExpense, importStatement } from "../api";
+import { createSubscriptionReminder, importReceiptExpense, importStatement } from "../api";
 import { Btn, Card, Chip, Divider, Eyebrow, KV, ScreenHeader, SectionTitle } from "../ui";
 import { radius, space, usePalette } from "../theme";
 
@@ -99,7 +99,7 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
       </Card>
 
       {mode === "receipt" && receiptResult ? <ReceiptResultCard result={receiptResult} onDismiss={() => setReceiptResult(null)} /> : null}
-      {mode === "statement" && statementResult ? <StatementResultCard result={statementResult} onDismiss={() => setStatementResult(null)} /> : null}
+      {mode === "statement" && statementResult ? <StatementResultCard result={statementResult} onDismiss={() => setStatementResult(null)} onImported={onImported} /> : null}
 
       <Card style={{ backgroundColor: p.surface2 }}>
         <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
@@ -170,9 +170,29 @@ function ReceiptResultCard({ result, onDismiss }: { result: ReceiptExpenseImport
   );
 }
 
-function StatementResultCard({ result, onDismiss }: { result: StatementImportResult; onDismiss: () => void }) {
+function StatementResultCard({ result, onDismiss, onImported }: { result: StatementImportResult; onDismiss: () => void; onImported: () => void }) {
   const p = usePalette();
   const items = result.transactions.length ? result.transactions : result.items;
+  const hasSubs = result.recurringSubscriptions?.length > 0;
+  const [subMode, setSubMode] = useState<"items" | "subscriptions">(hasSubs ? "subscriptions" : "items");
+  const [reminderDates, setReminderDates] = useState<Record<string, string>>(
+    () => Object.fromEntries((result.recurringSubscriptions ?? []).map((s) => [s.id, s.nextEstimatedAt]))
+  );
+  const [scheduledId, setScheduledId] = useState<string | null>(null);
+
+  async function scheduleReminder(subId: string) {
+    const sub = result.recurringSubscriptions?.find((s) => s.id === subId);
+    if (!sub) return;
+    await createSubscriptionReminder({
+      merchant: sub.merchant,
+      amount: sub.amount,
+      remindAt: reminderDates[sub.id] ?? sub.nextEstimatedAt,
+      note: `${result.statementMonth} ekstresinden tespit edildi`
+    });
+    setScheduledId(sub.id);
+    onImported();
+  }
+
   return (
     <Card>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -194,18 +214,63 @@ function StatementResultCard({ result, onDismiss }: { result: StatementImportRes
           <Text style={{ color: p.ink, fontSize: 18, fontWeight: "900" }}>{result.importedCount} kalem</Text>
         </View>
       </View>
-      <Divider />
-      {items.slice(0, 6).map((it, i) => (
-        <View key={`${it.merchant}-${it.amount}-${i}`} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 }}>
-          <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={{ color: p.ink, fontWeight: "800", fontSize: 13 }}>{it.merchant}</Text>
-            <Text style={{ color: p.muted, fontSize: 11 }}>
-              {it.occurredAt}{"categoryName" in it ? ` · ${it.categoryName}` : ""}
-            </Text>
-          </View>
-          <Text style={{ color: p.ink, fontWeight: "800", fontSize: 13 }}>{it.amount.toLocaleString("tr-TR")} TL</Text>
+
+      {hasSubs ? (
+        <View style={{ flexDirection: "row", backgroundColor: p.surface2, borderRadius: radius.md, padding: 4, gap: 4 }}>
+          {(["items", "subscriptions"] as const).map((m) => (
+            <Pressable
+              key={m}
+              onPress={() => setSubMode(m)}
+              style={{ flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: radius.sm, backgroundColor: subMode === m ? p.surface : "transparent" }}
+            >
+              <Text style={{ color: subMode === m ? p.ink : p.muted, fontWeight: "800", fontSize: 12 }}>
+                {m === "items" ? "Kalemler" : "Abonelikler"}
+              </Text>
+            </Pressable>
+          ))}
         </View>
-      ))}
+      ) : null}
+
+      <Divider />
+
+      {subMode === "items" ? (
+        items.slice(0, 6).map((it, i) => (
+          <View key={`${it.merchant}-${it.amount}-${i}`} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 }}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={{ color: p.ink, fontWeight: "800", fontSize: 13 }}>{it.merchant}</Text>
+              <Text style={{ color: p.muted, fontSize: 11 }}>
+                {it.occurredAt}{"categoryName" in it ? ` · ${it.categoryName}` : ""}
+              </Text>
+            </View>
+            <Text style={{ color: p.ink, fontWeight: "800", fontSize: 13 }}>{it.amount.toLocaleString("tr-TR")} TL</Text>
+          </View>
+        ))
+      ) : (
+        (result.recurringSubscriptions ?? []).map((sub) => (
+          <View key={sub.id} style={{ borderColor: p.line, borderWidth: 1, borderRadius: radius.md, padding: 12, gap: 8, backgroundColor: p.surface2 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text style={{ color: p.ink, fontWeight: "900", fontSize: 13 }}>{sub.merchant}</Text>
+              <Text style={{ color: p.ink, fontWeight: "800", fontSize: 13 }}>{sub.amount.toLocaleString("tr-TR")} TL</Text>
+            </View>
+            <Text style={{ color: p.muted, fontSize: 11 }}>{sub.occurrenceCount} tekrar · önerilen {sub.nextEstimatedAt}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", borderColor: p.line, borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: 10, backgroundColor: p.surface }}>
+              <Bell color={p.muted} size={13} />
+              <TextInput
+                value={reminderDates[sub.id] ?? sub.nextEstimatedAt}
+                onChangeText={(v) => setReminderDates((d) => ({ ...d, [sub.id]: v }))}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={p.muted}
+                style={{ flex: 1, color: p.ink, fontSize: 13, paddingVertical: 8, paddingHorizontal: 8 }}
+              />
+            </View>
+            <Btn
+              label={scheduledId === sub.id ? "Hatırlatma kuruldu" : "Bu tarihte hatırlat"}
+              onPress={() => scheduleReminder(sub.id)}
+              variant={scheduledId === sub.id ? "secondary" : "primary"}
+            />
+          </View>
+        ))
+      )}
     </Card>
   );
 }
