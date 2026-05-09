@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
   calculateInvestmentPortfolio,
@@ -46,7 +46,7 @@ export class TwelveDataService {
   private readonly searchCache = new Map<string, CacheEntry<MarketSymbolResult[]>>();
   private readonly catalogCache = new Map<string, CacheEntry<MarketSymbolResult[]>>();
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(@Inject(ConfigService) private readonly config: ConfigService) {}
 
   async searchSymbols(query: string): Promise<MarketSymbolResult[]> {
     const normalizedQuery = query.trim();
