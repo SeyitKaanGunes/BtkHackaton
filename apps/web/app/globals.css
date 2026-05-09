@@ -204,6 +204,184 @@ h1 {
   min-width: 0;
 }
 
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 16px;
+}
+
+.investment-panel,
+.investment-form {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.portfolio-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.portfolio-summary div,
+.allocation-strip div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.portfolio-summary span,
+.allocation-strip span,
+.allocation-strip small,
+.position-row span,
+.field span,
+.form-message,
+.market-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.allocation-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.position-list {
+  display: grid;
+  gap: 10px;
+}
+
+.position-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) 80px 110px 120px 130px 40px;
+  gap: 12px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.position-row div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.position-row div:first-child span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.positive {
+  color: #0f766e;
+}
+
+.negative {
+  color: #be123c;
+}
+
+.position-row .positive,
+.position-row .negative {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ghost-icon {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+}
+
+.ghost-icon:hover {
+  color: var(--danger);
+  border-color: #fecdd3;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.field input,
+.field select,
+.search-input {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+  color: var(--ink);
+  padding: 0 11px;
+}
+
+.search-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search-input input {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  width: 100%;
+  outline: 0;
+}
+
+.symbol-results {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.symbol-results button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  text-align: left;
+}
+
+.symbol-results button.selected,
+.symbol-results button:hover {
+  border-color: var(--accent);
+  background: var(--accentSoft, #dcefec);
+}
+
+.symbol-results span,
+.symbol-results small {
+  color: var(--muted);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.portfolio-submit {
+  width: 100%;
+}
+
+.market-note {
+  margin: 0;
+}
+
 .section-title {
   display: flex;
   justify-content: space-between;
@@ -517,6 +695,7 @@ h1 {
 
   .workspace-header,
   .chart-grid,
+  .portfolio-grid,
   .split-layout,
   .subscription-row {
     grid-template-columns: 1fr;
@@ -525,6 +704,15 @@ h1 {
 
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .position-row {
+    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(90px, auto)) 40px;
+  }
+
+  .position-row div:nth-child(3),
+  .position-row div:nth-child(5) {
+    display: none;
   }
 }
 
@@ -536,6 +724,9 @@ h1 {
 
   .nav-list,
   .metric-grid,
+  .portfolio-summary,
+  .allocation-strip,
+  .form-grid,
   .scenario-list,
   .facts {
     grid-template-columns: 1fr;

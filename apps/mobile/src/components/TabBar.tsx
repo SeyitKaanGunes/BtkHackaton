@@ -1,11 +1,12 @@
 import { Pressable, Text, View } from "react-native";
-import { Bot, BriefcaseBusiness, ReceiptText, WalletCards } from "lucide-react-native";
+import { Bot, BriefcaseBusiness, ReceiptText, TrendingUp, WalletCards } from "lucide-react-native";
 import { useTheme } from "../theme";
 
-export type Tab = "home" | "agent" | "scan" | "business";
+export type Tab = "home" | "portfolio" | "agent" | "scan" | "business";
 
 const ITEMS: { id: Tab; label: string; Icon: typeof Bot }[] = [
   { id: "home", label: "Kişisel", Icon: WalletCards },
+  { id: "portfolio", label: "Portfoy", Icon: TrendingUp },
   { id: "agent", label: "Agent", Icon: Bot },
   { id: "scan", label: "Fiş", Icon: ReceiptText },
   { id: "business", label: "KOBİ", Icon: BriefcaseBusiness }

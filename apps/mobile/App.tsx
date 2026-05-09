@@ -13,6 +13,7 @@ import { ThemeProvider } from "./src/components/ThemeProvider";
 import { ThemeToggle } from "./src/components/ThemeToggle";
 import { TabBar, type Tab } from "./src/components/TabBar";
 import { HomeScreen } from "./src/screens/HomeScreen";
+import { PortfolioScreen } from "./src/screens/PortfolioScreen";
 import { WhatIfScreen } from "./src/screens/WhatIfScreen";
 import { AgentScreen } from "./src/screens/AgentScreen";
 import { ScanScreen } from "./src/screens/ScanScreen";
@@ -75,6 +76,7 @@ function Shell() {
               <Loading />
             ))}
 
+          {tab === "portfolio" && <PortfolioScreen />}
           {tab === "agent" && <AgentScreen />}
           {tab === "scan" && (
             <ScanScreen
@@ -98,6 +100,7 @@ function TopBar({ tabLabel }: { tabLabel: Tab }) {
   const p = usePalette();
   const titles: Record<Tab, string> = {
     home: "Fintwin",
+    portfolio: "Fintwin - Portfoy",
     agent: "Fintwin · Agent",
     scan: "Fintwin · Belge",
     business: "Fintwin · KOBİ"

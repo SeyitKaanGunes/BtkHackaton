@@ -5,11 +5,16 @@ import {
   calculateCollectionScore,
   calculateDashboardSummary,
   calculateSpendingDna,
+  demoInvestmentPortfolio,
   detectSubscriptionLeakage,
+  suggestInvestmentSymbols,
   type AgentResponse,
   type BusinessDashboard,
   type CollectionScore,
   type DashboardSummary,
+  type InvestmentHoldingCreateRequest,
+  type InvestmentPortfolioSummary,
+  type MarketSymbolResult,
   type ReceiptExpenseImportResult,
   type ReceiptScanResult,
   type SpendingDna,
@@ -58,6 +63,27 @@ export function getWhatIf() {
   return request<WhatIfResponse>("/simulations/what-if", () => buildWhatIfScenarios({ amount: 10000, categoryId: "cat-tech" }), {
     method: "POST",
     body: JSON.stringify({ amount: 10000, categoryId: "cat-tech", description: "Kampanya döneminde 10.000 TL harcarsam ne olur?" })
+  });
+}
+
+export function getInvestmentPortfolio() {
+  return request<InvestmentPortfolioSummary>("/investments/portfolio", demoInvestmentPortfolio);
+}
+
+export function searchMarketSymbols(query: string) {
+  return request<MarketSymbolResult[]>(`/investments/symbols?query=${encodeURIComponent(query)}`, () => suggestInvestmentSymbols(query));
+}
+
+export function addInvestmentHolding(input: InvestmentHoldingCreateRequest) {
+  return request<InvestmentPortfolioSummary>("/investments/holdings", demoInvestmentPortfolio, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function deleteInvestmentHolding(id: string) {
+  return request<InvestmentPortfolioSummary>(`/investments/holdings/${encodeURIComponent(id)}`, demoInvestmentPortfolio, {
+    method: "DELETE"
   });
 }
 

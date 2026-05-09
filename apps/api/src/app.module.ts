@@ -15,6 +15,8 @@ import { DocumentsController } from "./documents/documents.controller.js";
 import { DocumentsService } from "./documents/documents.service.js";
 import { ReceiptExpenseAgentService } from "./documents/receipt-expense-agent.service.js";
 import { StatementExpenseAgentService } from "./documents/statement-expense-agent.service.js";
+import { InvestmentsController } from "./investments/investments.controller.js";
+import { TwelveDataService } from "./investments/twelve-data.service.js";
 import { NotificationsController } from "./notifications/notifications.controller.js";
 import { PrismaService } from "./prisma/prisma.service.js";
 import { SimulationsController } from "./simulations/simulations.controller.js";
@@ -39,12 +41,23 @@ import { TransactionsController } from "./transactions/transactions.controller.j
     CampaignsController,
     DashboardController,
     DocumentsController,
+    InvestmentsController,
     NotificationsController,
     SimulationsController,
     SpendingDnaController,
     SubscriptionsController,
     TransactionsController
   ],
-  providers: [AgentService, AuthService, DataStoreService, DocumentsService, PrismaService, QwenService, ReceiptExpenseAgentService, StatementExpenseAgentService]
+  providers: [
+    AgentService,
+    AuthService,
+    DataStoreService,
+    DocumentsService,
+    PrismaService,
+    QwenService,
+    ReceiptExpenseAgentService,
+    StatementExpenseAgentService,
+    TwelveDataService
+  ]
 })
 export class AppModule {}

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ConfigService } from "@nestjs/config";
 import { AgentService } from "../src/agent/agent.service.js";
 import { QwenService } from "../src/ai/qwen.service.js";
 import { ActionsController } from "../src/actions/actions.controller.js";
@@ -6,6 +7,8 @@ import { DataStoreService } from "../src/data/data-store.service.js";
 import { DocumentsService } from "../src/documents/documents.service.js";
 import { ReceiptExpenseAgentService } from "../src/documents/receipt-expense-agent.service.js";
 import { StatementExpenseAgentService } from "../src/documents/statement-expense-agent.service.js";
+import { InvestmentsController } from "../src/investments/investments.controller.js";
+import { TwelveDataService } from "../src/investments/twelve-data.service.js";
 
 describe("API feature services", () => {
   it("routes agent questions through LangGraph and returns explainability", async () => {
@@ -54,5 +57,24 @@ describe("API feature services", () => {
     expect(result.action.type).toBe("calendar_bill");
     expect(result.action.dueAt).toBe("2026-06-01T09:00:00.000Z");
     expect(store.actions[0]?.id).toBe(result.action.id);
+  });
+
+  it("builds an investment portfolio with fallback market data", async () => {
+    const store = new DataStoreService();
+    const controller = new InvestmentsController(store, new TwelveDataService(new ConfigService()));
+    const portfolio = await controller.portfolio();
+    const next = await controller.addHolding({
+      symbol: "USD/TRY",
+      name: "US Dollar / Turkish Lira",
+      assetType: "forex",
+      quantity: 100,
+      averageCost: 31,
+      costCurrency: "TRY",
+      marketCurrency: "TRY"
+    });
+
+    expect(portfolio.positions.length).toBeGreaterThan(0);
+    expect(next.positions.some((position) => position.symbol === "USD/TRY")).toBe(true);
+    expect((await controller.symbols("gold")).some((symbol) => symbol.symbol === "XAU_GRAM_TRY")).toBe(true);
   });
 });

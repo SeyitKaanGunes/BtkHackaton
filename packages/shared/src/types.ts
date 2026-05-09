@@ -1,5 +1,9 @@
 export type Currency = "TRY" | "USD" | "EUR";
 
+export type InvestmentAssetType = "stock" | "forex" | "gold" | "commodity" | "crypto" | "fund" | "other";
+
+export type MarketDataSource = "twelve_data" | "fallback";
+
 export type TransactionType = "income" | "expense";
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
@@ -32,6 +36,83 @@ export interface Account {
   balance: number;
   currency: Currency;
   creditLimit?: number;
+}
+
+export interface MarketSymbolResult {
+  symbol: string;
+  name: string;
+  assetType: InvestmentAssetType;
+  currency?: string;
+  exchange?: string;
+  micCode?: string;
+  country?: string;
+  source: MarketDataSource;
+}
+
+export interface InvestmentHoldingCreateRequest {
+  symbol: string;
+  name?: string;
+  assetType?: InvestmentAssetType;
+  quantity: number;
+  averageCost?: number;
+  costCurrency?: Currency;
+  exchange?: string;
+  micCode?: string;
+  marketCurrency?: string;
+}
+
+export interface InvestmentHolding {
+  id: string;
+  userId: string;
+  symbol: string;
+  name: string;
+  assetType: InvestmentAssetType;
+  quantity: number;
+  averageCost: number;
+  costCurrency: Currency;
+  exchange?: string;
+  micCode?: string;
+  marketCurrency?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvestmentQuote {
+  symbol: string;
+  name?: string;
+  price: number;
+  currency: string;
+  change?: number;
+  percentChange?: number;
+  previousClose?: number;
+  exchange?: string;
+  updatedAt: string;
+  source: MarketDataSource;
+  isStale: boolean;
+  message?: string;
+}
+
+export interface InvestmentPosition extends InvestmentHolding {
+  quote: InvestmentQuote;
+  marketValue: number;
+  marketValueTry: number;
+  costBasis: number;
+  costBasisTry: number;
+  profitLossTry: number;
+  profitLossPercent: number;
+}
+
+export interface InvestmentPortfolioSummary {
+  positions: InvestmentPosition[];
+  totalMarketValueTry: number;
+  totalCostTry: number;
+  totalProfitLossTry: number;
+  totalProfitLossPercent: number;
+  allocation: Array<{ assetType: InvestmentAssetType; label: string; valueTry: number; weight: number }>;
+  provider: "Twelve Data";
+  refreshedAt: string;
+  cacheTtlHours: number;
+  warning?: string;
 }
 
 export interface Category {

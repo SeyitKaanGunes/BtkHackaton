@@ -33,6 +33,13 @@ Local Qwen defaults:
 - Base URL: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
 - Key env name: `QWEN_API_KEY`
 
+Market data defaults:
+
+- Provider: Twelve Data
+- Key env name: `TWELVE_DATA_API_KEY`
+- Portfolio API: `GET /investments/portfolio`, `GET /investments/symbols?query=THYAO`, `POST /investments/holdings`
+- Quote cache: 24 hours, with fallback demo prices when the provider is unavailable
+
 ## Product Focus
 
 The main product is a personal AI Financial Digital Twin: Spending DNA, campaign readiness, what-if simulations, Emotional Delay, action center, receipt scanning, subscription leakage detection and explainable agent answers.

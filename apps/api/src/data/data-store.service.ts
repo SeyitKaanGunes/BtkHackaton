@@ -8,11 +8,12 @@ import {
   businessCustomers,
   categories,
   demoUser,
+  demoInvestmentHoldings,
   goals,
   subscriptions,
   transactions
 } from "@fintwin/shared";
-import type { Account, ActionItem, Transaction, UserProfile } from "@fintwin/shared";
+import type { Account, ActionItem, InvestmentHolding, Transaction, UserProfile } from "@fintwin/shared";
 
 interface StoredUser extends UserProfile {
   passwordHash: string;
@@ -28,6 +29,7 @@ export class DataStoreService {
   readonly businessCustomers = [...businessCustomers];
   readonly businessCashEvents = [...businessCashEvents];
   readonly accounts: Account[] = [...accounts];
+  readonly investmentHoldings: InvestmentHolding[] = [...demoInvestmentHoldings];
   readonly actions: ActionItem[] = [...actions];
   readonly transactions: Transaction[] = [...transactions];
   readonly fcmTokens: Array<{ userId: string; token: string; platform: string }> = [];
@@ -54,6 +56,19 @@ export class DataStoreService {
   addTransaction(transaction: Transaction) {
     this.transactions.unshift(transaction);
     return transaction;
+  }
+
+  addInvestmentHolding(holding: InvestmentHolding) {
+    this.investmentHoldings.unshift(holding);
+    return holding;
+  }
+
+  removeInvestmentHolding(id: string) {
+    const index = this.investmentHoldings.findIndex((holding) => holding.id === id);
+    if (index >= 0) {
+      return this.investmentHoldings.splice(index, 1)[0];
+    }
+    return undefined;
   }
 
   approveAction(id: string) {

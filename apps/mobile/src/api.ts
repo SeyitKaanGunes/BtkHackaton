@@ -6,11 +6,16 @@ import {
   calculateCollectionScore,
   calculateDashboardSummary,
   calculateSpendingDna,
+  demoInvestmentPortfolio,
   detectSubscriptionLeakage,
+  suggestInvestmentSymbols,
   type AgentResponse,
   type BusinessDashboard,
   type CollectionScore,
   type DashboardSummary,
+  type InvestmentHoldingCreateRequest,
+  type InvestmentPortfolioSummary,
+  type MarketSymbolResult,
   type ReceiptExpenseImportResult,
   type ReceiptScanResult,
   type SpendingDna,
@@ -54,6 +59,27 @@ export async function loadMobileHome(): Promise<{
     })
   ]);
   return { dashboard, dna, campaign, leaks, simulation };
+}
+
+export function loadInvestmentPortfolio(): Promise<InvestmentPortfolioSummary> {
+  return request<InvestmentPortfolioSummary>("/investments/portfolio", demoInvestmentPortfolio);
+}
+
+export function searchInvestmentSymbols(query: string): Promise<MarketSymbolResult[]> {
+  return request<MarketSymbolResult[]>(`/investments/symbols?query=${encodeURIComponent(query)}`, () => suggestInvestmentSymbols(query));
+}
+
+export function addInvestmentHolding(input: InvestmentHoldingCreateRequest): Promise<InvestmentPortfolioSummary> {
+  return request<InvestmentPortfolioSummary>("/investments/holdings", demoInvestmentPortfolio, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function deleteInvestmentHolding(id: string): Promise<InvestmentPortfolioSummary> {
+  return request<InvestmentPortfolioSummary>(`/investments/holdings/${encodeURIComponent(id)}`, demoInvestmentPortfolio, {
+    method: "DELETE"
+  });
 }
 
 export function sendAgentMessage(message: string) {
