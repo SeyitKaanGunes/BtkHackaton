@@ -6,10 +6,12 @@ import {
   fallbackQuoteFor,
   inferAssetType,
   INVESTMENT_CACHE_TTL_HOURS,
-  investmentSymbolPresets,
+  normalizeSearchText,
   normalizeCurrency,
   roundMoney,
+  scoreSymbolMatch,
   suggestInvestmentSymbols,
+  symbolSearchText,
   type InvestmentHolding,
   type InvestmentPortfolioSummary,
   type InvestmentQuote,
@@ -33,6 +35,7 @@ type TwelveDataSymbol = {
   currency_base?: string;
   currency_quote?: string;
   type?: string;
+  instrument_type?: string;
 };
 
 @Injectable()
@@ -41,28 +44,24 @@ export class TwelveDataService {
   private readonly ttlMs = INVESTMENT_CACHE_TTL_HOURS * 60 * 60 * 1000;
   private readonly quoteCache = new Map<string, CacheEntry<InvestmentQuote>>();
   private readonly searchCache = new Map<string, CacheEntry<MarketSymbolResult[]>>();
+  private readonly catalogCache = new Map<string, CacheEntry<MarketSymbolResult[]>>();
 
   constructor(private readonly config: ConfigService) {}
 
   async searchSymbols(query: string): Promise<MarketSymbolResult[]> {
     const normalizedQuery = query.trim();
-    const cacheKey = normalizedQuery.toLowerCase();
+    const normalizedSearch = normalizeSearchText(normalizedQuery);
+    const cacheKey = normalizedSearch || "__all__";
     const cached = this.getCached(this.searchCache, cacheKey);
     if (cached) return cached;
 
-    const presetResults = suggestInvestmentSymbols(normalizedQuery, 8);
-    const key = this.apiKey();
-    if (!key || normalizedQuery.length < 2) {
-      this.setCached(this.searchCache, cacheKey, presetResults);
-      return presetResults;
-    }
-
-    const url = this.url("/symbol_search", { symbol: normalizedQuery, apikey: key });
-    const remote = await this.fetchJson(url);
-    const data = this.arrayFromResponse<TwelveDataSymbol>(remote)
-      .map((item) => this.mapSymbol(item))
-      .filter((item): item is MarketSymbolResult => Boolean(item));
-    const merged = this.mergeSymbols([...presetResults, ...data]).slice(0, 12);
+    const [bistCatalog, remoteResults] = await Promise.all([
+      this.getBistStockCatalog(),
+      normalizedSearch.length >= 2 ? this.searchRemoteSymbols(normalizedQuery) : Promise.resolve([])
+    ]);
+    const catalogResults = this.searchCatalog(bistCatalog, normalizedSearch, normalizedSearch ? 80 : 40);
+    const presetResults = suggestInvestmentSymbols(normalizedQuery, normalizedSearch ? 24 : 12);
+    const merged = this.mergeSymbols([...catalogResults, ...presetResults, ...remoteResults]).slice(0, normalizedSearch ? 80 : 40);
     this.setCached(this.searchCache, cacheKey, merged);
     return merged;
   }
@@ -166,7 +165,7 @@ export class TwelveDataService {
     return {
       symbol,
       name: item.instrument_name || item.name || symbol,
-      assetType: this.assetTypeFromTwelveData(item.type, symbol),
+      assetType: this.assetTypeFromTwelveData(item.type ?? item.instrument_type, symbol),
       currency: item.currency_quote || item.currency || this.currencyFromSymbol(symbol),
       exchange: item.exchange,
       micCode: item.mic_code,
@@ -189,6 +188,43 @@ export class TwelveDataService {
   private currencyFromSymbol(symbol: string) {
     const parts = symbol.split("/");
     return parts[1];
+  }
+
+  private async getBistStockCatalog(): Promise<MarketSymbolResult[]> {
+    const cached = this.getCached(this.catalogCache, "bist");
+    if (cached) return cached;
+
+    const remote = await this.fetchJson(this.url("/stocks", { exchange: "BIST" }));
+    const data = this.arrayFromResponse<TwelveDataSymbol>(remote)
+      .map((item) => this.mapSymbol(item))
+      .filter((item): item is MarketSymbolResult => Boolean(item && item.assetType === "stock" && item.exchange === "BIST"));
+    const fallback = suggestInvestmentSymbols("", 60).filter((item) => item.exchange === "BIST");
+    const catalog = this.mergeSymbols([...data, ...fallback]);
+    this.setCached(this.catalogCache, "bist", catalog);
+    return catalog;
+  }
+
+  private searchCatalog(catalog: MarketSymbolResult[], normalizedQuery: string, limit: number) {
+    if (!normalizedQuery) return catalog.slice(0, limit);
+    return catalog
+      .filter((item) => symbolSearchText(item).includes(normalizedQuery))
+      .sort((left, right) => scoreSymbolMatch(left, normalizedQuery) - scoreSymbolMatch(right, normalizedQuery))
+      .slice(0, limit);
+  }
+
+  private async searchRemoteSymbols(query: string): Promise<MarketSymbolResult[]> {
+    const urls = [
+      this.url("/symbol_search", { symbol: query, exchange: "BIST" }),
+      this.url("/symbol_search", { symbol: query })
+    ];
+    const responses = await Promise.all(urls.map((url) => this.fetchJson(url)));
+    return this.mergeSymbols(
+      responses.flatMap((response) =>
+        this.arrayFromResponse<TwelveDataSymbol>(response)
+          .map((item) => this.mapSymbol(item))
+          .filter((item): item is MarketSymbolResult => Boolean(item))
+      )
+    ).slice(0, 24);
   }
 
   private async fetchJson(url: URL): Promise<unknown> {

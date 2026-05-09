@@ -21,6 +21,7 @@ describe("investment portfolio engine", () => {
 
   it("returns local symbol presets for empty or partial search", () => {
     expect(suggestInvestmentSymbols("altin")[0]?.symbol).toBe("XAU_GRAM_TRY");
+    expect(suggestInvestmentSymbols("akbank")[0]?.symbol).toBe("AKBNK");
     expect(suggestInvestmentSymbols("")[0]?.symbol).toBe("THYAO");
   });
 });

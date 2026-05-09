@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConfigService } from "@nestjs/config";
 import { AgentService } from "../src/agent/agent.service.js";
 import { QwenService } from "../src/ai/qwen.service.js";
@@ -11,6 +11,10 @@ import { InvestmentsController } from "../src/investments/investments.controller
 import { TwelveDataService } from "../src/investments/twelve-data.service.js";
 
 describe("API feature services", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("routes agent questions through LangGraph and returns explainability", async () => {
     const agent = new AgentService(new DataStoreService(), new QwenService());
     const result = await agent.chat("10000 TL harcarsam ne olur?");
@@ -60,21 +64,46 @@ describe("API feature services", () => {
   });
 
   it("builds an investment portfolio with fallback market data", async () => {
-    const store = new DataStoreService();
-    const controller = new InvestmentsController(store, new TwelveDataService(new ConfigService()));
-    const portfolio = await controller.portfolio();
-    const next = await controller.addHolding({
-      symbol: "USD/TRY",
-      name: "US Dollar / Turkish Lira",
-      assetType: "forex",
-      quantity: 100,
-      averageCost: 31,
-      costCurrency: "TRY",
-      marketCurrency: "TRY"
-    });
+    const previousKey = process.env.TWELVE_DATA_API_KEY;
+    delete process.env.TWELVE_DATA_API_KEY;
+    try {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                symbol: "AKBNK",
+                name: "Akbank T.A.S.",
+                exchange: "BIST",
+                mic_code: "XIST",
+                country: "Turkey",
+                currency: "TRY",
+                type: "Common Stock"
+              }
+            ],
+            status: "ok"
+          })
+        )
+      );
 
-    expect(portfolio.positions.length).toBeGreaterThan(0);
-    expect(next.positions.some((position) => position.symbol === "USD/TRY")).toBe(true);
-    expect((await controller.symbols("gold")).some((symbol) => symbol.symbol === "XAU_GRAM_TRY")).toBe(true);
+      const store = new DataStoreService();
+      const controller = new InvestmentsController(store, new TwelveDataService(new ConfigService()));
+      const portfolio = await controller.portfolio();
+      const next = await controller.addHolding({
+        symbol: "USD/TRY",
+        name: "US Dollar / Turkish Lira",
+        assetType: "forex",
+        quantity: 100,
+        averageCost: 31,
+        costCurrency: "TRY",
+        marketCurrency: "TRY"
+      });
+
+      expect(portfolio.positions.length).toBeGreaterThan(0);
+      expect(next.positions.some((position) => position.symbol === "USD/TRY")).toBe(true);
+      expect((await controller.symbols("akbank")).some((symbol) => symbol.symbol === "AKBNK")).toBe(true);
+    } finally {
+      if (previousKey) process.env.TWELVE_DATA_API_KEY = previousKey;
+    }
   });
 });

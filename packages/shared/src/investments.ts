@@ -29,6 +29,41 @@ export const investmentSymbolPresets: MarketSymbolResult[] = [
   { symbol: "GARAN", name: "Garanti BBVA", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
   { symbol: "BIMAS", name: "BIM Magazalar", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
   { symbol: "KCHOL", name: "Koc Holding", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "AKBNK", name: "Akbank", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "YKBNK", name: "Yapi ve Kredi Bankasi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "ISCTR", name: "Turkiye Is Bankasi C", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "SAHOL", name: "Sabanci Holding", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "TUPRS", name: "Tupras", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "FROTO", name: "Ford Otosan", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "TOASO", name: "Tofas Oto Fabrika", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "EREGL", name: "Eregli Demir Celik", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "SISE", name: "Turkiye Sise ve Cam Fabrikalari", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "KOZAL", name: "Koza Altin", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "PETKM", name: "Petkim", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "PGSUS", name: "Pegasus Hava Tasimaciligi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "TCELL", name: "Turkcell", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "TTKOM", name: "Turk Telekom", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "ENKAI", name: "Enka Insaat", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "ARCLK", name: "Arcelik", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "VESTL", name: "Vestel", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "MGROS", name: "Migros Ticaret", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "ULKER", name: "Ulker Biskuvi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "SASA", name: "Sasa Polyester", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "HEKTS", name: "Hektas", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "GUBRF", name: "Gubre Fabrikalari", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "ASTOR", name: "Astor Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "CWENE", name: "CW Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "MIATK", name: "Mia Teknoloji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "TAVHL", name: "TAV Havalimanlari", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "DOAS", name: "Dogus Otomotiv", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "CCOLA", name: "Coca Cola Icecek", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "AEFES", name: "Anadolu Efes", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "OYAKC", name: "Oyak Cimento", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "KONTR", name: "Kontrolmatik Teknoloji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "SMRTG", name: "Smart Gunes Enerjisi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "EKGYO", name: "Emlak Konut GYO", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "ENJSA", name: "Enerjisa Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
+  { symbol: "AKSEN", name: "Aksa Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
   { symbol: "USD/TRY", name: "US Dollar / Turkish Lira", assetType: "forex", currency: "TRY", source: "fallback" },
   { symbol: "EUR/TRY", name: "Euro / Turkish Lira", assetType: "forex", currency: "TRY", source: "fallback" },
   { symbol: "XAU_GRAM_TRY", name: "Gram Gold / Turkish Lira", assetType: "gold", currency: "TRY", source: "fallback" },
@@ -95,10 +130,11 @@ export function createInvestmentHolding(input: InvestmentHoldingCreateRequest, n
 }
 
 export function suggestInvestmentSymbols(query: string, limit = 8): MarketSymbolResult[] {
-  const normalized = query.trim().toLowerCase();
+  const normalized = normalizeSearchText(query);
   if (!normalized) return investmentSymbolPresets.slice(0, limit);
   return investmentSymbolPresets
-    .filter((item) => `${item.symbol} ${item.name} ${item.assetType} ${assetTypeLabels[item.assetType]}`.toLowerCase().includes(normalized))
+    .filter((item) => symbolSearchText(item).includes(normalized))
+    .sort((left, right) => scoreSymbolMatch(left, normalized) - scoreSymbolMatch(right, normalized))
     .slice(0, limit);
 }
 
@@ -221,4 +257,31 @@ export function roundMoney(value: number): number {
 
 export function roundPercent(value: number): number {
   return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+}
+
+export function normalizeSearchText(value: string): string {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i")
+    .replace(/[^a-z0-9/]+/g, " ")
+    .trim();
+}
+
+export function symbolSearchText(item: Pick<MarketSymbolResult, "symbol" | "name" | "assetType" | "exchange" | "country">): string {
+  return normalizeSearchText(`${item.symbol} ${item.name} ${item.assetType} ${assetTypeLabels[item.assetType]} ${item.exchange ?? ""} ${item.country ?? ""}`);
+}
+
+export function scoreSymbolMatch(item: Pick<MarketSymbolResult, "symbol" | "name" | "assetType" | "exchange" | "country">, normalizedQuery: string): number {
+  const symbol = normalizeSearchText(item.symbol);
+  const name = normalizeSearchText(item.name);
+  const asset = normalizeSearchText(`${item.assetType} ${assetTypeLabels[item.assetType]}`);
+  if (symbol === normalizedQuery) return 0;
+  if (symbol.startsWith(normalizedQuery)) return 1;
+  if (asset.includes(normalizedQuery)) return 2;
+  if (name.startsWith(normalizedQuery)) return 2;
+  if (symbol.includes(normalizedQuery)) return 3;
+  if (name.includes(normalizedQuery)) return 4;
+  return symbolSearchText(item).includes(normalizedQuery) ? 5 : 9;
 }
