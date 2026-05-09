@@ -11,8 +11,10 @@ import {
   type BusinessDashboard,
   type CollectionScore,
   type DashboardSummary,
+  type ReceiptExpenseImportResult,
   type ReceiptScanResult,
   type SpendingDna,
+  type StatementImportResult,
   type SubscriptionLeak,
   type WhatIfResponse
 } from "@fintwin/shared";
@@ -83,6 +85,69 @@ export function scanReceipt(imageBase64?: string, mimeType?: string) {
         { name: "Temel gıda", amount: 720.4 },
         { name: "Temizlik", amount: 529.5 }
       ]
+    }),
+    { method: "POST", body: JSON.stringify({ imageBase64, mimeType }) }
+  );
+}
+
+export function importReceiptExpense(imageBase64?: string, mimeType?: string): Promise<ReceiptExpenseImportResult> {
+  return request<ReceiptExpenseImportResult>(
+    "/documents/receipt-agent/import",
+    () => {
+      const receipt: ReceiptScanResult = {
+        merchant: "Demo Market",
+        totalAmount: 1249.9,
+        taxAmount: 113.63,
+        occurredAt: "2026-05-08",
+        categoryName: "Market",
+        paymentMethod: "credit_card",
+        confidence: 0.91,
+        lineItems: [
+          { name: "Temel gıda", amount: 720.4 },
+          { name: "Temizlik", amount: 529.5 }
+        ]
+      };
+      return {
+        agentName: "Receipt Agent",
+        receipt,
+        addedToExpenses: true,
+        transaction: {
+          id: "tx-receipt-mobile-fallback",
+          userId: "user-demo",
+          accountId: "acc-card",
+          categoryId: "cat-market",
+          merchant: receipt.merchant,
+          amount: receipt.totalAmount,
+          currency: "TRY",
+          type: "expense",
+          occurredAt: `${receipt.occurredAt}T12:00:00.000Z`,
+          paymentMethod: receipt.paymentMethod,
+          tags: ["receipt_agent"]
+        },
+        evidence: ["Mobil fallback Receipt Agent sonucu"]
+      };
+    },
+    { method: "POST", body: JSON.stringify({ imageBase64, mimeType }) }
+  );
+}
+
+export function importStatement(imageBase64?: string, mimeType?: string): Promise<StatementImportResult> {
+  return request<StatementImportResult>(
+    "/documents/statement-agent/import",
+    () => ({
+      agentName: "Statement Agent",
+      statementMonth: "2026-05",
+      totalAmount: 15059,
+      importedCount: 4,
+      skippedCount: 0,
+      items: [
+        { merchant: "TeknoMarket", amount: 9800, occurredAt: "2026-05-07", categoryName: "Teknoloji", paymentMethod: "credit_card", confidence: 0.88 },
+        { merchant: "Gece Burger", amount: 840, occurredAt: "2026-05-08", categoryName: "Yemek", paymentMethod: "credit_card", confidence: 0.86 },
+        { merchant: "ModaBox", amount: 4200, occurredAt: "2026-05-08", categoryName: "Giyim", paymentMethod: "credit_card", confidence: 0.84 },
+        { merchant: "StreamPlus", amount: 219, occurredAt: "2026-05-01", categoryName: "Abonelik", paymentMethod: "credit_card", confidence: 0.9 }
+      ],
+      transactions: [],
+      evidence: ["Mobil fallback Statement Agent sonucu"]
     }),
     { method: "POST", body: JSON.stringify({ imageBase64, mimeType }) }
   );

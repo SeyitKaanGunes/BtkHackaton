@@ -38,3 +38,8 @@ Local Qwen defaults:
 The main product is a personal AI Financial Digital Twin: Spending DNA, campaign readiness, what-if simulations, Emotional Delay, action center, receipt scanning, subscription leakage detection and explainable agent answers.
 
 The KOBI features live separately under the business module: AI CFO Lite, cash flow projection, collection score and corporate decision simulation.
+
+## Document Agents
+
+- `Receipt Agent`: `POST /documents/receipt-agent/import` reads a receipt image, detects merchant, amount, tax, date, payment method and category, then adds one expense transaction.
+- `Statement Agent`: `POST /documents/statement-agent/import` reads an end-of-month statement image/text, extracts monthly spending rows, categorizes each row and adds them as expense transactions.

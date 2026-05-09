@@ -4,7 +4,7 @@ import { Bot, Building2, Camera, LayoutDashboard, ShieldCheck } from "lucide-rea
 const nav = [
   { href: "/", label: "Kişisel", icon: LayoutDashboard },
   { href: "/agent", label: "Agent", icon: Bot },
-  { href: "/receipt", label: "Fiş OCR", icon: Camera },
+  { href: "/receipt", label: "Belgeler", icon: Camera },
   { href: "/business", label: "KOBİ", icon: Building2 }
 ];
 

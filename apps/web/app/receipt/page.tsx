@@ -6,8 +6,8 @@ export default function ReceiptPage() {
     <AppShell active="/receipt">
       <header className="workspace-header">
         <div>
-          <p className="eyebrow">Mobil Fiş/Fatura Okuma</p>
-          <h1>Qwen ile belgeyi finans kaydına dönüştür.</h1>
+          <p className="eyebrow">Belge Agent'ları</p>
+          <h1>Fiş ve ekstreyi otomatik gider kayıtlarına dönüştür.</h1>
         </div>
       </header>
       <ReceiptScanner />
