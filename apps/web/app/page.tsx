@@ -2,19 +2,17 @@ import type { CSSProperties } from "react";
 import { AlertTriangle, Bell, Brain, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
 import { AppShell } from "../components/app-shell";
 import { SpendingCharts } from "../components/dashboard-charts";
-import { InvestmentPortfolio } from "../components/investment-portfolio";
-import { getCampaignReadiness, getInvestmentPortfolio, getPersonalDashboard, getSpendingDna, getSubscriptionLeaks, getWhatIf } from "../lib/api";
+import { getCampaignReadiness, getPersonalDashboard, getSpendingDna, getSubscriptionLeaks, getWhatIf } from "../lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [dashboard, dna, campaign, leaks, whatIf, investmentPortfolio] = await Promise.all([
+  const [dashboard, dna, campaign, leaks, whatIf] = await Promise.all([
     getPersonalDashboard(),
     getSpendingDna(),
     getCampaignReadiness(),
     getSubscriptionLeaks(),
-    getWhatIf(),
-    getInvestmentPortfolio()
+    getWhatIf()
   ]);
 
   return (
@@ -67,8 +65,6 @@ export default async function DashboardPage() {
           </div>
         </article>
       </section>
-
-      <InvestmentPortfolio initialPortfolio={investmentPortfolio} />
 
       <section className="split-layout">
         <div className="panel">

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Bot, Building2, Camera, LayoutDashboard, ShieldCheck } from "lucide-react";
+import { Bot, Building2, Camera, LayoutDashboard, ShieldCheck, TrendingUp } from "lucide-react";
 
 const nav = [
   { href: "/", label: "Kişisel", icon: LayoutDashboard },
+  { href: "/portfolio", label: "Portföy", icon: TrendingUp },
   { href: "/agent", label: "Agent", icon: Bot },
   { href: "/receipt", label: "Belgeler", icon: Camera },
   { href: "/business", label: "KOBİ", icon: Building2 }
