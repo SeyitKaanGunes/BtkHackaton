@@ -13,7 +13,7 @@ export class TransactionsController {
   }
 
   @Post()
-  create(@Body() body: Partial<Transaction>) {
+  async create(@Body() body: Partial<Transaction>) {
     const transaction: Transaction = {
       id: `tx-${Date.now()}`,
       userId: body.userId ?? DEMO_USER_ID,
@@ -32,15 +32,15 @@ export class TransactionsController {
   }
 
   @Post("import-csv")
-  importCsv(@Body() body: { csv: string }) {
-    const rows = body.csv
+  async importCsv(@Body() body: { csv: string }) {
+    const parsedRows = body.csv
       .trim()
       .split(/\r?\n/)
       .slice(1)
       .filter(Boolean)
       .map((line, index) => {
         const [occurredAt, merchant, amount, categoryId, type = "expense"] = line.split(",").map((item) => item.trim());
-        return this.store.addTransaction({
+        return {
           id: `tx-csv-${Date.now()}-${index}`,
           userId: DEMO_USER_ID,
           accountId: "acc-main",
@@ -51,8 +51,12 @@ export class TransactionsController {
           type: type === "income" ? "income" : "expense",
           occurredAt: occurredAt || new Date().toISOString(),
           paymentMethod: "debit_card"
-        });
+        } satisfies Transaction;
       });
+    const rows: Transaction[] = [];
+    for (const row of parsedRows) {
+      rows.push(await this.store.addTransaction(row));
+    }
     return { imported: rows.length, rows };
   }
 }

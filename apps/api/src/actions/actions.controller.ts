@@ -12,12 +12,12 @@ export class ActionsController {
   }
 
   @Post(":id/approve")
-  approve(@Param("id") id: string) {
-    return this.store.approveAction(id) ?? { error: "Action not found" };
+  async approve(@Param("id") id: string) {
+    return (await this.store.approveAction(id)) ?? { error: "Action not found" };
   }
 
   @Post("subscription-reminder")
-  createSubscriptionReminder(@Body() body: SubscriptionReminderRequest): SubscriptionReminderResult {
+  async createSubscriptionReminder(@Body() body: SubscriptionReminderRequest): Promise<SubscriptionReminderResult> {
     const remindAt = normalizeReminderDate(body.remindAt);
     const action: ActionItem = {
       id: `act-subscription-${Date.now()}`,
@@ -29,7 +29,7 @@ export class ActionsController {
       status: "pending",
       source: "agent"
     };
-    return { action: this.store.addAction(action), scheduled: true };
+    return { action: await this.store.addAction(action), scheduled: true };
   }
 }
 

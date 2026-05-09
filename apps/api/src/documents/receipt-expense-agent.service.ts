@@ -31,7 +31,7 @@ export class ReceiptExpenseAgentService {
     return {
       agentName: "Receipt Agent",
       receipt,
-      transaction: this.store.addTransaction(transaction),
+      transaction: await this.store.addTransaction(transaction),
       addedToExpenses: true,
       evidence: [
         `Satıcı: ${receipt.merchant}`,

@@ -25,13 +25,13 @@ export class InvestmentsController {
     if (!body.symbol?.trim()) throw new BadRequestException("symbol is required");
     if (Number(body.quantity) <= 0) throw new BadRequestException("quantity must be greater than zero");
     const holding = createInvestmentHolding(body);
-    this.store.addInvestmentHolding(holding);
+    await this.store.addInvestmentHolding(holding);
     return this.marketData.buildPortfolio(this.store.investmentHoldings);
   }
 
   @Delete("holdings/:id")
   async removeHolding(@Param("id") id: string) {
-    this.store.removeInvestmentHolding(id);
+    await this.store.removeInvestmentHolding(id);
     return this.marketData.buildPortfolio(this.store.investmentHoldings);
   }
 }

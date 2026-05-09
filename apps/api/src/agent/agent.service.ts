@@ -50,7 +50,16 @@ export class AgentService {
         };
       })
       .addNode("simulation", async (state) => {
-        const simulation = buildWhatIfScenarios({ amount: this.extractAmount(state.message), categoryId: "cat-tech", description: state.message });
+        const simulation = buildWhatIfScenarios(
+          { amount: this.extractAmount(state.message), categoryId: "cat-tech", description: state.message },
+          {
+            accounts: this.store.accounts,
+            actions: this.store.actions,
+            budgets: this.store.budgets,
+            goals: this.store.goals,
+            transactions: this.store.transactions
+          }
+        );
         return {
           answer: `What-if sonucu: güvenli limit ${simulation.safeLimit.toLocaleString("tr-TR")} TL. Riskli senaryoda ay sonu bakiye ${simulation.cards[2]!.monthEndBalance.toLocaleString("tr-TR")} TL olur.`,
           confidence: 0.9,
@@ -69,7 +78,7 @@ export class AgentService {
         };
       })
       .addNode("subscriptions", async () => {
-        const leaks = detectSubscriptionLeakage();
+        const leaks = detectSubscriptionLeakage(this.store.subscriptions);
         return {
           answer: `${leaks.length} abonelik sızıntısı bulundu. En hızlı kazanım: ${leaks[0]?.merchant} için ${leaks[0]?.recommendation}`,
           confidence: 0.86,
@@ -103,7 +112,13 @@ export class AgentService {
         `Finansal sağlık skorun ${dashboard.financialHealthScore}/100. Kampanya hazırlık skorun ${readiness.score}/100 ve güvenli limit ${readiness.safeLimit} TL.`,
       confidence: result.confidence ?? 0.82,
       routedAgents: result.routedAgents,
-      evidence: buildAgentEvidence(),
+      evidence: buildAgentEvidence({
+        accounts: this.store.accounts,
+        actions: this.store.actions,
+        budgets: this.store.budgets,
+        goals: this.store.goals,
+        transactions: this.store.transactions
+      }),
       assumptions: [
         "Hesaplama Mayıs 2026 demo verileriyle yapılmıştır.",
         "LLM açıklama üretir; tutar ve skorlar deterministik servislerden gelir.",

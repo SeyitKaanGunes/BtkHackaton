@@ -1,5 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConfigService } from "@nestjs/config";
+import {
+  accounts,
+  actions,
+  budgets,
+  business,
+  businessCashEvents,
+  businessCustomers,
+  categories,
+  demoInvestmentHoldings,
+  demoUser,
+  goals,
+  subscriptions,
+  transactions,
+  type ActionItem,
+  type InvestmentHolding,
+  type Transaction
+} from "@fintwin/shared";
 import { AgentService } from "../src/agent/agent.service.js";
 import { QwenService } from "../src/ai/qwen.service.js";
 import { ActionsController } from "../src/actions/actions.controller.js";
@@ -16,7 +33,7 @@ describe("API feature services", () => {
   });
 
   it("routes agent questions through LangGraph and returns explainability", async () => {
-    const agent = new AgentService(new DataStoreService(), new QwenService());
+    const agent = new AgentService(createTestStore(), new QwenService());
     const result = await agent.chat("10000 TL harcarsam ne olur?");
     expect(result.routedAgents).toContain("Simulation Agent");
     expect(result.evidence.length).toBeGreaterThan(0);
@@ -31,7 +48,7 @@ describe("API feature services", () => {
   });
 
   it("imports a scanned receipt as an expense transaction", async () => {
-    const store = new DataStoreService();
+    const store = createTestStore();
     const receiptAgent = new ReceiptExpenseAgentService(new DocumentsService(new QwenService()), store);
     const before = store.transactions.length;
     const result = await receiptAgent.importReceipt({});
@@ -42,7 +59,7 @@ describe("API feature services", () => {
   });
 
   it("imports statement line items as categorized expense transactions", async () => {
-    const store = new DataStoreService();
+    const store = createTestStore();
     const statementAgent = new StatementExpenseAgentService(new DocumentsService(new QwenService()), store);
     const before = store.transactions.length;
     const result = await statementAgent.importStatement({});
@@ -53,10 +70,10 @@ describe("API feature services", () => {
     expect(store.transactions.length).toBe(before + result.importedCount);
   });
 
-  it("creates dated reminders for detected subscriptions", () => {
-    const store = new DataStoreService();
+  it("creates dated reminders for detected subscriptions", async () => {
+    const store = createTestStore();
     const controller = new ActionsController(store);
-    const result = controller.createSubscriptionReminder({ merchant: "StreamPlus", amount: 219, remindAt: "2026-06-01" });
+    const result = await controller.createSubscriptionReminder({ merchant: "StreamPlus", amount: 219, remindAt: "2026-06-01" });
     expect(result.scheduled).toBe(true);
     expect(result.action.type).toBe("calendar_bill");
     expect(result.action.dueAt).toBe("2026-06-01T09:00:00.000Z");
@@ -66,6 +83,7 @@ describe("API feature services", () => {
   it("builds an investment portfolio with fallback market data", async () => {
     const previousKey = process.env.TWELVE_DATA_API_KEY;
     delete process.env.TWELVE_DATA_API_KEY;
+
     try {
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(
@@ -86,7 +104,7 @@ describe("API feature services", () => {
         )
       );
 
-      const store = new DataStoreService();
+      const store = createTestStore();
       const controller = new InvestmentsController(store, new TwelveDataService(new ConfigService()));
       const portfolio = await controller.portfolio();
       const next = await controller.addHolding({
@@ -103,7 +121,50 @@ describe("API feature services", () => {
       expect(next.positions.some((position) => position.symbol === "USD/TRY")).toBe(true);
       expect((await controller.symbols("akbank")).some((symbol) => symbol.symbol === "AKBNK")).toBe(true);
     } finally {
-      if (previousKey) process.env.TWELVE_DATA_API_KEY = previousKey;
+      if (previousKey === undefined) {
+        delete process.env.TWELVE_DATA_API_KEY;
+      } else {
+        process.env.TWELVE_DATA_API_KEY = previousKey;
+      }
     }
   });
 });
+
+function createTestStore(): DataStoreService {
+  const store = {
+    categories: [...categories],
+    budgets: [...budgets],
+    goals: [...goals],
+    subscriptions: [...subscriptions],
+    business,
+    businessCustomers: [...businessCustomers],
+    businessCashEvents: [...businessCashEvents],
+    accounts: [...accounts],
+    investmentHoldings: [...demoInvestmentHoldings],
+    actions: [...actions],
+    transactions: [...transactions],
+    fcmTokens: [],
+    users: [{ ...demoUser, passwordHash: "$2b$10$XUWXgP2dSqJbe1dTT4rC9O71yPUb4B3bVAeMzb7XHSc6uWXr6KI0m" }],
+    getDemoUser() {
+      return this.users[0]!;
+    },
+    async addTransaction(transaction: Transaction) {
+      this.transactions.unshift(transaction);
+      return transaction;
+    },
+    async addAction(action: ActionItem) {
+      this.actions.unshift(action);
+      return action;
+    },
+    async addInvestmentHolding(holding: InvestmentHolding) {
+      this.investmentHoldings.unshift(holding);
+      return holding;
+    },
+    async removeInvestmentHolding(id: string) {
+      const existing = this.investmentHoldings.find((holding) => holding.id === id);
+      this.investmentHoldings = this.investmentHoldings.filter((holding) => holding.id !== id);
+      return existing;
+    }
+  };
+  return store as unknown as DataStoreService;
+}

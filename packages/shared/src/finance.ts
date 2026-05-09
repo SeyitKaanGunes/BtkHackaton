@@ -18,7 +18,10 @@ import type {
   AgentEvidence,
   AiCfoSimulation,
   Budget,
+  Business,
   BusinessDashboard,
+  BusinessCashEvent,
+  BusinessCustomer,
   CollectionScore,
   DashboardSummary,
   Goal,
@@ -26,6 +29,7 @@ import type {
   ScenarioCard,
   SpendingDna,
   SubscriptionLeak,
+  Subscription,
   Transaction,
   WhatIfRequest,
   WhatIfResponse
@@ -184,13 +188,26 @@ export function calculateCampaignReadiness(sourceTransactions: Transaction[] = t
   };
 }
 
-export function buildWhatIfScenarios(input: WhatIfRequest): WhatIfResponse {
-  const dashboard = calculateDashboardSummary();
-  const selectedBudget = budgets.find((budget) => budget.categoryId === input.categoryId);
-  const dna = calculateSpendingDna();
+type PersonalFinanceData = {
+  accounts?: Account[];
+  actions?: ActionItem[];
+  budgets?: Budget[];
+  goals?: Goal[];
+  transactions?: Transaction[];
+};
+
+export function buildWhatIfScenarios(input: WhatIfRequest, source: PersonalFinanceData = {}): WhatIfResponse {
+  const sourceAccounts = source.accounts ?? accounts;
+  const sourceActions = source.actions ?? actions;
+  const sourceBudgets = source.budgets ?? budgets;
+  const sourceGoals = source.goals ?? goals;
+  const sourceTransactions = source.transactions ?? transactions;
+  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions);
+  const selectedBudget = sourceBudgets.find((budget) => budget.categoryId === input.categoryId);
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
   const categoryRisk = dna.categories.find((category) => category.categoryId === input.categoryId)?.riskScore ?? dna.overallRisk;
   const safeLimit = Math.max(500, Math.round(((selectedBudget?.monthlyLimit ?? input.amount) * 0.55) / 100) * 100);
-  const currentSavingsGap = sum(goals.map((goal) => Math.max(goal.targetAmount - goal.currentAmount, 0)));
+  const currentSavingsGap = sum(sourceGoals.map((goal) => Math.max(goal.targetAmount - goal.currentAmount, 0)));
 
   const makeCard = (id: ScenarioCard["id"], multiplier: number, label: string, recommendation: string): ScenarioCard => {
     const spendAmount = Math.round(input.amount * multiplier);
@@ -217,8 +234,8 @@ export function buildWhatIfScenarios(input: WhatIfRequest): WhatIfResponse {
   };
 }
 
-export function detectSubscriptionLeakage(): SubscriptionLeak[] {
-  return subscriptions.flatMap((subscription) => {
+export function detectSubscriptionLeakage(sourceSubscriptions: Subscription[] = subscriptions): SubscriptionLeak[] {
+  return sourceSubscriptions.flatMap((subscription) => {
     const leaks: SubscriptionLeak[] = [];
     if (subscription.lastUsedAt && new Date(subscription.lastUsedAt) < new Date("2026-03-01")) {
       leaks.push({
@@ -239,20 +256,17 @@ export function detectSubscriptionLeakage(): SubscriptionLeak[] {
       });
     }
     return leaks;
-  }).concat([
-    {
-      subscriptionId: "sub-cloud",
-      merchant: "CloudBox / CloudBox Pro",
-      issue: "duplicate",
-      monthlyImpact: 149,
-      recommendation: "Aynı bulut depolama ihtiyacı için tek pakete düş."
-    }
-  ]);
+  }).concat(detectDuplicateSubscriptions(sourceSubscriptions));
 }
 
-export function buildAgentEvidence(): AgentEvidence[] {
-  const dashboard = calculateDashboardSummary();
-  const dna = calculateSpendingDna();
+export function buildAgentEvidence(source: PersonalFinanceData = {}): AgentEvidence[] {
+  const sourceAccounts = source.accounts ?? accounts;
+  const sourceActions = source.actions ?? actions;
+  const sourceBudgets = source.budgets ?? budgets;
+  const sourceGoals = source.goals ?? goals;
+  const sourceTransactions = source.transactions ?? transactions;
+  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions);
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
   return [
     { label: "Mayıs gelir", value: `${dashboard.income.toLocaleString("tr-TR")} TL`, source: "transaction" },
     { label: "Mayıs gider", value: `${dashboard.expenses.toLocaleString("tr-TR")} TL`, source: "transaction" },
@@ -261,14 +275,18 @@ export function buildAgentEvidence(): AgentEvidence[] {
   ];
 }
 
-export function calculateBusinessDashboard(businessId = DEMO_BUSINESS_ID): BusinessDashboard {
-  const relatedEvents = businessCashEvents.filter((event) => event.businessId === businessId);
+export function calculateBusinessDashboard(
+  businessId = DEMO_BUSINESS_ID,
+  sourceBusiness: Business = business,
+  sourceCashEvents: BusinessCashEvent[] = businessCashEvents
+): BusinessDashboard {
+  const relatedEvents = sourceCashEvents.filter((event) => event.businessId === businessId);
   const byDays = (days: number) => {
     const maxDate = new Date("2026-05-08T00:00:00.000Z");
     maxDate.setUTCDate(maxDate.getUTCDate() + days);
     return relatedEvents
       .filter((event) => new Date(event.dueAt) <= maxDate)
-      .reduce((balance, event) => balance + (event.type === "inflow" ? event.amount : -event.amount), business.cashBalance);
+      .reduce((balance, event) => balance + (event.type === "inflow" ? event.amount : -event.amount), sourceBusiness.cashBalance);
   };
   const projected30Days = byDays(30);
   const projected60Days = byDays(60);
@@ -276,7 +294,7 @@ export function calculateBusinessDashboard(businessId = DEMO_BUSINESS_ID): Busin
   const liquidityRisk: RiskLevel = projected30Days < 80000 ? "high" : projected60Days < 100000 ? "medium" : "low";
   return {
     businessId,
-    cashBalance: business.cashBalance,
+    cashBalance: sourceBusiness.cashBalance,
     projected30Days,
     projected60Days,
     projected90Days,
@@ -286,8 +304,8 @@ export function calculateBusinessDashboard(businessId = DEMO_BUSINESS_ID): Busin
   };
 }
 
-export function calculateCollectionScore(customerId: string): CollectionScore {
-  const customer = businessCustomers.find((item) => item.id === customerId) ?? businessCustomers[0]!;
+export function calculateCollectionScore(customerId: string, sourceCustomers: BusinessCustomer[] = businessCustomers): CollectionScore {
+  const customer = sourceCustomers.find((item) => item.id === customerId) ?? sourceCustomers[0]!;
   const lateRatio = customer.invoicesLate / Math.max(customer.invoicesPaid + customer.invoicesLate, 1);
   const score = clamp(100 - customer.averageDelayDays * 1.6 - lateRatio * 45 - customer.outstandingAmount / 4000);
   const riskLevel = riskFromScore(100 - score);
@@ -302,8 +320,13 @@ export function calculateCollectionScore(customerId: string): CollectionScore {
   };
 }
 
-export function simulateAiCfo(amount: number, decision = "Yeni yatırım"): AiCfoSimulation {
-  const dashboard = calculateBusinessDashboard();
+export function simulateAiCfo(
+  amount: number,
+  decision = "Yeni yatırım",
+  sourceBusiness: Business = business,
+  sourceCashEvents: BusinessCashEvent[] = businessCashEvents
+): AiCfoSimulation {
+  const dashboard = calculateBusinessDashboard(sourceBusiness.id, sourceBusiness, sourceCashEvents);
   const afterInvestment = dashboard.projected30Days - amount;
   const riskLevel = afterInvestment < 60000 ? "high" : afterInvestment < 120000 ? "medium" : "low";
   return {
@@ -320,4 +343,19 @@ export function simulateAiCfo(amount: number, decision = "Yeni yatırım"): AiCf
       { label: "Likidite riski", value: dashboard.liquidityRisk, source: "business" }
     ]
   };
+}
+
+function detectDuplicateSubscriptions(sourceSubscriptions: Subscription[]): SubscriptionLeak[] {
+  const cloudBox = sourceSubscriptions.filter((subscription) => /cloudbox/i.test(subscription.merchant));
+  if (cloudBox.length < 2) return [];
+  const monthlyImpact = Math.min(...cloudBox.map((subscription) => subscription.amount));
+  return [
+    {
+      subscriptionId: cloudBox.map((subscription) => subscription.id).join("/"),
+      merchant: cloudBox.map((subscription) => subscription.merchant).join(" / "),
+      issue: "duplicate",
+      monthlyImpact,
+      recommendation: "Aynı bulut depolama ihtiyacı için tek pakete düş."
+    }
+  ];
 }

@@ -14,7 +14,10 @@ export class StatementExpenseAgentService {
   async importStatement(input: { statementText?: string; imageBase64?: string; mimeType?: string; fileName?: string }): Promise<StatementImportResult> {
     const extraction = await this.documents.extractStatement(input);
     const uniqueItems = dedupeItems(extraction.items);
-    const transactions = uniqueItems.map((item, index) => this.store.addTransaction(this.toTransaction(item, index)));
+    const transactions: Transaction[] = [];
+    for (const [index, item] of uniqueItems.entries()) {
+      transactions.push(await this.store.addTransaction(this.toTransaction(item, index)));
+    }
     const recurringSubscriptions = this.detectRecurringSubscriptions(uniqueItems);
 
     return {

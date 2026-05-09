@@ -37,7 +37,7 @@ export class AuthController {
   }
 
   @Get("me")
-  me(@Headers("authorization") authorization?: string) {
+  async me(@Headers("authorization") authorization?: string) {
     return this.auth.me(this.auth.verifyToken(authorization));
   }
 

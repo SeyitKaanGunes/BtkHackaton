@@ -11,11 +11,11 @@ export class AuthService {
   ) {}
 
   async register(input: { name: string; email: string; password: string }) {
-    if (this.store.findUserByEmail(input.email)) {
+    if (await this.store.findUserByEmail(input.email)) {
       throw new UnauthorizedException("Bu e-posta ile kullanıcı zaten var.");
     }
     const passwordHash = await bcrypt.hash(input.password, 10);
-    const user = this.store.createUser({
+    const user = await this.store.createUser({
       id: `user-${Date.now()}`,
       name: input.name,
       email: input.email,
@@ -29,15 +29,15 @@ export class AuthService {
   }
 
   async login(input: { email: string; password: string }) {
-    const user = this.store.findUserByEmail(input.email);
+    const user = await this.store.findUserByEmail(input.email);
     if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
       throw new UnauthorizedException("E-posta veya şifre hatalı.");
     }
     return this.toAuthResponse(user);
   }
 
-  me(userId: string) {
-    const user = this.store.users.find((item) => item.id === userId) ?? this.store.getDemoUser();
+  async me(userId: string) {
+    const user = (await this.store.findUserById(userId)) ?? this.store.getDemoUser();
     const { passwordHash: _passwordHash, ...safeUser } = user;
     return safeUser;
   }
