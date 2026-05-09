@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --port 3000",
-    "build": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @fintwin/shared && next build",
-    "lint": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @fintwin/shared && next typegen && tsc -p tsconfig.json --noEmit",
-    "typecheck": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @fintwin/shared && next typegen && tsc -p tsconfig.json --noEmit",
+    "build": "npm run build -w @fintwin/shared && next build",
+    "lint": "npm run build -w @fintwin/shared && next typegen && tsc -p tsconfig.json --noEmit",
+    "typecheck": "npm run build -w @fintwin/shared && next typegen && tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

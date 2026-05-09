@@ -2,6 +2,8 @@ import { BadGatewayException, BadRequestException, Inject, Injectable, ServiceUn
 import type { ReceiptScanResult, StatementLineItem } from "@fintwin/shared";
 import { QwenService } from "../ai/qwen.service.js";
 
+const QWEN_PRIMARY_MODEL = "qwen3.6-flash-2026-04-16";
+
 const RECEIPT_INSTRUCTION = `Sen bir Türkçe fiş/fatura çıkarıcı asistansın. Yalnızca aşağıdaki şemada saf JSON döndür, başka hiçbir metin/markdown/açıklama ekleme:
 {
   "merchant": string,
@@ -75,7 +77,7 @@ export class DocumentsService {
             ]
           }
         ],
-        { model: process.env.QWEN_VISION_MODEL ?? "qwen-vl-plus", temperature: 0 }
+        { model: process.env.QWEN_VISION_MODEL ?? QWEN_PRIMARY_MODEL, temperature: 0 }
       );
 
       return JSON.parse(extractJson(response.content)) as ReceiptScanResult;
@@ -109,7 +111,7 @@ export class DocumentsService {
           { role: "system", content: STATEMENT_INSTRUCTION },
           { role: "user", content: userContent }
         ],
-        { model: input.imageBase64 ? process.env.QWEN_VISION_MODEL ?? "qwen-vl-plus" : undefined, temperature: 0 }
+        { model: input.imageBase64 ? process.env.QWEN_VISION_MODEL ?? QWEN_PRIMARY_MODEL : undefined, temperature: 0 }
       );
       const parsed = JSON.parse(extractJson(response.content)) as Partial<StatementExtraction>;
       return {

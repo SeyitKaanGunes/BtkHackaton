@@ -27,7 +27,8 @@ import {
 
 const defaultUrl = Platform.OS === "android" ? "http://10.0.2.2:4000" : "http://localhost:4000";
 const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
-const apiUrl = runtimeEnv.EXPO_PUBLIC_API_URL ?? defaultUrl;
+const configuredUrl = runtimeEnv.EXPO_PUBLIC_API_URL?.trim();
+const apiUrl = (configuredUrl || defaultUrl).replace(/\/$/, "");
 const demoFallbackEnabled = runtimeEnv.EXPO_PUBLIC_ENABLE_DEMO_FALLBACK === "true";
 
 async function request<T>(path: string, fallback: () => T, init?: RequestInit): Promise<T> {

@@ -15,15 +15,19 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "check:no-env": "git diff --cached --name-only | grep -E '(^|/)\\.env($|\\.)' | grep -vE '(^|/)\\.env\\.example$' && exit 1 || exit 0"
+    "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
+    "db:push": "prisma db push --schema apps/api/prisma/schema.prisma",
+    "check:no-env": "node scripts/check-no-env.mjs"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.6",
     "react-native-svg": "15.15.3"
   },
   "devDependencies": {
+    "prisma": "^6.19.3",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.15"

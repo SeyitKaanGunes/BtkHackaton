@@ -10,7 +10,8 @@
     "lint": "npm run build -w @fintwin/shared && tsc -p tsconfig.json --noEmit",
     "typecheck": "npm run build -w @fintwin/shared && tsc -p tsconfig.json --noEmit",
     "test": "npm run build -w @fintwin/shared && vitest run",
-    "prisma:generate": "prisma generate --schema prisma/schema.prisma"
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:push": "prisma db push --schema prisma/schema.prisma"
   },
   "dependencies": {
     "@fintwin/shared": "0.1.0",

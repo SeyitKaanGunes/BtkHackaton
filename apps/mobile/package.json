@@ -10,7 +10,7 @@
     "dev:web": "vite",
     "build": "npm run typecheck",
     "lint": "npm run typecheck",
-    "typecheck": "npm --prefix \"$(git rev-parse --show-toplevel)\" run build -w @fintwin/shared && tsc -p tsconfig.json --noEmit",
+    "typecheck": "npm run build -w @fintwin/shared && tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {

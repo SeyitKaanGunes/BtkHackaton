@@ -11,7 +11,8 @@ export default defineConfig({
   plugins: [react()],
   define: {
     __DEV__: "true",
-    "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development")
+    "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
+    "process.env.EXPO_PUBLIC_API_URL": JSON.stringify(process.env.EXPO_PUBLIC_API_URL ?? "")
   },
   resolve: {
     extensions: [".web.tsx", ".web.ts", ".web.jsx", ".web.js", ".tsx", ".ts", ".jsx", ".js"],

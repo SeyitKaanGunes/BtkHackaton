@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import { ActionsController } from "./actions/actions.controller.js";
 import { AgentController } from "./agent/agent.controller.js";
@@ -9,6 +9,7 @@ import { AuthController } from "./auth/auth.controller.js";
 import { AuthService } from "./auth/auth.service.js";
 import { BusinessController } from "./business/business.controller.js";
 import { CampaignsController } from "./campaigns/campaigns.controller.js";
+import { getJwtSecret, validateApiEnvironment } from "./config/env.js";
 import { DataStoreService } from "./data/data-store.service.js";
 import { DashboardController } from "./dashboard/dashboard.controller.js";
 import { DocumentsController } from "./documents/documents.controller.js";
@@ -26,11 +27,18 @@ import { TransactionsController } from "./transactions/transactions.controller.j
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: ["../../.env", "apps/api/.env", ".env"] }),
-    JwtModule.register({
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ["apps/api/.env", ".env", "../../.env"],
+      validate: validateApiEnvironment
+    }),
+    JwtModule.registerAsync({
       global: true,
-      secret: process.env.JWT_SECRET ?? "fintwin-local-dev-secret",
-      signOptions: { expiresIn: "7d" }
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: getJwtSecret(config),
+        signOptions: { expiresIn: "7d" }
+      })
     })
   ],
   controllers: [

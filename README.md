@@ -9,7 +9,7 @@ AI-powered Financial Digital Twin platform for personal finance first, with a se
 - Backend: NestJS
 - DB: PostgreSQL with Prisma schema
 - AI: LangChain + LangGraph with Qwen API (DashScope OpenAI-compatible)
-- OCR: Qwen-VL structured JSON output
+- OCR: Qwen multimodal structured JSON output
 - Auth: JWT with Google OAuth placeholders
 - Notifications: Firebase Cloud Messaging placeholders
 - Charts: Recharts on web
@@ -31,12 +31,44 @@ Demo fallbacks are opt-in. Web and mobile call the API by default and surface AP
 - `NEXT_PUBLIC_ENABLE_DEMO_FALLBACK=true`
 - `EXPO_PUBLIC_ENABLE_DEMO_FALLBACK=true`
 
-Local Qwen defaults:
+## Production Env
 
-- Text model: `qwen-plus`
-- Vision model: `qwen-vl-plus`
+Use `.env.production.example` as the deployment checklist. For the API, these values are required when `NODE_ENV=production`:
+
+- `DATABASE_URL`: Supabase transaction pooler URI, used by the running API.
+- `DIRECT_URL`: Supabase direct/session-pooler URI, used by Prisma schema pushes.
+- `JWT_SECRET`: a random secret with at least 32 characters.
+- `API_CORS_ORIGINS`: comma-separated web origins allowed to call the API.
+- `QWEN_API_KEY`: required for production AI/OCR flows.
+
+Generate a JWT secret with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Before deploy, generate Prisma Client and push the current schema:
+
+```bash
+npm run db:generate
+npm run db:push
+```
+
+Frontend deployments only need the public API URL:
+
+- Web: `NEXT_PUBLIC_API_URL="https://your-api-domain.com"`
+- Mobile build env: `EXPO_PUBLIC_API_URL="https://your-api-domain.com"`
+
+Qwen defaults:
+
+- Primary text model: `qwen3.6-flash-2026-04-16`
+- Primary vision model: `qwen3.6-flash-2026-04-16`
+- Secondary model: `qwen3.6-flash`
 - Base URL: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
 - Key env name: `QWEN_API_KEY`
+- Provider limits to keep in mind: 1M context window, 991K maximum input, 64K maximum output, 60 RPM, 1,000,000 TPM.
+
+The API currently uses Qwen through the OpenAI-compatible DashScope endpoint. Future Gemini migration should change this provider layer rather than spreading Gemini-specific calls across controllers or agents.
 
 Market data defaults:
 

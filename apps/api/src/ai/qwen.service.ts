@@ -2,6 +2,10 @@ import { Injectable } from "@nestjs/common";
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
+const QWEN_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
+const QWEN_PRIMARY_MODEL = "qwen3.6-flash-2026-04-16";
+const QWEN_SECONDARY_MODEL = "qwen3.6-flash";
+
 type ChatRole = "system" | "user" | "assistant";
 type TextPart = { type: "text"; text: string };
 type ImagePart = { type: "image_url"; image_url: { url: string } };
@@ -20,8 +24,9 @@ export interface QwenChatResult {
 
 @Injectable()
 export class QwenService {
-  private readonly baseURL = process.env.QWEN_BASE_URL ?? "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
-  private readonly textModel = process.env.QWEN_TEXT_MODEL ?? "qwen-plus";
+  private readonly baseURL = process.env.QWEN_BASE_URL ?? QWEN_BASE_URL;
+  private readonly textModel = process.env.QWEN_TEXT_MODEL ?? QWEN_PRIMARY_MODEL;
+  private readonly secondaryModel = process.env.QWEN_SECONDARY_MODEL ?? QWEN_SECONDARY_MODEL;
   private client?: OpenAI;
 
   isConfigured() {
@@ -34,9 +39,18 @@ export class QwenService {
     }
 
     const model = options.model ?? this.textModel;
+    try {
+      return await this.createChatCompletion(model, messages, options.temperature);
+    } catch (error) {
+      if (!this.shouldTrySecondaryModel(model, error)) throw error;
+      return this.createChatCompletion(this.secondaryModel, messages, options.temperature);
+    }
+  }
+
+  private async createChatCompletion(model: string, messages: QwenMessage[], temperature?: number): Promise<QwenChatResult> {
     const response = await this.getClient().chat.completions.create({
       model,
-      temperature: options.temperature ?? 0.2,
+      temperature: temperature ?? 0.2,
       messages: messages as ChatCompletionMessageParam[]
     });
 
@@ -53,5 +67,11 @@ export class QwenService {
       baseURL: this.baseURL
     });
     return this.client;
+  }
+
+  private shouldTrySecondaryModel(model: string, error: unknown) {
+    if (!this.secondaryModel || this.secondaryModel === model) return false;
+    const status = typeof (error as { status?: unknown }).status === "number" ? (error as { status: number }).status : undefined;
+    return status !== 401 && status !== 403;
   }
 }

@@ -14,8 +14,8 @@ coverage/
 # Environment and secrets
 .env
 .env.*
-!.env.example
-!apps/**/.env.example
+!.env*.example
+!apps/**/.env*.example
 
 # Local prompt files may contain secrets (API keys etc.); never commit
 prompts/

@@ -42,6 +42,8 @@ model Account {
   creditLimit  Decimal?
   user         User          @relation(fields: [userId], references: [id])
   transactions Transaction[]
+
+  @@index([userId])
 }
 
 model Category {
@@ -52,6 +54,8 @@ model Category {
   transactions  Transaction[]
   budgets       Budget[]
   subscriptions Subscription[]
+
+  @@index([kind])
 }
 
 model Transaction {
@@ -70,6 +74,10 @@ model Transaction {
   user          User     @relation(fields: [userId], references: [id])
   account       Account  @relation(fields: [accountId], references: [id])
   category      Category @relation(fields: [categoryId], references: [id])
+
+  @@index([userId, occurredAt])
+  @@index([accountId, occurredAt])
+  @@index([categoryId])
 }
 
 model Budget {
@@ -79,6 +87,9 @@ model Budget {
   monthlyLimit Decimal
   user         User     @relation(fields: [userId], references: [id])
   category     Category @relation(fields: [categoryId], references: [id])
+
+  @@index([userId])
+  @@index([categoryId])
 }
 
 model Goal {
@@ -89,6 +100,8 @@ model Goal {
   currentAmount Decimal
   deadline      DateTime
   user          User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, deadline])
 }
 
 model Subscription {
@@ -103,6 +116,9 @@ model Subscription {
   previousAmount Decimal?
   user           User      @relation(fields: [userId], references: [id])
   category       Category  @relation(fields: [categoryId], references: [id])
+
+  @@index([userId])
+  @@index([categoryId])
 }
 
 model Document {
@@ -116,6 +132,8 @@ model Document {
   rawResult   Json
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
 }
 
 model ActionItem {
@@ -128,6 +146,8 @@ model ActionItem {
   status      String    @default("pending")
   source      String
   user        User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, status, dueAt])
 }
 
 model Simulation {
@@ -138,6 +158,8 @@ model Simulation {
   output    Json
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
 }
 
 model AgentConversation {
@@ -148,6 +170,8 @@ model AgentConversation {
   evidence  Json
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
 }
 
 model FcmToken {
@@ -157,6 +181,8 @@ model FcmToken {
   platform  String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 model InvestmentHolding {
@@ -175,6 +201,9 @@ model InvestmentHolding {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   user           User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([symbol])
 }
 
 model Business {
@@ -186,6 +215,8 @@ model Business {
   owner       User                @relation(fields: [ownerId], references: [id])
   customers   BusinessCustomer[]
   cashEvents  BusinessCashEvent[]
+
+  @@index([ownerId])
 }
 
 model BusinessCustomer {
@@ -197,6 +228,8 @@ model BusinessCustomer {
   invoicesLate      Int      @default(0)
   outstandingAmount Decimal  @default(0)
   business          Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
 }
 
 model BusinessCashEvent {
@@ -207,4 +240,6 @@ model BusinessCashEvent {
   type       String
   dueAt      DateTime
   business   Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId, dueAt])
 }

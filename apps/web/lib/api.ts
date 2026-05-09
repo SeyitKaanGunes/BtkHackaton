@@ -24,7 +24,7 @@ import {
   type WhatIfResponse
 } from "@fintwin/shared";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
 const demoFallbackEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_FALLBACK === "true";
 
 async function request<T>(path: string, fallback: () => T, init?: RequestInit): Promise<T> {
