@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">FintwinMobile</string>
+    <string name="launch_subtitle">Powered by React Native</string>
 </resources>
