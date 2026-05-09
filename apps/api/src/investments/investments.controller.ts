@@ -22,7 +22,7 @@ export class InvestmentsController {
 
   @Post("holdings")
   async addHolding(@Body() body: InvestmentHoldingCreateRequest) {
-    if (!body.symbol?.trim()) throw new BadRequestException("symbol is required");
+    if (body.assetType !== "cash" && !body.symbol?.trim()) throw new BadRequestException("symbol is required");
     if (Number(body.quantity) <= 0) throw new BadRequestException("quantity must be greater than zero");
     const holding = createInvestmentHolding(body);
     await this.store.addInvestmentHolding(holding);

@@ -20,6 +20,7 @@ export const assetTypeLabels: Record<InvestmentAssetType, string> = {
   commodity: "Emtia",
   crypto: "Kripto",
   fund: "Fon",
+  cash: "Nakit / Mevduat",
   other: "Diger"
 };
 
@@ -69,7 +70,10 @@ export const investmentSymbolPresets: MarketSymbolResult[] = [
   { symbol: "XAU_GRAM_TRY", name: "Gram Gold / Turkish Lira", assetType: "gold", currency: "TRY", source: "fallback" },
   { symbol: "XAU/USD", name: "Gold Spot / US Dollar", assetType: "gold", currency: "USD", source: "fallback" },
   { symbol: "XAG/USD", name: "Silver Spot / US Dollar", assetType: "commodity", currency: "USD", source: "fallback" },
-  { symbol: "BTC/USD", name: "Bitcoin / US Dollar", assetType: "crypto", currency: "USD", source: "fallback" }
+  { symbol: "BTC/USD", name: "Bitcoin / US Dollar", assetType: "crypto", currency: "USD", source: "fallback" },
+  { symbol: "CASH_TRY", name: "Nakit / Mevduat TRY", assetType: "cash", currency: "TRY", source: "fallback" },
+  { symbol: "CASH_USD", name: "Nakit / Mevduat USD", assetType: "cash", currency: "USD", source: "fallback" },
+  { symbol: "CASH_EUR", name: "Nakit / Mevduat EUR", assetType: "cash", currency: "EUR", source: "fallback" }
 ];
 
 export const demoInvestmentHoldings: InvestmentHolding[] = [
@@ -92,6 +96,16 @@ export const demoInvestmentHoldings: InvestmentHolding[] = [
     averageCost: 2450,
     costCurrency: "TRY",
     marketCurrency: "TRY"
+  }),
+  createInvestmentHolding({
+    symbol: "CASH_TRY",
+    name: "Vadeli Mevduat TRY",
+    assetType: "cash",
+    quantity: 25000,
+    averageCost: 1,
+    costCurrency: "TRY",
+    marketCurrency: "TRY",
+    annualInterestRate: 42
   })
 ];
 
@@ -106,24 +120,34 @@ export const fallbackQuotes: InvestmentQuote[] = [
   quote("XAU_GRAM_TRY", 2465, "TRY", 0.55, "Gram Gold / Turkish Lira"),
   quote("XAU/USD", 2365, "USD", 0.35, "Gold Spot / US Dollar"),
   quote("XAG/USD", 28.4, "USD", 0.45, "Silver Spot / US Dollar"),
-  quote("BTC/USD", 64200, "USD", 1.2, "Bitcoin / US Dollar")
+  quote("BTC/USD", 64200, "USD", 1.2, "Bitcoin / US Dollar"),
+  quote("CASH_TRY", 1, "TRY", 0, "Nakit / Mevduat TRY"),
+  quote("CASH_USD", 1, "USD", 0, "Nakit / Mevduat USD"),
+  quote("CASH_EUR", 1, "EUR", 0, "Nakit / Mevduat EUR")
 ];
 
 export function createInvestmentHolding(input: InvestmentHoldingCreateRequest, now = new Date().toISOString()): InvestmentHolding {
-  const preset = investmentSymbolPresets.find((item) => item.symbol.toUpperCase() === input.symbol.toUpperCase());
-  const symbol = input.symbol.trim().toUpperCase();
+  const inputSymbol = input.symbol?.trim().toUpperCase();
+  const requestedCurrency = normalizeCurrency(input.marketCurrency) ?? input.costCurrency ?? cashCurrencyFromSymbol(inputSymbol ?? "") ?? "TRY";
+  const requestedAssetType = input.assetType;
+  const isCash = requestedAssetType === "cash" || isCashSymbol(inputSymbol);
+  const symbol = (isCash ? cashSymbolFor(requestedCurrency) : inputSymbol) ?? "";
+  const preset = investmentSymbolPresets.find((item) => item.symbol.toUpperCase() === symbol);
+  const assetType = input.assetType ?? preset?.assetType ?? inferAssetType(symbol);
+  const costCurrency = input.costCurrency ?? normalizeCurrency(input.marketCurrency) ?? presetCurrency(preset) ?? "TRY";
   return {
     id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     userId: DEMO_USER_ID,
     symbol,
-    name: input.name?.trim() || preset?.name || symbol,
-    assetType: input.assetType ?? preset?.assetType ?? inferAssetType(symbol),
+    name: input.name?.trim() || preset?.name || (assetType === "cash" ? cashNameFor(costCurrency) : symbol),
+    assetType,
     quantity: Math.max(0, Number(input.quantity || 0)),
-    averageCost: Math.max(0, Number(input.averageCost || 0)),
-    costCurrency: input.costCurrency ?? normalizeCurrency(input.marketCurrency) ?? "TRY",
-    exchange: input.exchange || preset?.exchange,
-    micCode: input.micCode || preset?.micCode,
-    marketCurrency: input.marketCurrency || preset?.currency,
+    averageCost: Math.max(0, Number(input.averageCost ?? (assetType === "cash" ? 1 : 0))),
+    costCurrency,
+    exchange: assetType === "cash" ? undefined : input.exchange || preset?.exchange,
+    micCode: assetType === "cash" ? undefined : input.micCode || preset?.micCode,
+    marketCurrency: assetType === "cash" ? costCurrency : input.marketCurrency || preset?.currency,
+    annualInterestRate: sanitizeAnnualInterestRate(input.annualInterestRate),
     createdAt: now,
     updatedAt: now
   };
@@ -144,6 +168,7 @@ export function inferAssetType(symbol: string): InvestmentAssetType {
   if (upper.includes("XAG") || upper.includes("SILVER")) return "commodity";
   if (upper.includes("/") && (upper.includes("BTC") || upper.includes("ETH"))) return "crypto";
   if (upper.includes("/")) return "forex";
+  if (upper.startsWith("CASH_")) return "cash";
   return "stock";
 }
 
@@ -179,6 +204,8 @@ export function calculateInvestmentPortfolio(
     const costBasisTry = convertToTry(costBasis, holding.costCurrency);
     const profitLossTry = marketValueTry - costBasisTry;
     const profitLossPercent = costBasisTry > 0 ? (profitLossTry / costBasisTry) * 100 : 0;
+    const dailyInterestTry = roundMoney((marketValueTry * (holding.annualInterestRate ?? 0)) / 100 / 365);
+    const projectedEndOfDayValueTry = roundMoney(marketValueTry + dailyInterestTry);
     return {
       ...holding,
       quote,
@@ -187,7 +214,9 @@ export function calculateInvestmentPortfolio(
       costBasis,
       costBasisTry,
       profitLossTry,
-      profitLossPercent
+      profitLossPercent,
+      dailyInterestTry,
+      projectedEndOfDayValueTry
     };
   });
 
@@ -195,6 +224,8 @@ export function calculateInvestmentPortfolio(
   const totalCostTry = roundMoney(positions.reduce((total, item) => total + item.costBasisTry, 0));
   const totalProfitLossTry = roundMoney(totalMarketValueTry - totalCostTry);
   const totalProfitLossPercent = totalCostTry > 0 ? roundPercent((totalProfitLossTry / totalCostTry) * 100) : 0;
+  const totalDailyInterestTry = roundMoney(positions.reduce((total, item) => total + item.dailyInterestTry, 0));
+  const projectedEndOfDayValueTry = roundMoney(totalMarketValueTry + totalDailyInterestTry);
   const allocation = Object.entries(assetTypeLabels)
     .map(([assetType, label]) => {
       const valueTry = roundMoney(positions.filter((item) => item.assetType === assetType).reduce((total, item) => total + item.marketValueTry, 0));
@@ -213,6 +244,8 @@ export function calculateInvestmentPortfolio(
     totalCostTry,
     totalProfitLossTry,
     totalProfitLossPercent,
+    totalDailyInterestTry,
+    projectedEndOfDayValueTry,
     allocation,
     provider: "Twelve Data",
     refreshedAt,
@@ -226,7 +259,37 @@ export function demoInvestmentPortfolio(): InvestmentPortfolioSummary {
 }
 
 export function fallbackQuoteFor(holding: Pick<InvestmentHolding, "symbol" | "name" | "marketCurrency">): InvestmentQuote {
+  if (isCashSymbol(holding.symbol)) {
+    return quote(holding.symbol, 1, normalizeCurrency(holding.marketCurrency) ?? cashCurrencyFromSymbol(holding.symbol) ?? "TRY", 0, holding.name);
+  }
   return fallbackQuotes.find((item) => item.symbol.toUpperCase() === holding.symbol.toUpperCase()) ?? quote(holding.symbol, 0, holding.marketCurrency ?? "TRY", 0, holding.name);
+}
+
+export function isCashSymbol(symbol?: string): boolean {
+  return Boolean(symbol?.trim().toUpperCase().startsWith("CASH_"));
+}
+
+function cashSymbolFor(currency: Currency): string {
+  return `CASH_${currency}`;
+}
+
+function cashCurrencyFromSymbol(symbol: string): Currency | undefined {
+  return normalizeCurrency(symbol.replace("CASH_", ""));
+}
+
+function cashNameFor(currency: Currency): string {
+  return `Nakit / Mevduat ${currency}`;
+}
+
+function presetCurrency(preset?: MarketSymbolResult): Currency | undefined {
+  return normalizeCurrency(preset?.currency);
+}
+
+function sanitizeAnnualInterestRate(value?: number): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const rate = Number(value);
+  if (!Number.isFinite(rate) || rate <= 0) return undefined;
+  return roundPercent(rate);
 }
 
 function quote(symbol: string, price: number, currency: string, percentChange: number, name: string): InvestmentQuote {

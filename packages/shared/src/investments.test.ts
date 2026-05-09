@@ -24,4 +24,21 @@ describe("investment portfolio engine", () => {
     expect(suggestInvestmentSymbols("akbank")[0]?.symbol).toBe("AKBNK");
     expect(suggestInvestmentSymbols("")[0]?.symbol).toBe("THYAO");
   });
+
+  it("projects end-of-day value for cash deposits with annual interest", () => {
+    const holding = createInvestmentHolding({
+      assetType: "cash",
+      name: "Banka mevduati",
+      quantity: 36500,
+      costCurrency: "TRY",
+      annualInterestRate: 10
+    });
+
+    const portfolio = calculateInvestmentPortfolio([holding], fallbackQuotes);
+
+    expect(holding.symbol).toBe("CASH_TRY");
+    expect(portfolio.totalDailyInterestTry).toBe(10);
+    expect(portfolio.projectedEndOfDayValueTry).toBe(36510);
+    expect(portfolio.positions[0]?.assetType).toBe("cash");
+  });
 });

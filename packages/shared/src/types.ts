@@ -1,6 +1,6 @@
 export type Currency = "TRY" | "USD" | "EUR";
 
-export type InvestmentAssetType = "stock" | "forex" | "gold" | "commodity" | "crypto" | "fund" | "other";
+export type InvestmentAssetType = "stock" | "forex" | "gold" | "commodity" | "crypto" | "fund" | "cash" | "other";
 
 export type MarketDataSource = "twelve_data" | "fallback";
 
@@ -50,7 +50,7 @@ export interface MarketSymbolResult {
 }
 
 export interface InvestmentHoldingCreateRequest {
-  symbol: string;
+  symbol?: string;
   name?: string;
   assetType?: InvestmentAssetType;
   quantity: number;
@@ -59,6 +59,7 @@ export interface InvestmentHoldingCreateRequest {
   exchange?: string;
   micCode?: string;
   marketCurrency?: string;
+  annualInterestRate?: number;
 }
 
 export interface InvestmentHolding {
@@ -73,6 +74,7 @@ export interface InvestmentHolding {
   exchange?: string;
   micCode?: string;
   marketCurrency?: string;
+  annualInterestRate?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -100,6 +102,8 @@ export interface InvestmentPosition extends InvestmentHolding {
   costBasisTry: number;
   profitLossTry: number;
   profitLossPercent: number;
+  dailyInterestTry: number;
+  projectedEndOfDayValueTry: number;
 }
 
 export interface InvestmentPortfolioSummary {
@@ -108,6 +112,8 @@ export interface InvestmentPortfolioSummary {
   totalCostTry: number;
   totalProfitLossTry: number;
   totalProfitLossPercent: number;
+  totalDailyInterestTry: number;
+  projectedEndOfDayValueTry: number;
   allocation: Array<{ assetType: InvestmentAssetType; label: string; valueTry: number; weight: number }>;
   provider: "Twelve Data";
   refreshedAt: string;

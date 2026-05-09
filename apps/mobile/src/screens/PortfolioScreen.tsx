@@ -13,6 +13,7 @@ const assetTypes: Array<{ value: InvestmentAssetType; label: string }> = [
   { value: "forex", label: "Doviz" },
   { value: "crypto", label: "Kripto" },
   { value: "fund", label: "Fon" },
+  { value: "cash", label: "Nakit / Mevduat" },
   { value: "other", label: "Diger" }
 ];
 
@@ -26,21 +27,27 @@ export function PortfolioScreen() {
   const [selected, setSelected] = useState<MarketSymbolResult | null>(null);
   const [quantity, setQuantity] = useState("1");
   const [averageCost, setAverageCost] = useState("");
+  const [annualInterestRate, setAnnualInterestRate] = useState("");
   const [assetType, setAssetType] = useState<InvestmentAssetType>("stock");
   const [costCurrency, setCostCurrency] = useState<Currency>("TRY");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const isCash = assetType === "cash";
 
   useEffect(() => {
     void loadInvestmentPortfolio().then(setPortfolio);
   }, []);
 
   useEffect(() => {
+    if (isCash) {
+      setResults([]);
+      return undefined;
+    }
     const handle = setTimeout(() => {
       void searchInvestmentSymbols(query).then(setResults);
     }, 260);
     return () => clearTimeout(handle);
-  }, [query]);
+  }, [isCash, query]);
 
   const sourceLabel = useMemo(() => {
     if (!portfolio) return "Twelve Data";
@@ -48,10 +55,10 @@ export function PortfolioScreen() {
   }, [portfolio]);
 
   async function addHolding() {
-    const symbol = selected?.symbol ?? query.trim().toUpperCase();
+    const symbol = isCash ? undefined : selected?.symbol ?? query.trim().toUpperCase();
     const parsedQuantity = parseNumber(quantity);
-    if (!symbol || parsedQuantity <= 0) {
-      setMessage("Sembol ve adet gerekli.");
+    if ((!isCash && !symbol) || parsedQuantity <= 0) {
+      setMessage(isCash ? "Tutar gerekli." : "Sembol ve adet gerekli.");
       return;
     }
     setBusy(true);
@@ -59,21 +66,23 @@ export function PortfolioScreen() {
     try {
       const next = await addInvestmentHolding({
         symbol,
-        name: selected?.name,
-        assetType: selected?.assetType ?? assetType,
+        name: isCash ? query.trim() || `Nakit / Mevduat ${costCurrency}` : selected?.name,
+        assetType: isCash ? "cash" : selected?.assetType ?? assetType,
         quantity: parsedQuantity,
-        averageCost: parseNumber(averageCost),
+        averageCost: isCash ? 1 : parseNumber(averageCost),
         costCurrency,
-        exchange: selected?.exchange,
-        micCode: selected?.micCode,
-        marketCurrency: selected?.currency
+        exchange: isCash ? undefined : selected?.exchange,
+        micCode: isCash ? undefined : selected?.micCode,
+        marketCurrency: isCash ? costCurrency : selected?.currency,
+        annualInterestRate: isCash ? parseNumber(annualInterestRate) : undefined
       });
       setPortfolio(next);
       setSelected(null);
       setQuery("");
       setQuantity("1");
       setAverageCost("");
-      setMessage("Varlik eklendi.");
+      setAnnualInterestRate("");
+      setMessage("Portfoye eklendi.");
     } finally {
       setBusy(false);
     }
@@ -99,7 +108,7 @@ export function PortfolioScreen() {
 
   return (
     <View style={{ gap: space[4] }}>
-      <ScreenHeader eyebrow="Piyasa" title="Yatirim Portfoyu" subtitle="Hisse, doviz, altin ve emtia varliklarini tek ekranda takip et." />
+      <ScreenHeader eyebrow="Piyasa" title="Yatirim Portfoyu" subtitle="Hisse, doviz, altin, nakit ve mevduati tek toplamda takip et." />
 
       <Card>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
@@ -115,7 +124,9 @@ export function PortfolioScreen() {
           v={`${portfolio.totalProfitLossTry >= 0 ? "+" : ""}${formatTry(portfolio.totalProfitLossTry)} (%${formatNumber(portfolio.totalProfitLossPercent)})`}
           vTone={portfolio.totalProfitLossTry >= 0 ? "accent" : "danger"}
         />
-        <Muted>Fiyatlar backend cache ile gunde bir yenilenir. Bu portfoy finansal saglik skoruna dahil edilmez.</Muted>
+        <KV k="Gunluk faiz" v={formatTry(portfolio.totalDailyInterestTry)} vTone={portfolio.totalDailyInterestTry > 0 ? "accent" : undefined} />
+        <KV k="Gun sonu toplam" v={formatTry(portfolio.projectedEndOfDayValueTry)} />
+        <Muted>Piyasa fiyatlari backend cache ile gunde bir yenilenir. Nakit ve mevduat pozisyonlari gunluk faiz projeksiyonuna dahil edilir.</Muted>
       </Card>
 
       {portfolio.allocation.length > 0 ? (
@@ -166,14 +177,15 @@ export function PortfolioScreen() {
               setQuery(text);
               setSelected(null);
             }}
-            placeholder="THYAO, XAU, USD/TRY"
+            placeholder={isCash ? "Vadeli mevduat, vadesiz hesap" : "THYAO, XAU, USD/TRY"}
             placeholderTextColor={p.muted}
             autoCapitalize="characters"
             style={{ flex: 1, color: p.ink, fontSize: 14, paddingVertical: 10 }}
           />
         </View>
 
-        <View style={{ gap: 8 }}>
+        {!isCash ? (
+          <View style={{ gap: 8 }}>
           {results.slice(0, 5).map((item) => (
             <Pressable
               key={`${item.symbol}-${item.exchange ?? "none"}-${item.micCode ?? "none"}`}
@@ -200,24 +212,36 @@ export function PortfolioScreen() {
               <Text style={{ color: p.muted, fontSize: 11 }}>{[item.exchange, item.currency].filter(Boolean).join(" / ") || item.assetType}</Text>
             </Pressable>
           ))}
-        </View>
+          </View>
+        ) : null}
 
         <View style={{ gap: 8 }}>
           <Text style={{ color: p.muted, fontSize: 12, fontWeight: "800" }}>Tur</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
             {assetTypes.map((item) => (
-              <Choice key={item.value} label={item.label} active={assetType === item.value} onPress={() => setAssetType(item.value)} />
+              <Choice
+                key={item.value}
+                label={item.label}
+                active={assetType === item.value}
+                onPress={() => {
+                  setAssetType(item.value);
+                  if (item.value === "cash") {
+                    setSelected(null);
+                    setResults([]);
+                  }
+                }}
+              />
             ))}
           </View>
         </View>
 
         <View style={{ flexDirection: "row", gap: 10 }}>
-          <NumberField label="Adet" value={quantity} onChangeText={setQuantity} />
-          <NumberField label="Alis" value={averageCost} onChangeText={setAverageCost} />
+          <NumberField label={isCash ? "Tutar" : "Adet"} value={quantity} onChangeText={setQuantity} />
+          {isCash ? <NumberField label="Faiz %" value={annualInterestRate} onChangeText={setAnnualInterestRate} /> : <NumberField label="Alis" value={averageCost} onChangeText={setAverageCost} />}
         </View>
 
         <View style={{ gap: 8 }}>
-          <Text style={{ color: p.muted, fontSize: 12, fontWeight: "800" }}>Maliyet para birimi</Text>
+          <Text style={{ color: p.muted, fontSize: 12, fontWeight: "800" }}>{isCash ? "Para birimi" : "Maliyet para birimi"}</Text>
           <View style={{ flexDirection: "row", gap: 6 }}>
             {currencies.map((currency) => (
               <Choice key={currency} label={currency} active={costCurrency === currency} onPress={() => setCostCurrency(currency)} />
@@ -267,10 +291,11 @@ export function PortfolioScreen() {
                 <MiniStat label="Deger" value={formatTry(position.marketValueTry)} />
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                {isUp ? <TrendingUp color={p.accent} size={16} /> : <TrendingDown color={p.danger} size={16} />}
+                {position.dailyInterestTry > 0 ? <TrendingUp color={p.accent} size={16} /> : isUp ? <TrendingUp color={p.accent} size={16} /> : <TrendingDown color={p.danger} size={16} />}
                 <Text style={{ color: isUp ? p.accent : p.danger, fontWeight: "900", fontSize: 13 }}>
-                  {isUp ? "+" : ""}
-                  {formatTry(position.profitLossTry)} (%{formatNumber(position.profitLossPercent)})
+                  {position.dailyInterestTry > 0
+                    ? `+${formatTry(position.dailyInterestTry)} gunluk faiz`
+                    : `${isUp ? "+" : ""}${formatTry(position.profitLossTry)} (%${formatNumber(position.profitLossPercent)})`}
                 </Text>
               </View>
             </View>

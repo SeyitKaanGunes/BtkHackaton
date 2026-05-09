@@ -171,6 +171,7 @@ model InvestmentHolding {
   exchange       String?
   micCode        String?
   marketCurrency String?
+  annualInterestRate Decimal?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   user           User     @relation(fields: [userId], references: [id])

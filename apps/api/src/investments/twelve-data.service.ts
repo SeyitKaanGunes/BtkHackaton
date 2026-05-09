@@ -74,6 +74,7 @@ export class TwelveDataService {
 
   async getQuote(holding: Pick<InvestmentHolding, "symbol" | "name" | "exchange" | "micCode" | "marketCurrency">): Promise<InvestmentQuote> {
     const symbol = holding.symbol.toUpperCase();
+    if (symbol.startsWith("CASH_")) return fallbackQuoteFor(holding);
     const cacheKey = `${symbol}:${holding.exchange ?? ""}:${holding.micCode ?? ""}`;
     const cached = this.getCached(this.quoteCache, cacheKey);
     if (cached) return cached;

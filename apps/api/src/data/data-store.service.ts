@@ -151,6 +151,7 @@ export class DataStoreService implements OnModuleInit {
         exchange: holding.exchange,
         micCode: holding.micCode,
         marketCurrency: holding.marketCurrency,
+        annualInterestRate: holding.annualInterestRate,
         createdAt: new Date(holding.createdAt),
         updatedAt: new Date(holding.updatedAt)
       }
@@ -371,6 +372,7 @@ export class DataStoreService implements OnModuleInit {
           exchange: holding.exchange,
           micCode: holding.micCode,
           marketCurrency: holding.marketCurrency,
+          annualInterestRate: holding.annualInterestRate,
           createdAt: new Date(holding.createdAt),
           updatedAt: new Date(holding.updatedAt)
         }
@@ -586,6 +588,7 @@ export class DataStoreService implements OnModuleInit {
     exchange: string | null;
     micCode: string | null;
     marketCurrency: string | null;
+    annualInterestRate: unknown | null;
     createdAt: Date;
     updatedAt: Date;
   }): InvestmentHolding {
@@ -601,6 +604,7 @@ export class DataStoreService implements OnModuleInit {
       exchange: holding.exchange ?? undefined,
       micCode: holding.micCode ?? undefined,
       marketCurrency: holding.marketCurrency ?? undefined,
+      annualInterestRate: holding.annualInterestRate === null ? undefined : Number(holding.annualInterestRate),
       createdAt: holding.createdAt.toISOString(),
       updatedAt: holding.updatedAt.toISOString()
     };

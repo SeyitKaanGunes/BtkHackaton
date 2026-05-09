@@ -12,6 +12,7 @@ const assetTypes: Array<{ value: InvestmentAssetType; label: string }> = [
   { value: "forex", label: "Doviz" },
   { value: "crypto", label: "Kripto" },
   { value: "fund", label: "Fon" },
+  { value: "cash", label: "Nakit / Mevduat" },
   { value: "other", label: "Diger" }
 ];
 
@@ -22,6 +23,7 @@ type FormState = {
   averageCost: string;
   costCurrency: Currency;
   assetType: InvestmentAssetType;
+  annualInterestRate: string;
 };
 
 export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: InvestmentPortfolioSummary }) {
@@ -29,16 +31,21 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MarketSymbolResult[]>([]);
   const [selected, setSelected] = useState<MarketSymbolResult | null>(null);
-  const [form, setForm] = useState<FormState>({ quantity: "1", averageCost: "", costCurrency: "TRY", assetType: "stock" });
+  const [form, setForm] = useState<FormState>({ quantity: "1", averageCost: "", costCurrency: "TRY", assetType: "stock", annualInterestRate: "" });
   const [isBusy, setIsBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const isCash = form.assetType === "cash";
 
   useEffect(() => {
+    if (isCash) {
+      setResults([]);
+      return undefined;
+    }
     const handle = setTimeout(() => {
       void searchMarketSymbols(query).then(setResults);
     }, 260);
     return () => clearTimeout(handle);
-  }, [query]);
+  }, [isCash, query]);
 
   const sourceLabel = useMemo(() => {
     const hasFallback = portfolio.positions.some((item) => item.quote.source === "fallback");
@@ -46,10 +53,10 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
   }, [portfolio.positions]);
 
   async function submit() {
-    const symbol = selected?.symbol ?? query.trim().toUpperCase();
+    const symbol = isCash ? undefined : selected?.symbol ?? query.trim().toUpperCase();
     const quantity = parseNumber(form.quantity);
-    if (!symbol || quantity <= 0) {
-      setMessage("Sembol ve adet gerekli.");
+    if ((!isCash && !symbol) || quantity <= 0) {
+      setMessage(isCash ? "Tutar gerekli." : "Sembol ve adet gerekli.");
       return;
     }
 
@@ -58,20 +65,21 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
     try {
       const next = await addInvestmentHolding({
         symbol,
-        name: selected?.name,
-        assetType: selected?.assetType ?? form.assetType,
+        name: isCash ? query.trim() || `Nakit / Mevduat ${form.costCurrency}` : selected?.name,
+        assetType: isCash ? "cash" : selected?.assetType ?? form.assetType,
         quantity,
-        averageCost: parseNumber(form.averageCost),
+        averageCost: isCash ? 1 : parseNumber(form.averageCost),
         costCurrency: form.costCurrency,
-        exchange: selected?.exchange,
-        micCode: selected?.micCode,
-        marketCurrency: selected?.currency
+        exchange: isCash ? undefined : selected?.exchange,
+        micCode: isCash ? undefined : selected?.micCode,
+        marketCurrency: isCash ? form.costCurrency : selected?.currency,
+        annualInterestRate: isCash ? parseNumber(form.annualInterestRate) : undefined
       });
       setPortfolio(next);
       setSelected(null);
       setQuery("");
-      setForm((current) => ({ ...current, quantity: "1", averageCost: "" }));
-      setMessage("Varlik eklendi.");
+      setForm((current) => ({ ...current, quantity: "1", averageCost: "", annualInterestRate: "" }));
+      setMessage("Portfoye eklendi.");
     } finally {
       setIsBusy(false);
     }
@@ -104,6 +112,14 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
               {portfolio.totalProfitLossTry >= 0 ? "+" : ""}
               {formatTry(portfolio.totalProfitLossTry)} ({portfolio.totalProfitLossPercent.toLocaleString("tr-TR")}%)
             </strong>
+          </div>
+          <div>
+            <span>Gunluk faiz</span>
+            <strong className={portfolio.totalDailyInterestTry > 0 ? "positive" : undefined}>{formatTry(portfolio.totalDailyInterestTry)}</strong>
+          </div>
+          <div>
+            <span>Gun sonu toplam</span>
+            <strong>{formatTry(portfolio.projectedEndOfDayValueTry)}</strong>
           </div>
           <div>
             <span>Veri</span>
@@ -143,6 +159,7 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
                 <div>
                   <span>Deger</span>
                   <strong>{formatTry(position.marketValueTry)}</strong>
+                  {position.dailyInterestTry > 0 ? <small>+{formatTry(position.dailyInterestTry)} gunluk faiz</small> : null}
                 </div>
                 <div className={isUp ? "positive" : "negative"}>
                   {isUp ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
@@ -158,24 +175,31 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
             );
           })}
         </div>
-        <p className="market-note">Fiyatlar backend cache ile gunde bir kez yenilenir. Bu portfoy finansal saglik skoruna dahil edilmez.</p>
+        <p className="market-note">Piyasa fiyatlari backend cache ile gunde bir kez yenilenir. Nakit ve mevduat pozisyonlari gunluk faiz projeksiyonuna dahil edilir.</p>
       </div>
 
       <div className="panel investment-form">
         <div className="section-title">
           <span>Varlik Ekle</span>
-          <strong>{selected?.symbol ?? "Sembol ara"}</strong>
+          <strong>{isCash ? "Banka bakiyesi" : selected?.symbol ?? "Sembol ara"}</strong>
         </div>
 
         <label className="field">
-          <span>Sembol</span>
+          <span>{isCash ? "Banka / hesap adi" : "Sembol"}</span>
           <div className="search-input">
             <Search size={16} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="THYAO, XAU, USD/TRY" />
+            <input
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setSelected(null);
+              }}
+              placeholder={isCash ? "Vadeli mevduat, vadesiz hesap" : "THYAO, XAU, USD/TRY"}
+            />
           </div>
         </label>
 
-        {results.length > 0 ? (
+        {!isCash && results.length > 0 ? (
           <div className="symbol-results">
             {results.map((item) => (
               <button
@@ -203,7 +227,17 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
         <div className="form-grid">
           <label className="field">
             <span>Tur</span>
-            <select value={form.assetType} onChange={(event) => setForm((current) => ({ ...current, assetType: event.target.value as InvestmentAssetType }))}>
+            <select
+              value={form.assetType}
+              onChange={(event) => {
+                const nextType = event.target.value as InvestmentAssetType;
+                setForm((current) => ({ ...current, assetType: nextType, averageCost: nextType === "cash" ? "" : current.averageCost }));
+                if (nextType === "cash") {
+                  setSelected(null);
+                  setResults([]);
+                }
+              }}
+            >
               {assetTypes.map((item) => (
                 <option key={item.value} value={item.value}>
                   {item.label}
@@ -212,15 +246,17 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
             </select>
           </label>
           <label className="field">
-            <span>Adet / miktar</span>
+            <span>{isCash ? "Tutar" : "Adet / miktar"}</span>
             <input value={form.quantity} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, quantity: event.target.value }))} />
           </label>
+          {!isCash ? (
+            <label className="field">
+              <span>Alis fiyati</span>
+              <input value={form.averageCost} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, averageCost: event.target.value }))} />
+            </label>
+          ) : null}
           <label className="field">
-            <span>Alis fiyati</span>
-            <input value={form.averageCost} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, averageCost: event.target.value }))} />
-          </label>
-          <label className="field">
-            <span>Maliyet para birimi</span>
+            <span>{isCash ? "Para birimi" : "Maliyet para birimi"}</span>
             <select value={form.costCurrency} onChange={(event) => setForm((current) => ({ ...current, costCurrency: event.target.value as Currency }))}>
               {currencies.map((currency) => (
                 <option key={currency} value={currency}>
@@ -229,6 +265,12 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
               ))}
             </select>
           </label>
+          {isCash ? (
+            <label className="field">
+              <span>Yillik faiz orani (%)</span>
+              <input value={form.annualInterestRate} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, annualInterestRate: event.target.value }))} />
+            </label>
+          ) : null}
         </div>
 
         <button className="secondary-button portfolio-submit" type="button" onClick={() => void submit()} disabled={isBusy}>
