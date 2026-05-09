@@ -1,249 +1,736 @@
-import { useMemo, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import type { ReactNode } from "react";
+import type { StyleProp, TextStyle, ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
-import { palettes, radius, space, type ThemePalette, usePalette } from "./theme";
 
-// Re-export light palette as `palette` for backwards compatibility with older imports.
-export const palette = palettes.light;
+export const palette = {
+  bg: "#F6F7F4",
+  surface: "#FFFFFF",
+  surface2: "#EEF2EF",
+  ink: "#17211D",
+  muted: "#6D7974",
+  line: "#DCE3DF",
+  primary: "#1D4ED8",
+  secondary: "#0B1220",
+  teal: "#0F766E",
+  warn: "#B45309",
+  danger: "#BE123C",
+  success: "#15803D",
+  primarySoft: "#DBEAFE",
+  tealSoft: "#CCFBF1",
+  warnSoft: "#FEF3C7",
+  dangerSoft: "#FFE4E6",
+  successSoft: "#DCFCE7",
+  darkMuted: "#91A0B5"
+};
+
+export type Tone = "primary" | "teal" | "warn" | "danger" | "success" | "muted" | "accent" | "good" | "neutral";
+
+const toneColor: Record<Tone, string> = {
+  primary: palette.primary,
+  accent: palette.primary,
+  good: palette.success,
+  neutral: palette.muted,
+  teal: palette.teal,
+  warn: palette.warn,
+  danger: palette.danger,
+  success: palette.success,
+  muted: palette.muted
+};
+
+const toneSoft: Record<Tone, string> = {
+  primary: palette.primarySoft,
+  accent: palette.primarySoft,
+  good: palette.successSoft,
+  neutral: palette.surface2,
+  teal: palette.tealSoft,
+  warn: palette.warnSoft,
+  danger: palette.dangerSoft,
+  success: palette.successSoft,
+  muted: palette.surface2
+};
+
+export function ScreenHeader({
+  eyebrow,
+  title,
+  subtitle,
+  right
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle?: string;
+  right?: ReactNode;
+}) {
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerCopy}>
+        <Text style={styles.eyebrow}>{eyebrow}</Text>
+        <Text style={styles.title}>{title}</Text>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      </View>
+      {right ? <View style={styles.headerRight}>{right}</View> : null}
+    </View>
+  );
+}
+
+export function Panel({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  return <View style={[styles.panel, style]}>{children}</View>;
+}
+
+export function SectionTitle({ title, meta, children }: { title?: string; meta?: string; children?: ReactNode }) {
+  return (
+    <View style={styles.sectionTitle}>
+      <Text style={styles.sectionLabel}>{title ?? children}</Text>
+      {meta ? <Text style={styles.sectionMeta}>{meta}</Text> : null}
+    </View>
+  );
+}
+
+export function Badge({ label, tone = "muted" }: { label: string; tone?: Tone }) {
+  return (
+    <View style={[styles.badge, { backgroundColor: toneSoft[tone] }]}>
+      <Text style={[styles.badgeText, { color: toneColor[tone] }]}>{label}</Text>
+    </View>
+  );
+}
+
+export function MetricCard({
+  icon,
+  label,
+  value,
+  caption,
+  tone = "teal",
+  style
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  caption?: string;
+  tone?: Tone;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View style={[styles.metric, style]}>
+      <View style={[styles.iconShell, { backgroundColor: toneSoft[tone] }]}>{icon}</View>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={styles.metricValue}>{value}</Text>
+      {caption ? <Text style={styles.metricCaption}>{caption}</Text> : null}
+    </View>
+  );
+}
+
+export function Gauge({
+  score,
+  value,
+  size = 102,
+  label = "Sağlık"
+}: {
+  score?: number;
+  value?: number;
+  size?: number;
+  label?: string;
+}) {
+  const nextScore = score ?? value ?? 0;
+  const stroke = 9;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = circumference * (1 - Math.max(0, Math.min(nextScore, 100)) / 100);
+
+  return (
+    <View style={[styles.gauge, { height: size, width: size }]}>
+      <Svg height={size} width={size}>
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={palette.surface2}
+          strokeWidth={stroke}
+          fill="transparent"
+        />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={nextScore >= 70 ? palette.success : nextScore >= 50 ? palette.warn : palette.danger}
+          strokeWidth={stroke}
+          fill="transparent"
+          strokeLinecap="round"
+          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDashoffset={progress}
+          rotation="-90"
+          origin={`${size / 2}, ${size / 2}`}
+        />
+      </Svg>
+      <View style={styles.gaugeCenter}>
+        <Text style={styles.gaugeValue}>{nextScore}</Text>
+        <Text style={styles.gaugeLabel}>/100</Text>
+        <Text style={styles.gaugeCaption}>{label}</Text>
+      </View>
+    </View>
+  );
+}
+
+export function ProgressBar({
+  value,
+  progress,
+  tone = "primary",
+  height = 8
+}: {
+  value?: number;
+  progress?: number;
+  tone?: Tone;
+  height?: number;
+}) {
+  const nextValue = value ?? progress ?? 0;
+  return (
+    <View style={[styles.progressTrack, { height }]}>
+      <View
+        style={[
+          styles.progressFill,
+          {
+            backgroundColor: toneColor[tone],
+            width: `${Math.max(4, Math.min(nextValue, 100))}%`
+          }
+        ]}
+      />
+    </View>
+  );
+}
+
+export function RiskBar({
+  label,
+  value,
+  amount,
+  tone = value >= 85 ? "danger" : value >= 65 ? "warn" : "teal"
+}: {
+  label: string;
+  value: number;
+  amount?: string;
+  tone?: Tone;
+}) {
+  return (
+    <View style={styles.riskBar}>
+      <View style={styles.riskHeader}>
+        <View>
+          <Text style={styles.riskLabel}>{label}</Text>
+          {amount ? <Text style={styles.riskAmount}>{amount}</Text> : null}
+        </View>
+        <Text style={[styles.riskValue, { color: toneColor[tone] }]}>{value}</Text>
+      </View>
+      <ProgressBar value={value} tone={tone} />
+    </View>
+  );
+}
+
+export function Button({
+  label,
+  onPress,
+  icon,
+  variant = "primary",
+  style,
+  textStyle,
+  disabled
+}: {
+  label: string;
+  onPress?: () => void;
+  icon?: ReactNode;
+  variant?: "primary" | "secondary" | "ghost" | "danger";
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.button,
+        variant === "primary" && styles.buttonPrimary,
+        variant === "secondary" && styles.buttonSecondary,
+        variant === "ghost" && styles.buttonGhost,
+        variant === "danger" && styles.buttonDanger,
+        disabled && styles.buttonDisabled,
+        pressed && !disabled && styles.pressed,
+        style
+      ]}
+    >
+      {icon}
+      <Text
+        style={[
+          styles.buttonText,
+          variant === "primary" && styles.buttonTextPrimary,
+          variant === "secondary" && styles.buttonTextSecondary,
+          variant === "ghost" && styles.buttonTextGhost,
+          variant === "danger" && styles.buttonTextDanger,
+          textStyle
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+export function IconButton({
+  children,
+  onPress,
+  tone = "primary"
+}: {
+  children: ReactNode;
+  onPress?: () => void;
+  tone?: Tone;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.iconButton, { backgroundColor: toneSoft[tone] }, pressed && styles.pressed]}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+export function BottomTabButton({
+  label,
+  active,
+  icon,
+  onPress
+}: {
+  label: string;
+  active?: boolean;
+  icon: ReactNode;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.tabItem, active && styles.tabItemActive, pressed && styles.pressed]}>
+      {icon}
+      <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+export function Mono({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
+  return <Text style={[styles.mono, style]}>{children}</Text>;
+}
 
 export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  const p = usePalette();
+  return <Panel style={style}>{children}</Panel>;
+}
+
+export function Chip({
+  children,
+  label,
+  tone = "muted",
+  small
+}: {
+  children?: ReactNode;
+  label?: string;
+  tone?: Tone;
+  small?: boolean;
+}) {
   return (
-    <View style={[{ backgroundColor: p.surface, borderColor: p.line, borderWidth: 1, borderRadius: radius.md, padding: space[4], gap: space[3] }, style]}>
-      {children}
-    </View>
-  );
-}
-
-// Backwards-compat alias for the original `Panel` component used in App.tsx.
-export const Panel = Card;
-
-export function SectionTitle({ children }: { children: ReactNode }) {
-  const p = usePalette();
-  return <Text style={{ color: p.ink, fontSize: 18, fontWeight: "900" }}>{children}</Text>;
-}
-
-export function Eyebrow({ children, tone = "accent" }: { children: ReactNode; tone?: "accent" | "warn" | "danger" | "muted" }) {
-  const p = usePalette();
-  const color = tone === "warn" ? p.warn : tone === "danger" ? p.danger : tone === "muted" ? p.muted : p.accent;
-  return <Text style={{ color, fontSize: 11, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase" }}>{children}</Text>;
-}
-
-export function Muted({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  const p = usePalette();
-  return <Text style={[{ color: p.muted, fontSize: 13, lineHeight: 19 }, style as object]}>{children}</Text>;
-}
-
-export function Stat({ label, value, icon, sub }: { label: string; value: string; icon?: ReactNode; sub?: string }) {
-  const p = usePalette();
-  return (
-    <View
-      style={{
-        flexBasis: "48%",
-        flexGrow: 1,
-        minHeight: 104,
-        backgroundColor: p.surface,
-        borderColor: p.line,
-        borderWidth: 1,
-        borderRadius: radius.md,
-        padding: space[3],
-        justifyContent: "space-between",
-        gap: space[2]
-      }}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}>
-        {icon}
-        <Text style={{ color: p.muted, fontSize: 12, fontWeight: "700" }}>{label}</Text>
-      </View>
-      <Text style={{ color: p.ink, fontSize: 22, fontWeight: "900" }}>{value}</Text>
-      {sub ? <Text style={{ color: p.muted, fontSize: 11 }}>{sub}</Text> : null}
-    </View>
-  );
-}
-
-export function StatGrid({ children }: { children: ReactNode }) {
-  return <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>{children}</View>;
-}
-
-export function Chip({ label, tone = "neutral", small }: { label: string; tone?: "neutral" | "accent" | "warn" | "danger" | "good"; small?: boolean }) {
-  const p = usePalette();
-  const map: Record<string, { bg: string; fg: string }> = {
-    neutral: { bg: p.surface2, fg: p.ink },
-    accent: { bg: p.accentSoft, fg: p.accent },
-    warn: { bg: p.warnSoft, fg: p.warn },
-    danger: { bg: p.dangerSoft, fg: p.danger },
-    good: { bg: p.goodSoft, fg: p.good }
-  };
-  const c = map[tone];
-  return (
-    <View style={{ backgroundColor: c.bg, borderRadius: radius.pill, paddingHorizontal: small ? 8 : 10, paddingVertical: small ? 3 : 5, alignSelf: "flex-start" }}>
-      <Text style={{ color: c.fg, fontSize: small ? 10 : 11, fontWeight: "800", letterSpacing: 0.4 }}>{label}</Text>
+    <View style={[styles.badge, { backgroundColor: toneSoft[tone] }, small && compat.smallChip]}>
+      <Text style={[styles.badgeText, { color: toneColor[tone] }, small && compat.smallChipText]}>{label ?? String(children ?? "")}</Text>
     </View>
   );
 }
 
 export function Btn({
+  children,
   label,
   onPress,
   variant = "primary",
+  style,
   disabled,
   icon
 }: {
-  label: string;
-  onPress: () => void;
+  children?: ReactNode;
+  label?: string;
+  onPress?: () => void;
   variant?: "primary" | "secondary" | "ghost" | "danger";
+  style?: StyleProp<ViewStyle>;
   disabled?: boolean;
   icon?: ReactNode;
 }) {
-  const p = usePalette();
-  const styles = useMemo(() => {
-    const base = { borderRadius: radius.md, paddingVertical: 13, paddingHorizontal: 16, alignItems: "center" as const, flexDirection: "row" as const, justifyContent: "center" as const, gap: 8 };
-    if (variant === "primary") return { wrap: { ...base, backgroundColor: p.ink }, text: { color: p.surface, fontWeight: "900" as const } };
-    if (variant === "danger") return { wrap: { ...base, backgroundColor: p.danger }, text: { color: "#FFF", fontWeight: "900" as const } };
-    if (variant === "ghost") return { wrap: { ...base, backgroundColor: "transparent", borderColor: p.line, borderWidth: 1 }, text: { color: p.ink, fontWeight: "800" as const } };
-    return { wrap: { ...base, backgroundColor: p.surface2, borderColor: p.line, borderWidth: 1 }, text: { color: p.ink, fontWeight: "800" as const } };
-  }, [variant, p]);
-
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      android_ripple={{ color: p.line }}
-      style={({ pressed }) => [styles.wrap, disabled && { opacity: 0.5 }, pressed && { opacity: 0.85 }]}
-    >
-      {icon}
-      <Text style={styles.text}>{label}</Text>
-    </Pressable>
+    <Button label={label ?? String(children ?? "")} onPress={onPress} variant={variant} style={style} disabled={disabled} icon={icon} />
   );
 }
 
-// Backwards-compat: original API shape used by App.tsx.
-export function PillButton({ label, active, onPress }: { label: string; active?: boolean; onPress: () => void }) {
-  const p = usePalette();
-  return (
-    <Pressable
-      onPress={onPress}
-      android_ripple={{ color: p.line }}
-      style={{ flex: 1, borderRadius: radius.md, paddingVertical: 10, alignItems: "center", backgroundColor: active ? p.surface : "transparent" }}
-    >
-      <Text style={{ color: active ? p.ink : p.muted, fontWeight: "800", fontSize: 12 }}>{label}</Text>
-    </Pressable>
-  );
+export function Eyebrow({ children, tone }: { children: ReactNode; tone?: Tone | string }) {
+  return <Text style={[styles.eyebrow, tone ? { color: toneColor[(tone as Tone) in toneColor ? (tone as Tone) : "primary"] } : null]}>{children}</Text>;
 }
 
-function riskColor(p: ThemePalette, value: number) {
-  if (value >= 80) return p.danger;
-  if (value >= 60) return p.warn;
-  return p.accent;
-}
-
-export function RiskBar({ label, value, amount }: { label: string; value: number; amount?: string }) {
-  const p = usePalette();
-  const fillColor = riskColor(p, value);
-  return (
-    <View style={{ gap: 7 }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <Text style={{ color: p.ink, fontWeight: "700" }}>{label}</Text>
-        <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
-          {amount ? <Text style={{ color: p.muted, fontSize: 12 }}>{amount}</Text> : null}
-          <Text style={{ color: fillColor, fontWeight: "800" }}>{value}/100</Text>
-        </View>
-      </View>
-      <View style={{ height: 9, backgroundColor: p.surface2, borderRadius: radius.pill, overflow: "hidden" }}>
-        <View style={{ height: "100%", width: `${Math.max(4, Math.min(value, 100))}%`, backgroundColor: fillColor }} />
-      </View>
-    </View>
-  );
-}
-
-export function ProgressBar({ progress, tone = "accent" }: { progress: number; tone?: "accent" | "warn" | "danger" }) {
-  const p = usePalette();
-  const fg = tone === "warn" ? p.warn : tone === "danger" ? p.danger : p.accent;
-  return (
-    <View style={{ height: 8, backgroundColor: p.surface2, borderRadius: radius.pill, overflow: "hidden" }}>
-      <View style={{ height: "100%", width: `${Math.max(2, Math.min(progress, 100))}%`, backgroundColor: fg }} />
-    </View>
-  );
-}
-
-export function Gauge({ value, size = 120, label }: { value: number; size?: number; label?: string }) {
-  const p = usePalette();
-  const stroke = 12;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const pct = Math.max(0, Math.min(100, value));
-  const dash = (pct / 100) * c;
-  return (
-    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      <Svg width={size} height={size} style={{ transform: [{ rotate: "-90deg" }] }}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke={p.surface2} strokeWidth={stroke} fill="none" />
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          stroke={p.accent}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          fill="none"
-          strokeDasharray={`${dash} ${c}`}
-        />
-      </Svg>
-      <View style={{ position: "absolute", alignItems: "center" }}>
-        <Text style={{ color: p.ink, fontSize: 28, fontWeight: "900" }}>{Math.round(pct)}</Text>
-        {label ? <Text style={{ color: p.muted, fontSize: 11, fontWeight: "700" }}>{label}</Text> : null}
-      </View>
-    </View>
-  );
-}
-
-export function Row({ children, divider = true }: { children: ReactNode; divider?: boolean }) {
-  const p = usePalette();
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        gap: 10,
-        alignItems: "center",
-        justifyContent: "space-between",
-        borderTopColor: divider ? p.line : "transparent",
-        borderTopWidth: divider ? 1 : 0,
-        paddingTop: divider ? 12 : 0
-      }}
-    >
-      {children}
-    </View>
-  );
-}
-
-export function KV({ k, v, vTone = "ink" }: { k: string; v: string; vTone?: "ink" | "muted" | "accent" | "danger" | "warn" }) {
-  const p = usePalette();
-  const colors: Record<string, string> = { ink: p.ink, muted: p.muted, accent: p.accent, danger: p.danger, warn: p.warn };
-  return (
-    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-      <Text style={{ color: p.muted, fontSize: 13 }}>{k}</Text>
-      <Text style={{ color: colors[vTone], fontSize: 14, fontWeight: "800" }}>{v}</Text>
-    </View>
-  );
+export function Muted({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
+  return <Text style={[styles.bodyMuted, style]}>{children}</Text>;
 }
 
 export function Divider() {
-  const p = usePalette();
-  return <View style={{ height: 1, backgroundColor: p.line, marginVertical: 4 }} />;
+  return <View style={styles.divider} />;
 }
 
-export function ScreenHeader({ eyebrow, title, subtitle }: { eyebrow?: string; title: string; subtitle?: string }) {
-  const p = usePalette();
+export function KV({ k, v, vTone }: { k: string; v: string; vTone?: Tone | string }) {
+  const nextTone = (vTone as Tone) in toneColor ? (vTone as Tone) : undefined;
   return (
-    <View style={{ gap: 6, marginTop: 4, marginBottom: 4 }}>
-      {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
-      <Text style={{ color: p.ink, fontSize: 28, lineHeight: 32, fontWeight: "900" }}>{title}</Text>
-      {subtitle ? <Text style={{ color: p.muted, fontSize: 14, lineHeight: 20 }}>{subtitle}</Text> : null}
+    <View style={compat.kv}>
+      <Text style={compat.kvKey}>{k}</Text>
+      <Text style={[compat.kvValue, nextTone ? { color: toneColor[nextTone] } : null]}>{v}</Text>
     </View>
   );
 }
 
+export function StatGrid({ children }: { children: ReactNode }) {
+  return <View style={styles.metricGrid}>{children}</View>;
+}
+
+export function Stat({ label, value, icon, sub }: { label: string; value: string; icon: ReactNode; sub?: string }) {
+  return <MetricCard label={label} value={value} icon={icon} caption={sub} />;
+}
+
 export const styles = StyleSheet.create({
-  // Kept for backwards compatibility with the original App.tsx import path.
-  // New code should use the themed components above.
-  scroll: { padding: 16, paddingBottom: 110, gap: 14 }
+  screen: {
+    flex: 1,
+    backgroundColor: palette.bg
+  },
+  safe: {
+    flex: 1,
+    backgroundColor: palette.bg
+  },
+  scroll: {
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === "android" ? 18 : 10,
+    paddingBottom: 124,
+    gap: 14
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+    paddingTop: 4
+  },
+  headerCopy: {
+    flex: 1,
+    gap: 6
+  },
+  headerRight: {
+    alignItems: "flex-end"
+  },
+  eyebrow: {
+    color: palette.primary,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0
+  },
+  title: {
+    color: palette.ink,
+    fontSize: 28,
+    lineHeight: 32,
+    fontWeight: "800",
+    letterSpacing: 0
+  },
+  subtitle: {
+    color: palette.muted,
+    fontSize: 13.5,
+    lineHeight: 20
+  },
+  panel: {
+    backgroundColor: palette.surface,
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    gap: 14
+  },
+  darkPanel: {
+    backgroundColor: palette.secondary,
+    borderColor: palette.secondary
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10
+  },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12
+  },
+  wrapRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8
+  },
+  sectionTitle: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12
+  },
+  sectionLabel: {
+    color: palette.ink,
+    fontSize: 14.5,
+    lineHeight: 20,
+    fontWeight: "700"
+  },
+  sectionMeta: {
+    color: palette.muted,
+    fontSize: 12.5,
+    fontWeight: "600"
+  },
+  badge: {
+    alignSelf: "flex-start",
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 6
+  },
+  badgeText: {
+    fontSize: 11.5,
+    fontWeight: "800"
+  },
+  metricGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10
+  },
+  metric: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    minHeight: 118,
+    backgroundColor: palette.surface,
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 14,
+    gap: 8,
+    justifyContent: "space-between"
+  },
+  iconShell: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  metricLabel: {
+    color: palette.muted,
+    fontSize: 12.5,
+    fontWeight: "600"
+  },
+  metricValue: {
+    color: palette.ink,
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: "800",
+    letterSpacing: 0
+  },
+  metricCaption: {
+    color: palette.muted,
+    fontSize: 11.5,
+    lineHeight: 16
+  },
+  mono: {
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
+    letterSpacing: 0
+  },
+  gauge: {
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  gaugeCenter: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  gaugeValue: {
+    color: palette.ink,
+    fontSize: 24,
+    lineHeight: 28,
+    fontWeight: "900",
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" })
+  },
+  gaugeLabel: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: -2
+  },
+  gaugeCaption: {
+    color: palette.muted,
+    fontSize: 10.5,
+    fontWeight: "700",
+    marginTop: 3
+  },
+  progressTrack: {
+    backgroundColor: palette.surface2,
+    borderRadius: 999,
+    overflow: "hidden"
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999
+  },
+  riskBar: {
+    gap: 8
+  },
+  riskHeader: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 12
+  },
+  riskLabel: {
+    color: palette.ink,
+    fontSize: 13.5,
+    fontWeight: "700"
+  },
+  riskAmount: {
+    color: palette.muted,
+    fontSize: 12,
+    marginTop: 2
+  },
+  riskValue: {
+    fontSize: 18,
+    fontWeight: "900",
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" })
+  },
+  button: {
+    minHeight: 44,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8
+  },
+  buttonPrimary: {
+    backgroundColor: palette.secondary
+  },
+  buttonSecondary: {
+    backgroundColor: palette.primarySoft
+  },
+  buttonGhost: {
+    backgroundColor: palette.surface2
+  },
+  buttonDanger: {
+    backgroundColor: palette.dangerSoft
+  },
+  buttonDisabled: {
+    opacity: 0.58
+  },
+  buttonText: {
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  buttonTextPrimary: {
+    color: palette.surface
+  },
+  buttonTextSecondary: {
+    color: palette.primary
+  },
+  buttonTextGhost: {
+    color: palette.ink
+  },
+  buttonTextDanger: {
+    color: palette.danger
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  pressed: {
+    opacity: 0.72,
+    transform: [{ scale: 0.99 }]
+  },
+  tabBar: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: Platform.OS === "ios" ? 18 : 14,
+    minHeight: 72,
+    backgroundColor: palette.secondary,
+    borderRadius: 8,
+    padding: 7,
+    flexDirection: "row",
+    gap: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    shadowOffset: { height: 8, width: 0 },
+    elevation: 12
+  },
+  tabItem: {
+    flex: 1,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 8
+  },
+  tabItemActive: {
+    backgroundColor: palette.surface
+  },
+  tabLabel: {
+    color: palette.darkMuted,
+    fontSize: 11.5,
+    fontWeight: "800"
+  },
+  tabLabelActive: {
+    color: palette.secondary
+  },
+  divider: {
+    height: 1,
+    backgroundColor: palette.line
+  },
+  muted: {
+    color: palette.muted
+  },
+  body: {
+    color: palette.ink,
+    fontSize: 13.5,
+    lineHeight: 20
+  },
+  bodyMuted: {
+    color: palette.muted,
+    fontSize: 13,
+    lineHeight: 19
+  },
+  strong: {
+    color: palette.ink,
+    fontWeight: "800"
+  }
+});
+
+const compat = StyleSheet.create({
+  kv: {
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    gap: 5,
+    backgroundColor: "#FBFCFA"
+  },
+  kvKey: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: "700"
+  },
+  kvValue: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: "900"
+  },
+  smallChip: {
+    paddingHorizontal: 7,
+    paddingVertical: 4
+  },
+  smallChipText: {
+    fontSize: 10.5
+  }
 });

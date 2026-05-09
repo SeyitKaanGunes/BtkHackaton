@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>FintwinMobile</string>
+	<string>Fintwin</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -35,10 +35,10 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Fiş ve fatura çekmek için kamera erişimi gereklidir.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Fiş, fatura veya ekstre görüntüsü seçmek için fotoğraf kütüphanesi erişimi gereklidir.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Ekstre görüntüsü seçmek için fotoğraf kütüphanesi erişimi gereklidir.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">FintwinMobile</string>
-    <string name="launch_subtitle">Powered by React Native</string>
+    <string name="app_name">Fintwin</string>
+    <string name="launch_subtitle">AI Financial Twin</string>
 </resources>
