@@ -24,45 +24,45 @@ export type ThemePalette = {
 };
 
 export const lightPalette: ThemePalette = {
-  bg: "#F6F7F4",
+  bg: "#DCE6F8",
   surface: "#FFFFFF",
-  surface2: "#EEF2EF",
-  ink: "#17211D",
-  muted: "#6D7974",
-  line: "#DCE3DF",
-  accent: "#0F766E",
-  accentSoft: "#DCEFEC",
-  accent2: "#4F46E5",
-  accent2Soft: "#E4E2FA",
+  surface2: "#C9D6EF",
+  ink: "#070C1C",
+  muted: "#4F5B7A",
+  line: "#B5C2DD",
+  accent: "#1D4ED8",
+  accentSoft: "#DBE7FB",
+  accent2: "#0B1438",
+  accent2Soft: "#C7D2EE",
   warn: "#B45309",
   warnSoft: "#FBF1E2",
   danger: "#BE123C",
   dangerSoft: "#FBE6EC",
-  good: "#0F766E",
-  goodSoft: "#DCEFEC",
+  good: "#1D4ED8",
+  goodSoft: "#DBE7FB",
   onAccent: "#FFFFFF",
-  scrim: "rgba(23,33,29,0.55)"
+  scrim: "rgba(7,12,28,0.6)"
 };
 
 export const darkPalette: ThemePalette = {
-  bg: "#0B100E",
-  surface: "#141A18",
-  surface2: "#1B2320",
-  ink: "#ECF1EE",
-  muted: "#8A958F",
-  line: "#252E2A",
-  accent: "#34C7B5",
-  accentSoft: "#0F3935",
-  accent2: "#A5A0FF",
-  accent2Soft: "#272560",
-  warn: "#F0A85B",
+  bg: "#040A1E",
+  surface: "#0B1330",
+  surface2: "#131D44",
+  ink: "#EAF0FB",
+  muted: "#7B8BB6",
+  line: "#1C284A",
+  accent: "#60A5FA",
+  accentSoft: "#10224F",
+  accent2: "#B6C2EE",
+  accent2Soft: "#1A2454",
+  warn: "#FBBF24",
   warnSoft: "#3A2913",
   danger: "#F87093",
   dangerSoft: "#3B1521",
-  good: "#34C7B5",
-  goodSoft: "#0F3935",
-  onAccent: "#0B100E",
-  scrim: "rgba(0,0,0,0.65)"
+  good: "#60A5FA",
+  goodSoft: "#10224F",
+  onAccent: "#040A1E",
+  scrim: "rgba(0,0,0,0.7)"
 };
 
 export const palettes: Record<ThemeMode, ThemePalette> = {
