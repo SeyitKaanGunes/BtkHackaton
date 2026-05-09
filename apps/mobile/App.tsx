@@ -1,19 +1,20 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { launchImageLibrary } from "react-native-image-picker";
+import { launchCamera, launchImageLibrary } from "react-native-image-picker";
 import Tts from "react-native-tts";
-import { Bot, BriefcaseBusiness, Camera, Gauge, PiggyBank, ReceiptText, WalletCards } from "lucide-react-native";
+import { Bot, BriefcaseBusiness, Camera, FileText, Gauge, PiggyBank, ReceiptText, WalletCards } from "lucide-react-native";
 import type {
   AgentResponse,
   BusinessDashboard,
   CollectionScore,
   DashboardSummary,
-  ReceiptScanResult,
+  ReceiptExpenseImportResult,
   SpendingDna,
+  StatementImportResult,
   SubscriptionLeak,
   WhatIfResponse
 } from "@fintwin/shared";
-import { loadBusiness, loadMobileHome, scanReceipt, sendAgentMessage } from "./src/api";
+import { importReceiptExpense, importStatement, loadBusiness, loadMobileHome, sendAgentMessage } from "./src/api";
 import { palette, Panel, PillButton, RiskBar, Stat, styles } from "./src/ui";
 
 type Tab = "home" | "agent" | "scan" | "business";
@@ -39,7 +40,7 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.scroll}>
         {tab === "home" && (home ? <HomeScreen {...home} /> : <Loading />)}
         {tab === "agent" && <AgentScreen />}
-        {tab === "scan" && <ScanScreen />}
+        {tab === "scan" && <ScanScreen onImported={() => void loadMobileHome().then(setHome)} />}
         {tab === "business" && (business ? <BusinessScreen {...business} /> : <Loading />)}
       </ScrollView>
       <View style={styles.tabBar}>
@@ -148,47 +149,90 @@ function AgentScreen() {
   );
 }
 
-function ScanScreen() {
-  const [result, setResult] = useState<ReceiptScanResult | null>(null);
-  const [loading, setLoading] = useState(false);
+function ScanScreen({ onImported }: { onImported: () => void }) {
+  const [receiptResult, setReceiptResult] = useState<ReceiptExpenseImportResult | null>(null);
+  const [statementResult, setStatementResult] = useState<StatementImportResult | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [statementLoading, setStatementLoading] = useState(false);
 
-  async function pickImage() {
-    setLoading(true);
-    const image = await launchImageLibrary({
+  async function captureReceipt() {
+    setReceiptLoading(true);
+    const image = await launchCamera({
       mediaType: "photo",
-      includeBase64: true
+      includeBase64: true,
+      quality: 0.8
     });
     if (image.errorMessage) {
-      Alert.alert("Görsel seçilemedi", image.errorMessage);
+      Alert.alert("Kamera açılamadı", image.errorMessage);
     }
     if (!image.didCancel) {
       const asset = image.assets?.[0];
-      const next = await scanReceipt(asset?.base64 ?? undefined, asset?.type ?? undefined);
-      setResult(next);
+      const next = await importReceiptExpense(asset?.base64 ?? undefined, asset?.type ?? undefined);
+      setReceiptResult(next);
+      onImported();
     }
-    setLoading(false);
+    setReceiptLoading(false);
+  }
+
+  async function pickStatement() {
+    setStatementLoading(true);
+    const image = await launchImageLibrary({
+      mediaType: "photo",
+      includeBase64: true,
+      quality: 0.8
+    });
+    if (image.errorMessage) {
+      Alert.alert("Ekstre seçilemedi", image.errorMessage);
+    }
+    if (!image.didCancel) {
+      const asset = image.assets?.[0];
+      const next = await importStatement(asset?.base64 ?? undefined, asset?.type ?? undefined);
+      setStatementResult(next);
+      onImported();
+    }
+    setStatementLoading(false);
   }
 
   return (
     <>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>Qwen OCR</Text>
-        <Text style={styles.title}>Fişi finans kaydına çevir.</Text>
+        <Text style={styles.eyebrow}>Belge Agent'ları</Text>
+        <Text style={styles.title}>Fiş ve ekstreyi giderlere ekle.</Text>
       </View>
       <Panel>
         <Camera color={palette.accent} />
-        <Text style={styles.subtitle}>Tutar, tarih, satıcı, KDV, kategori ve ödeme tipi çıkarılır.</Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={pickImage} disabled={loading}>
-          <Text style={styles.primaryButtonText}>{loading ? "Okunuyor" : "Fiş/fatura seç"}</Text>
+        <Text style={styles.subtitle}>Receipt Agent kameradan okur, kategoriyi bulur ve tek gider transaction'ı oluşturur.</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={captureReceipt} disabled={receiptLoading}>
+          <Text style={styles.primaryButtonText}>{receiptLoading ? "Gider ekleniyor" : "Fişi kameradan okut"}</Text>
         </TouchableOpacity>
       </Panel>
-      {result ? (
+      {receiptResult ? (
         <Panel>
-          <Text style={styles.sectionTitle}>{result.merchant}</Text>
-          <Text style={styles.statValue}>{result.totalAmount.toLocaleString("tr-TR")} TL</Text>
+          <Text style={styles.sectionTitle}>{receiptResult.receipt.merchant}</Text>
+          <Text style={styles.statValue}>{receiptResult.transaction.amount.toLocaleString("tr-TR")} TL</Text>
           <Text style={styles.muted}>
-            {result.occurredAt} · {result.categoryName} · KDV {result.taxAmount.toLocaleString("tr-TR")} TL
+            {receiptResult.receipt.occurredAt} · {receiptResult.receipt.categoryName} · giderlere eklendi
           </Text>
+        </Panel>
+      ) : null}
+      <Panel>
+        <FileText color={palette.accent} />
+        <Text style={styles.subtitle}>Statement Agent ay sonu ekstresindeki tüm harcama kalemlerini ayırır ve kategorize eder.</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={pickStatement} disabled={statementLoading}>
+          <Text style={styles.primaryButtonText}>{statementLoading ? "Ekstre işleniyor" : "Ekstre görseli yükle"}</Text>
+        </TouchableOpacity>
+      </Panel>
+      {statementResult ? (
+        <Panel>
+          <Text style={styles.sectionTitle}>{statementResult.statementMonth} ekstresi</Text>
+          <Text style={styles.statValue}>{statementResult.totalAmount.toLocaleString("tr-TR")} TL</Text>
+          <Text style={styles.muted}>{statementResult.importedCount} kalem giderlere eklendi.</Text>
+          {(statementResult.transactions.length ? statementResult.transactions : statementResult.items).slice(0, 6).map((item) => (
+            <View style={styles.row} key={`${item.merchant}-${item.amount}-${item.occurredAt}`}>
+              <Text style={styles.rowText}>{item.merchant}</Text>
+              <Text style={styles.muted}>{item.amount.toLocaleString("tr-TR")} TL</Text>
+            </View>
+          ))}
         </Panel>
       ) : null}
     </>

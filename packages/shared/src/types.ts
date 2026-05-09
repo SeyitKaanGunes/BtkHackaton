@@ -106,6 +106,34 @@ export interface ReceiptScanResult {
   lineItems: Array<{ name: string; amount: number }>;
 }
 
+export interface ReceiptExpenseImportResult {
+  agentName: "Receipt Agent";
+  receipt: ReceiptScanResult;
+  transaction: Transaction;
+  addedToExpenses: true;
+  evidence: string[];
+}
+
+export interface StatementLineItem {
+  merchant: string;
+  amount: number;
+  occurredAt: string;
+  categoryName: string;
+  paymentMethod: Transaction["paymentMethod"];
+  confidence: number;
+}
+
+export interface StatementImportResult {
+  agentName: "Statement Agent";
+  statementMonth: string;
+  totalAmount: number;
+  importedCount: number;
+  skippedCount: number;
+  items: StatementLineItem[];
+  transactions: Transaction[];
+  evidence: string[];
+}
+
 export interface SpendingDnaCategory {
   categoryId: string;
   categoryName: string;
