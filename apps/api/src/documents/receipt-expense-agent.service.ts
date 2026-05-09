@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DEMO_USER_ID, type ReceiptExpenseImportResult, type Transaction } from "@fintwin/shared";
+import type { ReceiptExpenseImportResult, Transaction } from "@fintwin/shared";
 import { DataStoreService } from "../data/data-store.service.js";
 import { mapCategoryNameToId } from "./category-mapper.js";
 import { DocumentsService } from "./documents.service.js";
@@ -11,13 +11,13 @@ export class ReceiptExpenseAgentService {
     @Inject(DataStoreService) private readonly store: DataStoreService
   ) {}
 
-  async importReceipt(input: { imageBase64?: string; mimeType?: string; textHint?: string }): Promise<ReceiptExpenseImportResult> {
+  async importReceipt(userId: string, input: { imageBase64?: string; mimeType?: string; textHint?: string }): Promise<ReceiptExpenseImportResult> {
     const receipt = await this.documents.scanReceipt(input);
     const categoryId = mapCategoryNameToId(receipt.categoryName, receipt.merchant, this.store.categories);
     const transaction: Transaction = {
       id: `tx-receipt-${Date.now()}`,
-      userId: DEMO_USER_ID,
-      accountId: receipt.paymentMethod === "credit_card" ? "acc-card" : "acc-main",
+      userId,
+      accountId: this.store.defaultAccountIdFor(userId, receipt.paymentMethod),
       categoryId,
       merchant: receipt.merchant,
       amount: receipt.totalAmount,

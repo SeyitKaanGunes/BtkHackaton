@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DEMO_USER_ID, type StatementImportResult, type StatementLineItem, type StatementSubscriptionCandidate, type Transaction } from "@fintwin/shared";
+import type { StatementImportResult, StatementLineItem, StatementSubscriptionCandidate, Transaction } from "@fintwin/shared";
 import { DataStoreService } from "../data/data-store.service.js";
 import { mapCategoryNameToId } from "./category-mapper.js";
 import { DocumentsService } from "./documents.service.js";
@@ -11,14 +11,14 @@ export class StatementExpenseAgentService {
     @Inject(DataStoreService) private readonly store: DataStoreService
   ) {}
 
-  async importStatement(input: { statementText?: string; imageBase64?: string; mimeType?: string; fileName?: string }): Promise<StatementImportResult> {
+  async importStatement(userId: string, input: { statementText?: string; imageBase64?: string; mimeType?: string; fileName?: string }): Promise<StatementImportResult> {
     const extraction = await this.documents.extractStatement(input);
     const uniqueItems = dedupeItems(extraction.items);
     const transactions: Transaction[] = [];
     for (const [index, item] of uniqueItems.entries()) {
-      transactions.push(await this.store.addTransaction(this.toTransaction(item, index)));
+      transactions.push(await this.store.addTransaction(this.toTransaction(userId, item, index)));
     }
-    const recurringSubscriptions = this.detectRecurringSubscriptions(uniqueItems);
+    const recurringSubscriptions = this.detectRecurringSubscriptions(userId, uniqueItems);
 
     return {
       agentName: "Statement Agent",
@@ -38,12 +38,12 @@ export class StatementExpenseAgentService {
     };
   }
 
-  private toTransaction(item: StatementLineItem, index: number): Transaction {
+  private toTransaction(userId: string, item: StatementLineItem, index: number): Transaction {
     const categoryId = mapCategoryNameToId(item.categoryName, item.merchant, this.store.categories);
     return {
       id: `tx-statement-${Date.now()}-${index}`,
-      userId: DEMO_USER_ID,
-      accountId: item.paymentMethod === "credit_card" ? "acc-card" : "acc-main",
+      userId,
+      accountId: this.store.defaultAccountIdFor(userId, item.paymentMethod),
       categoryId,
       merchant: item.merchant,
       amount: item.amount,
@@ -55,8 +55,8 @@ export class StatementExpenseAgentService {
     };
   }
 
-  private detectRecurringSubscriptions(items: StatementLineItem[]): StatementSubscriptionCandidate[] {
-    const sourceTransactions = this.store.transactions;
+  private detectRecurringSubscriptions(userId: string, items: StatementLineItem[]): StatementSubscriptionCandidate[] {
+    const sourceTransactions = this.store.getPersonalData(userId).transactions;
     const candidates = items
       .filter((item) => isSubscriptionLike(item))
       .map((item) => {

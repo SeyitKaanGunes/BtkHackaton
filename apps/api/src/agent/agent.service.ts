@@ -35,14 +35,15 @@ export class AgentService {
     @Inject(QwenService) private readonly qwen: QwenService
   ) {}
 
-  async chat(message: string): Promise<AgentResponse> {
+  async chat(userId: string, message: string): Promise<AgentResponse> {
+    const data = this.store.getPersonalData(userId);
     const graph = new StateGraph(AgentState)
       .addNode("supervisor", async (state) => ({
         intent: this.routeIntent(state.message),
         routedAgents: ["Supervisor Agent"]
       }))
       .addNode("twin", async () => {
-        const dna = calculateSpendingDna(this.store.transactions, this.store.budgets);
+        const dna = calculateSpendingDna(data.transactions, data.budgets);
         return {
           answer: `Spending DNA profilinde en yüksek risk ${dna.categories[0]?.categoryName} kategorisinde ${dna.categories[0]?.riskScore}/100. Maaş sonrası refleks skoru ${dna.paydayReflexScore}/100.`,
           confidence: 0.88,
@@ -53,11 +54,11 @@ export class AgentService {
         const simulation = buildWhatIfScenarios(
           { amount: this.extractAmount(state.message), categoryId: "cat-tech", description: state.message },
           {
-            accounts: this.store.accounts,
-            actions: this.store.actions,
-            budgets: this.store.budgets,
-            goals: this.store.goals,
-            transactions: this.store.transactions
+            accounts: data.accounts,
+            actions: data.actions,
+            budgets: data.budgets,
+            goals: data.goals,
+            transactions: data.transactions
           }
         );
         return {
@@ -67,7 +68,7 @@ export class AgentService {
           suggestedActions: [
             {
               id: `act-agent-${Date.now()}`,
-              userId: this.store.getDemoUser().id,
+              userId,
               type: "delay_purchase",
               title: "Satın alma kararına bilinçli mola",
               description: `${simulation.emotionalDelayMinutes || 10} dakika bekleyip güvenli limiti tekrar değerlendir.`,
@@ -78,7 +79,7 @@ export class AgentService {
         };
       })
       .addNode("subscriptions", async () => {
-        const leaks = detectSubscriptionLeakage(this.store.subscriptions);
+        const leaks = detectSubscriptionLeakage(data.subscriptions);
         return {
           answer: `${leaks.length} abonelik sızıntısı bulundu. En hızlı kazanım: ${leaks[0]?.merchant} için ${leaks[0]?.recommendation}`,
           confidence: 0.86,
@@ -104,8 +105,8 @@ export class AgentService {
       .compile();
 
     const result = await graph.invoke({ message });
-    const dashboard = calculateDashboardSummary(this.store.accounts, this.store.transactions, this.store.goals, this.store.actions);
-    const readiness = calculateCampaignReadiness(this.store.transactions);
+    const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions);
+    const readiness = calculateCampaignReadiness(data.transactions);
     return {
       answer:
         result.answer ??
@@ -113,14 +114,14 @@ export class AgentService {
       confidence: result.confidence ?? 0.82,
       routedAgents: result.routedAgents,
       evidence: buildAgentEvidence({
-        accounts: this.store.accounts,
-        actions: this.store.actions,
-        budgets: this.store.budgets,
-        goals: this.store.goals,
-        transactions: this.store.transactions
+        accounts: data.accounts,
+        actions: data.actions,
+        budgets: data.budgets,
+        goals: data.goals,
+        transactions: data.transactions
       }),
       assumptions: [
-        "Hesaplama Mayıs 2026 demo verileriyle yapılmıştır.",
+        "Hesaplama oturum açan kullanıcının kayıtlı verileriyle yapılmıştır.",
         "LLM açıklama üretir; tutar ve skorlar deterministik servislerden gelir.",
         "KOBİ verileri bireysel dashboard metriklerine karıştırılmaz."
       ],

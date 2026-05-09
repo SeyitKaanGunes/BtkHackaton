@@ -7,6 +7,7 @@ import { AgentService } from "./agent/agent.service.js";
 import { QwenService } from "./ai/qwen.service.js";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthService } from "./auth/auth.service.js";
+import { JwtAuthGuard } from "./auth/jwt-auth.guard.js";
 import { BusinessController } from "./business/business.controller.js";
 import { CampaignsController } from "./campaigns/campaigns.controller.js";
 import { getJwtSecret, validateApiEnvironment } from "./config/env.js";
@@ -61,6 +62,7 @@ import { TransactionsController } from "./transactions/transactions.controller.j
     AuthService,
     DataStoreService,
     DocumentsService,
+    JwtAuthGuard,
     PrismaService,
     QwenService,
     ReceiptExpenseAgentService,

@@ -2,11 +2,13 @@ import { TrendingUp } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { InvestmentPortfolio } from "../../components/investment-portfolio";
 import { getInvestmentPortfolio } from "../../lib/api";
+import { requireAuthToken } from "../../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortfolioPage() {
-  const investmentPortfolio = await getInvestmentPortfolio();
+  const token = await requireAuthToken();
+  const investmentPortfolio = await getInvestmentPortfolio({ token });
 
   return (
     <AppShell active="/portfolio">

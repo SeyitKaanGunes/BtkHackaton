@@ -2,6 +2,7 @@ import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { DataStoreService } from "../data/data-store.service.js";
+import type { AuthUser } from "./auth-user.js";
 
 @Injectable()
 export class AuthService {
@@ -48,8 +49,25 @@ export class AuthService {
   verifyToken(token?: string) {
     if (!token) throw new UnauthorizedException("Authorization token gerekli.");
     const cleaned = token.replace(/^Bearer\s+/i, "");
-    const payload = this.jwt.verify<{ sub: string }>(cleaned);
-    return payload.sub;
+    try {
+      const payload = this.jwt.verify<{ sub: string }>(cleaned);
+      return payload.sub;
+    } catch {
+      throw new UnauthorizedException("Authorization token geçersiz.");
+    }
+  }
+
+  async userFromAuthorization(authorization?: string): Promise<AuthUser> {
+    const userId = this.verifyToken(authorization);
+    const user = await this.store.findUserById(userId);
+    if (!user) {
+      throw new UnauthorizedException("Kullanıcı bulunamadı.");
+    }
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name
+    };
   }
 
   private toAuthResponse(user: { id: string; email: string; name: string; persona: string; monthlyIncome: number; payday: number; currency: string }) {

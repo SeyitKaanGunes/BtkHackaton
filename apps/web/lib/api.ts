@@ -27,18 +27,58 @@ import {
 const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
 const demoFallbackEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_FALLBACK === "true";
 
-async function request<T>(path: string, fallback: () => T, init?: RequestInit): Promise<T> {
+export interface AuthResponse {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    persona: string;
+    monthlyIncome: number;
+    payday: number;
+    currency: string;
+  };
+  oauth: {
+    googleReady: boolean;
+  };
+}
+
+export interface AuthOptions {
+  token?: string;
+}
+
+function browserAuthToken() {
+  if (typeof window === "undefined") return undefined;
+  const stored = window.localStorage.getItem("fintwin_token");
+  if (stored) return stored;
+  const match = document.cookie.match(/(?:^|;\s*)fintwin_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
+function withAuthHeaders(init?: RequestInit, options?: AuthOptions): RequestInit {
+  const token = options?.token ?? browserAuthToken();
+  return {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers ?? {})
+    }
+  };
+}
+
+async function fetchJson<T>(path: string, init?: RequestInit, options?: AuthOptions): Promise<T> {
+  const response = await fetch(`${apiUrl}${path}`, {
+    ...withAuthHeaders(init, options),
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error(`API ${response.status}`);
+  return (await response.json()) as T;
+}
+
+async function request<T>(path: string, fallback: () => T, init?: RequestInit, options?: AuthOptions): Promise<T> {
   try {
-    const response = await fetch(`${apiUrl}${path}`, {
-      ...init,
-      headers: {
-        "content-type": "application/json",
-        ...(init?.headers ?? {})
-      },
-      cache: "no-store"
-    });
-    if (!response.ok) throw new Error(`API ${response.status}`);
-    return (await response.json()) as T;
+    return await fetchJson<T>(path, init, options);
   } catch (error) {
     if (demoFallbackEnabled) {
       return fallback();
@@ -59,56 +99,70 @@ export function fallbackOnly<T>(fallback: () => T): T {
   throw new Error("Demo fallback is disabled. Set NEXT_PUBLIC_ENABLE_DEMO_FALLBACK=true to use local demo responses.");
 }
 
-export function getPersonalDashboard() {
-  return request<DashboardSummary>("/dashboard/personal", calculateDashboardSummary);
-}
-
-export function getSpendingDna() {
-  return request<SpendingDna>("/spending-dna", calculateSpendingDna);
-}
-
-export function getCampaignReadiness() {
-  return request<ReturnType<typeof calculateCampaignReadiness>>("/campaigns/readiness", calculateCampaignReadiness);
-}
-
-export function getSubscriptionLeaks() {
-  return request<SubscriptionLeak[]>("/subscriptions/leakage", detectSubscriptionLeakage);
-}
-
-export function getWhatIf() {
-  return request<WhatIfResponse>("/simulations/what-if", () => buildWhatIfScenarios({ amount: 10000, categoryId: "cat-tech" }), {
-    method: "POST",
-    body: JSON.stringify({ amount: 10000, categoryId: "cat-tech", description: "Kampanya döneminde 10.000 TL harcarsam ne olur?" })
-  });
-}
-
-export function getInvestmentPortfolio() {
-  return request<InvestmentPortfolioSummary>("/investments/portfolio", demoInvestmentPortfolio);
-}
-
-export function searchMarketSymbols(query: string) {
-  return request<MarketSymbolResult[]>(`/investments/symbols?query=${encodeURIComponent(query)}`, () => suggestInvestmentSymbols(query));
-}
-
-export function addInvestmentHolding(input: InvestmentHoldingCreateRequest) {
-  return request<InvestmentPortfolioSummary>("/investments/holdings", demoInvestmentPortfolio, {
+export function register(input: { name: string; email: string; password: string }) {
+  return fetchJson<AuthResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify(input)
   });
 }
 
-export function deleteInvestmentHolding(id: string) {
-  return request<InvestmentPortfolioSummary>(`/investments/holdings/${encodeURIComponent(id)}`, demoInvestmentPortfolio, {
-    method: "DELETE"
+export function login(input: { email: string; password: string }) {
+  return fetchJson<AuthResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(input)
   });
 }
 
-export function getBusinessDashboard(id = "business-demo") {
-  return request<BusinessDashboard>(`/business/${id}/dashboard`, () => calculateBusinessDashboard(id));
+export function getPersonalDashboard(options?: AuthOptions) {
+  return request<DashboardSummary>("/dashboard/personal", calculateDashboardSummary, undefined, options);
 }
 
-export function getCollectionScore(customerId: string) {
-  return request<CollectionScore>(`/business/business-demo/customers/${customerId}/collection-score`, () => calculateCollectionScore(customerId));
+export function getSpendingDna(options?: AuthOptions) {
+  return request<SpendingDna>("/spending-dna", calculateSpendingDna, undefined, options);
+}
+
+export function getCampaignReadiness(options?: AuthOptions) {
+  return request<ReturnType<typeof calculateCampaignReadiness>>("/campaigns/readiness", calculateCampaignReadiness, undefined, options);
+}
+
+export function getSubscriptionLeaks(options?: AuthOptions) {
+  return request<SubscriptionLeak[]>("/subscriptions/leakage", detectSubscriptionLeakage, undefined, options);
+}
+
+export function getWhatIf(options?: AuthOptions) {
+  return request<WhatIfResponse>("/simulations/what-if", () => buildWhatIfScenarios({ amount: 10000, categoryId: "cat-tech" }), {
+    method: "POST",
+    body: JSON.stringify({ amount: 10000, categoryId: "cat-tech", description: "Kampanya döneminde 10.000 TL harcarsam ne olur?" })
+  }, options);
+}
+
+export function getInvestmentPortfolio(options?: AuthOptions) {
+  return request<InvestmentPortfolioSummary>("/investments/portfolio", demoInvestmentPortfolio, undefined, options);
+}
+
+export function searchMarketSymbols(query: string, options?: AuthOptions) {
+  return request<MarketSymbolResult[]>(`/investments/symbols?query=${encodeURIComponent(query)}`, () => suggestInvestmentSymbols(query), undefined, options);
+}
+
+export function addInvestmentHolding(input: InvestmentHoldingCreateRequest, options?: AuthOptions) {
+  return request<InvestmentPortfolioSummary>("/investments/holdings", demoInvestmentPortfolio, {
+    method: "POST",
+    body: JSON.stringify(input)
+  }, options);
+}
+
+export function deleteInvestmentHolding(id: string, options?: AuthOptions) {
+  return request<InvestmentPortfolioSummary>(`/investments/holdings/${encodeURIComponent(id)}`, demoInvestmentPortfolio, {
+    method: "DELETE"
+  }, options);
+}
+
+export function getBusinessDashboard(id = "business-demo", options?: AuthOptions) {
+  return request<BusinessDashboard>(`/business/${id}/dashboard`, () => calculateBusinessDashboard(id), undefined, options);
+}
+
+export function getCollectionScore(customerId: string, options?: AuthOptions) {
+  return request<CollectionScore>(`/business/business-demo/customers/${customerId}/collection-score`, () => calculateCollectionScore(customerId), undefined, options);
 }
 
 export async function postAgentMessage(message: string): Promise<AgentResponse> {

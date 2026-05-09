@@ -1,6 +1,9 @@
-import { Body, Controller, Get, Headers, Inject, Post } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
 import { IsEmail, IsString, MinLength } from "class-validator";
+import type { AuthUser } from "./auth-user.js";
 import { AuthService } from "./auth.service.js";
+import { CurrentUser } from "./current-user.decorator.js";
+import { JwtAuthGuard } from "./jwt-auth.guard.js";
 
 class RegisterDto {
   @IsString()
@@ -37,8 +40,9 @@ export class AuthController {
   }
 
   @Get("me")
-  async me(@Headers("authorization") authorization?: string) {
-    return this.auth.me(this.auth.verifyToken(authorization));
+  @UseGuards(JwtAuthGuard)
+  async me(@CurrentUser() user: AuthUser) {
+    return this.auth.me(user.id);
   }
 
   @Get("google")

@@ -3,16 +3,18 @@ import { AlertTriangle, Bell, Brain, PiggyBank, ReceiptText, ShieldAlert, Wallet
 import { AppShell } from "../components/app-shell";
 import { SpendingCharts } from "../components/dashboard-charts";
 import { getCampaignReadiness, getPersonalDashboard, getSpendingDna, getSubscriptionLeaks, getWhatIf } from "../lib/api";
+import { requireAuthToken } from "../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const token = await requireAuthToken();
   const [dashboard, dna, campaign, leaks, whatIf] = await Promise.all([
-    getPersonalDashboard(),
-    getSpendingDna(),
-    getCampaignReadiness(),
-    getSubscriptionLeaks(),
-    getWhatIf()
+    getPersonalDashboard({ token }),
+    getSpendingDna({ token }),
+    getCampaignReadiness({ token }),
+    getSubscriptionLeaks({ token }),
+    getWhatIf({ token })
   ]);
 
   return (

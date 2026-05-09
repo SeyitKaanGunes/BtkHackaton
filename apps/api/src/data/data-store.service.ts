@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleInit } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, OnModuleInit } from "@nestjs/common";
 import {
   accounts,
   actions,
@@ -72,6 +72,40 @@ export class DataStoreService implements OnModuleInit {
     return this.users[0]!;
   }
 
+  getPersonalData(userId: string) {
+    this.assertReady();
+    return {
+      user: this.users.find((user) => user.id === userId),
+      categories: this.categories,
+      accounts: this.accounts.filter((account) => account.userId === userId),
+      budgets: this.budgets.filter((budget) => budget.userId === userId),
+      goals: this.goals.filter((goal) => goal.userId === userId),
+      subscriptions: this.subscriptions.filter((subscription) => subscription.userId === userId),
+      actions: this.actions.filter((action) => action.userId === userId),
+      transactions: this.transactions.filter((transaction) => transaction.userId === userId),
+      investmentHoldings: this.investmentHoldings.filter((holding) => holding.userId === userId)
+    };
+  }
+
+  defaultAccountIdFor(userId: string, paymentMethod: Transaction["paymentMethod"]) {
+    const accounts = this.getPersonalData(userId).accounts;
+    const preferredType: Account["type"] = paymentMethod === "credit_card" ? "credit" : paymentMethod === "cash" ? "cash" : "debit";
+    const account = accounts.find((item) => item.type === preferredType) ?? accounts.find((item) => item.type === "debit") ?? accounts[0];
+    if (!account) {
+      throw new BadRequestException("Kullanıcı için işlem yazılacak hesap bulunamadı.");
+    }
+    return account.id;
+  }
+
+  accountIdFor(userId: string, paymentMethod: Transaction["paymentMethod"], requestedAccountId?: string) {
+    if (!requestedAccountId) return this.defaultAccountIdFor(userId, paymentMethod);
+    const owned = this.getPersonalData(userId).accounts.some((account) => account.id === requestedAccountId);
+    if (!owned) {
+      throw new BadRequestException("Seçilen hesap bu kullanıcıya ait değil.");
+    }
+    return requestedAccountId;
+  }
+
   async findUserById(id: string) {
     this.assertReady();
     const cached = this.users.find((user) => user.id === id);
@@ -110,6 +144,7 @@ export class DataStoreService implements OnModuleInit {
     });
     const mapped = this.mapUser(created);
     this.users.push(mapped);
+    await this.createStarterAccounts(mapped.id, mapped.currency);
     return mapped;
   }
 
@@ -161,18 +196,18 @@ export class DataStoreService implements OnModuleInit {
     return mapped;
   }
 
-  async removeInvestmentHolding(id: string) {
+  async removeInvestmentHolding(id: string, userId: string) {
     this.assertReady();
-    const existing = this.investmentHoldings.find((holding) => holding.id === id);
+    const existing = this.investmentHoldings.find((holding) => holding.id === id && holding.userId === userId);
     if (!existing) return undefined;
     await this.prisma.investmentHolding.delete({ where: { id } });
     this.investmentHoldings = this.investmentHoldings.filter((holding) => holding.id !== id);
     return existing;
   }
 
-  async approveAction(id: string) {
+  async approveAction(id: string, userId: string) {
     this.assertReady();
-    const existing = this.actions.find((item) => item.id === id);
+    const existing = this.actions.find((item) => item.id === id && item.userId === userId);
     if (!existing) return undefined;
     const updated = await this.prisma.actionItem.update({
       where: { id },
@@ -390,6 +425,37 @@ export class DataStoreService implements OnModuleInit {
           color: category.color
         },
         create: category
+      });
+    }
+  }
+
+  private async createStarterAccounts(userId: string, currency: Currency) {
+    const starterAccounts: Account[] = [
+      { id: `acc-main-${userId}`, userId, name: "Vadesiz Hesap", type: "debit", balance: 0, currency },
+      { id: `acc-card-${userId}`, userId, name: "Kredi Kartı", type: "credit", balance: 0, currency, creditLimit: 0 },
+      { id: `acc-save-${userId}`, userId, name: "Birikim", type: "savings", balance: 0, currency }
+    ];
+
+    for (const account of starterAccounts) {
+      const created = await this.prisma.account.create({
+        data: {
+          id: account.id,
+          userId: account.userId,
+          name: account.name,
+          type: account.type,
+          balance: account.balance,
+          currency: account.currency,
+          creditLimit: account.creditLimit
+        }
+      });
+      this.accounts.push({
+        id: created.id,
+        userId: created.userId,
+        name: created.name,
+        type: created.type as Account["type"],
+        balance: Number(created.balance),
+        currency: created.currency as Currency,
+        creditLimit: created.creditLimit === null ? undefined : Number(created.creditLimit)
       });
     }
   }

@@ -1,7 +1,9 @@
 import { AppShell } from "../../components/app-shell";
 import { AgentConsole } from "../../components/agent-console";
+import { requireAuthToken } from "../../lib/server-auth";
 
-export default function AgentPage() {
+export default async function AgentPage() {
+  await requireAuthToken();
   return (
     <AppShell active="/agent">
       <header className="workspace-header">

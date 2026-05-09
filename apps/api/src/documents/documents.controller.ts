@@ -1,9 +1,13 @@
-import { Body, Controller, Inject, Post } from "@nestjs/common";
+import { Body, Controller, Inject, Post, UseGuards } from "@nestjs/common";
+import type { AuthUser } from "../auth/auth-user.js";
+import { CurrentUser } from "../auth/current-user.decorator.js";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
 import { DocumentsService } from "./documents.service.js";
 import { ReceiptExpenseAgentService } from "./receipt-expense-agent.service.js";
 import { StatementExpenseAgentService } from "./statement-expense-agent.service.js";
 
 @Controller("documents")
+@UseGuards(JwtAuthGuard)
 export class DocumentsController {
   constructor(
     @Inject(DocumentsService) private readonly documents: DocumentsService,
@@ -17,12 +21,12 @@ export class DocumentsController {
   }
 
   @Post("receipt-agent/import")
-  importReceipt(@Body() body: { imageBase64?: string; mimeType?: string; textHint?: string }) {
-    return this.receiptAgent.importReceipt(body);
+  importReceipt(@CurrentUser() user: AuthUser, @Body() body: { imageBase64?: string; mimeType?: string; textHint?: string }) {
+    return this.receiptAgent.importReceipt(user.id, body);
   }
 
   @Post("statement-agent/import")
-  importStatement(@Body() body: { statementText?: string; imageBase64?: string; mimeType?: string; fileName?: string }) {
-    return this.statementAgent.importStatement(body);
+  importStatement(@CurrentUser() user: AuthUser, @Body() body: { statementText?: string; imageBase64?: string; mimeType?: string; fileName?: string }) {
+    return this.statementAgent.importStatement(user.id, body);
   }
 }

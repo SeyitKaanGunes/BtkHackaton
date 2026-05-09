@@ -42,7 +42,7 @@ import type {
   SubscriptionLeak,
   WhatIfResponse
 } from "@fintwin/shared";
-import { importStatement, loadBusiness, loadMobileHome, scanReceipt, sendAgentMessage } from "./src/api";
+import { hasAuthToken, importStatement, isDemoFallbackEnabled, loadBusiness, loadMobileHome, login, register, scanReceipt, sendAgentMessage, setAuthToken } from "./src/api";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
 import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles } from "./src/ui";
 
@@ -53,6 +53,7 @@ type BusinessData = Awaited<ReturnType<typeof loadBusiness>>;
 const demoQuestion = "Bugün 10.000 ₺ teknoloji harcaması yaparsam ne olur?";
 
 export default function App() {
+  const [authenticated, setAuthenticated] = useState(() => hasAuthToken() || isDemoFallbackEnabled());
   const [tab, setTab] = useState<Tab>("home");
   const [home, setHome] = useState<HomeData | null>(null);
   const [business, setBusiness] = useState<BusinessData | null>(null);
@@ -60,10 +61,15 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!authenticated) return;
     setLoadError(null);
     void loadMobileHome().then(setHome).catch((error) => setLoadError(error instanceof Error ? error.message : "Veri yüklenemedi."));
     void loadBusiness().then(setBusiness).catch((error) => setLoadError(error instanceof Error ? error.message : "Veri yüklenemedi."));
-  }, []);
+  }, [authenticated]);
+
+  if (!authenticated) {
+    return <AuthScreen onAuthenticated={() => setAuthenticated(true)} />;
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -95,6 +101,91 @@ export default function App() {
       </View>
       <DraggableAgentBubble onOpen={() => setAgentOpen(true)} />
       <AgentModal visible={agentOpen} onClose={() => setAgentOpen(false)} />
+    </SafeAreaView>
+  );
+}
+
+function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    setPending(true);
+    setError(null);
+    try {
+      const result =
+        mode === "register"
+          ? await register({ name: name.trim(), email: email.trim(), password })
+          : await login({ email: email.trim(), password });
+      setAuthToken(result.token);
+      onAuthenticated();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Oturum açılamadı.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor={palette.bg} />
+      <ScrollView contentContainerStyle={localStyles.authScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <Panel style={localStyles.authPanel}>
+          <View style={localStyles.authBrand}>
+            <View style={localStyles.authMark}>
+              <Text style={localStyles.authMarkText}>FS</Text>
+            </View>
+            <Text style={localStyles.overline}>Fintwin</Text>
+            <Text style={localStyles.heroTitle}>Finansal ikizine giriş yap.</Text>
+            <Text style={styles.subtitle}>Kişisel dashboard yalnızca oturum kullanıcısının kayıtlarını okur.</Text>
+          </View>
+
+          <View style={localStyles.authSwitch}>
+            <Pressable style={[localStyles.authSwitchButton, mode === "login" && localStyles.authSwitchActive]} onPress={() => setMode("login")}>
+              <Text style={[localStyles.authSwitchText, mode === "login" && localStyles.authSwitchTextActive]}>Giriş</Text>
+            </Pressable>
+            <Pressable style={[localStyles.authSwitchButton, mode === "register" && localStyles.authSwitchActive]} onPress={() => setMode("register")}>
+              <Text style={[localStyles.authSwitchText, mode === "register" && localStyles.authSwitchTextActive]}>Kayıt</Text>
+            </Pressable>
+          </View>
+
+          {mode === "register" ? (
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="Ad Soyad"
+              placeholderTextColor={palette.muted}
+              autoCapitalize="words"
+              style={localStyles.authInput}
+            />
+          ) : null}
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="E-posta"
+            placeholderTextColor={palette.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            style={localStyles.authInput}
+          />
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Şifre"
+            placeholderTextColor={palette.muted}
+            secureTextEntry
+            style={localStyles.authInput}
+          />
+
+          {error ? <Text style={localStyles.authError}>{error}</Text> : null}
+          <Button label={pending ? "Bekle..." : mode === "login" ? "Giriş yap" : "Hesap oluştur"} onPress={submit} disabled={pending} />
+        </Panel>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -1200,6 +1291,73 @@ function withTrialLeak(leaks: SubscriptionLeak[]): SubscriptionLeak[] {
 }
 
 const localStyles = StyleSheet.create({
+  authScroll: {
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: 18
+  },
+  authPanel: {
+    gap: 16
+  },
+  authBrand: {
+    gap: 8
+  },
+  authMark: {
+    width: 46,
+    height: 46,
+    borderRadius: 8,
+    backgroundColor: palette.ink,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  authMarkText: {
+    color: palette.surface,
+    fontSize: 16,
+    fontWeight: "900"
+  },
+  authSwitch: {
+    flexDirection: "row",
+    gap: 4,
+    backgroundColor: palette.surface2,
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 4
+  },
+  authSwitchButton: {
+    flex: 1,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 6
+  },
+  authSwitchActive: {
+    backgroundColor: palette.surface
+  },
+  authSwitchText: {
+    color: palette.muted,
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  authSwitchTextActive: {
+    color: palette.ink
+  },
+  authInput: {
+    minHeight: 48,
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    color: palette.ink,
+    backgroundColor: "#FBFCFA",
+    fontSize: 14
+  },
+  authError: {
+    color: palette.danger,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700"
+  },
   modeToggle: {
     flexDirection: "row",
     backgroundColor: palette.surface2,

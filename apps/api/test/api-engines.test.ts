@@ -28,13 +28,15 @@ import { InvestmentsController } from "../src/investments/investments.controller
 import { TwelveDataService } from "../src/investments/twelve-data.service.js";
 
 describe("API feature services", () => {
+  const authUser = { id: demoUser.id, email: demoUser.email, name: demoUser.name };
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
   it("routes agent questions through LangGraph and returns explainability", async () => {
     const agent = new AgentService(createTestStore(), new QwenService());
-    const result = await agent.chat("10000 TL harcarsam ne olur?");
+    const result = await agent.chat(authUser.id, "10000 TL harcarsam ne olur?");
     expect(result.routedAgents).toContain("Simulation Agent");
     expect(result.evidence.length).toBeGreaterThan(0);
     expect(result.suggestedActions[0]?.type).toBe("delay_purchase");
@@ -49,7 +51,7 @@ describe("API feature services", () => {
     const store = createTestStore();
     const receiptAgent = new ReceiptExpenseAgentService(new DocumentsService(qwenWith(receiptJson)), store);
     const before = store.transactions.length;
-    const result = await receiptAgent.importReceipt({ imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" });
+    const result = await receiptAgent.importReceipt(authUser.id, { imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" });
     expect(result.agentName).toBe("Receipt Agent");
     expect(result.transaction.type).toBe("expense");
     expect(result.transaction.tags).toContain("receipt_agent");
@@ -60,7 +62,7 @@ describe("API feature services", () => {
     const store = createTestStore();
     const statementAgent = new StatementExpenseAgentService(new DocumentsService(qwenWith(statementJson)), store);
     const before = store.transactions.length;
-    const result = await statementAgent.importStatement({ statementText: "StreamPlus 219 TL 2026-05-01" });
+    const result = await statementAgent.importStatement(authUser.id, { statementText: "StreamPlus 219 TL 2026-05-01" });
     expect(result.agentName).toBe("Statement Agent");
     expect(result.importedCount).toBeGreaterThan(1);
     expect(result.recurringSubscriptions.length).toBeGreaterThan(0);
@@ -71,7 +73,7 @@ describe("API feature services", () => {
   it("creates dated reminders for detected subscriptions", async () => {
     const store = createTestStore();
     const controller = new ActionsController(store);
-    const result = await controller.createSubscriptionReminder({ merchant: "StreamPlus", amount: 219, remindAt: "2026-06-01" });
+    const result = await controller.createSubscriptionReminder(authUser, { merchant: "StreamPlus", amount: 219, remindAt: "2026-06-01" });
     expect(result.scheduled).toBe(true);
     expect(result.action.type).toBe("calendar_bill");
     expect(result.action.dueAt).toBe("2026-06-01T09:00:00.000Z");
@@ -104,8 +106,8 @@ describe("API feature services", () => {
 
       const store = createTestStore();
       const controller = new InvestmentsController(store, new TwelveDataService(new ConfigService()));
-      const portfolio = await controller.portfolio();
-      const next = await controller.addHolding({
+      const portfolio = await controller.portfolio(authUser);
+      const next = await controller.addHolding(authUser, {
         symbol: "USD/TRY",
         name: "US Dollar / Turkish Lira",
         assetType: "forex",
@@ -146,6 +148,26 @@ function createTestStore(): DataStoreService {
     getDemoUser() {
       return this.users[0]!;
     },
+    getPersonalData(userId: string) {
+      return {
+        user: this.users.find((user) => user.id === userId),
+        categories: this.categories,
+        accounts: this.accounts.filter((account) => account.userId === userId),
+        budgets: this.budgets.filter((budget) => budget.userId === userId),
+        goals: this.goals.filter((goal) => goal.userId === userId),
+        subscriptions: this.subscriptions.filter((subscription) => subscription.userId === userId),
+        actions: this.actions.filter((action) => action.userId === userId),
+        transactions: this.transactions.filter((transaction) => transaction.userId === userId),
+        investmentHoldings: this.investmentHoldings.filter((holding) => holding.userId === userId)
+      };
+    },
+    defaultAccountIdFor(userId: string, paymentMethod: Transaction["paymentMethod"]) {
+      const userAccounts = this.accounts.filter((account) => account.userId === userId);
+      return (paymentMethod === "credit_card" ? userAccounts.find((account) => account.type === "credit") : userAccounts.find((account) => account.type === "debit"))?.id ?? userAccounts[0]?.id ?? "acc-main";
+    },
+    accountIdFor(userId: string, paymentMethod: Transaction["paymentMethod"], requestedAccountId?: string) {
+      return requestedAccountId ?? this.defaultAccountIdFor(userId, paymentMethod);
+    },
     async addTransaction(transaction: Transaction) {
       this.transactions.unshift(transaction);
       return transaction;
@@ -158,9 +180,15 @@ function createTestStore(): DataStoreService {
       this.investmentHoldings.unshift(holding);
       return holding;
     },
-    async removeInvestmentHolding(id: string) {
-      const existing = this.investmentHoldings.find((holding) => holding.id === id);
+    async removeInvestmentHolding(id: string, userId: string) {
+      const existing = this.investmentHoldings.find((holding) => holding.id === id && holding.userId === userId);
       this.investmentHoldings = this.investmentHoldings.filter((holding) => holding.id !== id);
+      return existing;
+    },
+    async approveAction(id: string, userId: string) {
+      const existing = this.actions.find((action) => action.id === id && action.userId === userId);
+      if (!existing) return undefined;
+      existing.status = "approved";
       return existing;
     }
   };

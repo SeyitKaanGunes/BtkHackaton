@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Bot, Building2, Camera, LayoutDashboard, ShieldCheck, TrendingUp } from "lucide-react";
+import { LogoutButton } from "./logout-button";
 
 const nav = [
   { href: "/", label: "Kişisel", icon: LayoutDashboard },
@@ -31,6 +32,7 @@ export function AppShell({ children, active = "/" }: { children: React.ReactNode
             );
           })}
         </nav>
+        <LogoutButton />
         <div className="trust-note">
           <ShieldCheck size={18} />
           <span>Qwen/Gemini anahtarları yalnızca backend tarafında kalır.</span>

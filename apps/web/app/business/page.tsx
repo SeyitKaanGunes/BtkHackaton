@@ -1,15 +1,35 @@
 import { Building2, CircleDollarSign, Clock3, Landmark } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { getBusinessDashboard, getCollectionScore } from "../../lib/api";
+import { requireAuthToken } from "../../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function BusinessPage() {
-  const [dashboard, atlas, mavi] = await Promise.all([
-    getBusinessDashboard(),
-    getCollectionScore("cus-2"),
-    getCollectionScore("cus-3")
-  ]);
+  const token = await requireAuthToken();
+  const businessData = await loadBusinessData(token);
+  if (!businessData) {
+    return (
+      <AppShell active="/business">
+        <header className="workspace-header">
+          <div>
+            <p className="eyebrow">Ayrı KOBİ Modülü</p>
+            <h1>KOBİ profili henüz oluşturulmamış.</h1>
+            <p className="header-subtitle">Bu hesapta işletme kaydı olmadığı için demo işletme verisi gösterilmiyor.</p>
+          </div>
+        </header>
+        <section className="panel">
+          <div className="section-title">
+            <span>Kurulum gerekli</span>
+            <strong>İşletme onboarding</strong>
+          </div>
+          <p className="market-note">KOBİ modülü için sonraki adım işletme oluşturma ekranı ve owner-scoped business kayıtları eklemek.</p>
+        </section>
+      </AppShell>
+    );
+  }
+
+  const [dashboard, atlas, mavi] = businessData;
 
   return (
     <AppShell active="/business">
@@ -64,6 +84,19 @@ export default async function BusinessPage() {
       </section>
     </AppShell>
   );
+}
+
+async function loadBusinessData(token: string) {
+  try {
+    return await Promise.all([
+      getBusinessDashboard("business-demo", { token }),
+      getCollectionScore("cus-2", { token }),
+      getCollectionScore("cus-3", { token })
+    ]);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("API 404")) return null;
+    throw error;
+  }
 }
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {

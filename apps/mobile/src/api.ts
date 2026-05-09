@@ -30,15 +30,48 @@ const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | un
 const configuredUrl = runtimeEnv.EXPO_PUBLIC_API_URL?.trim();
 const apiUrl = (configuredUrl || defaultUrl).replace(/\/$/, "");
 const demoFallbackEnabled = runtimeEnv.EXPO_PUBLIC_ENABLE_DEMO_FALLBACK === "true";
+let authToken = runtimeEnv.EXPO_PUBLIC_AUTH_TOKEN?.trim() || undefined;
+
+export interface AuthResponse {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    persona: string;
+    monthlyIncome: number;
+    payday: number;
+    currency: string;
+  };
+  oauth: {
+    googleReady: boolean;
+  };
+}
+
+export function setAuthToken(token: string) {
+  authToken = token;
+}
+
+export function hasAuthToken() {
+  return Boolean(authToken);
+}
+
+async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${apiUrl}${path}`, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+      ...(init?.headers ?? {})
+    }
+  });
+  if (!response.ok) throw new Error(`API ${response.status}`);
+  return (await response.json()) as T;
+}
 
 async function request<T>(path: string, fallback: () => T, init?: RequestInit): Promise<T> {
   try {
-    const response = await fetch(`${apiUrl}${path}`, {
-      ...init,
-      headers: { "content-type": "application/json", ...(init?.headers ?? {}) }
-    });
-    if (!response.ok) throw new Error(`API ${response.status}`);
-    return (await response.json()) as T;
+    return await fetchJson<T>(path, init);
   } catch (error) {
     if (demoFallbackEnabled) {
       return fallback();
@@ -57,6 +90,20 @@ export function fallbackOnly<T>(fallback: () => T): T {
     return fallback();
   }
   throw new Error("Demo fallback is disabled. Set EXPO_PUBLIC_ENABLE_DEMO_FALLBACK=true to use local demo responses.");
+}
+
+export function login(input: { email: string; password: string }) {
+  return fetchJson<AuthResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function register(input: { name: string; email: string; password: string }) {
+  return fetchJson<AuthResponse>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
 }
 
 export async function loadMobileHome(): Promise<{
