@@ -1,26 +1,39 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { launchCamera, launchImageLibrary } from "react-native-image-picker";
-import Tts from "react-native-tts";
-import { Bot, BriefcaseBusiness, Camera, FileText, Gauge, PiggyBank, ReceiptText, WalletCards } from "lucide-react-native";
+import { ActivityIndicator, SafeAreaView, ScrollView, Text, View } from "react-native";
 import type {
-  AgentResponse,
   BusinessDashboard,
   CollectionScore,
   DashboardSummary,
-  ReceiptExpenseImportResult,
   SpendingDna,
-  StatementImportResult,
   SubscriptionLeak,
   WhatIfResponse
 } from "@fintwin/shared";
-import { importReceiptExpense, importStatement, loadBusiness, loadMobileHome, sendAgentMessage } from "./src/api";
-import { palette, Panel, PillButton, RiskBar, Stat, styles } from "./src/ui";
+import { loadBusiness, loadMobileHome } from "./src/api";
+import { ThemeProvider } from "./src/components/ThemeProvider";
+import { ThemeToggle } from "./src/components/ThemeToggle";
+import { TabBar, type Tab } from "./src/components/TabBar";
+import { HomeScreen } from "./src/screens/HomeScreen";
+import { WhatIfScreen } from "./src/screens/WhatIfScreen";
+import { AgentScreen } from "./src/screens/AgentScreen";
+import { ScanScreen } from "./src/screens/ScanScreen";
+import { SubscriptionsScreen } from "./src/screens/SubscriptionsScreen";
+import { BusinessScreen } from "./src/screens/BusinessScreen";
+import { usePalette } from "./src/theme";
 
-type Tab = "home" | "agent" | "scan" | "business";
+type HomeRoute = "main" | "whatif" | "subs";
 
 export default function App() {
+  return (
+    <ThemeProvider initial="system">
+      <Shell />
+    </ThemeProvider>
+  );
+}
+
+function Shell() {
+  const p = usePalette();
   const [tab, setTab] = useState<Tab>("home");
+  const [homeRoute, setHomeRoute] = useState<HomeRoute>("main");
   const [home, setHome] = useState<{
     dashboard: DashboardSummary;
     dna: SpendingDna;
@@ -30,249 +43,93 @@ export default function App() {
   const [business, setBusiness] = useState<{ dashboard: BusinessDashboard; scores: CollectionScore[] } | null>(null);
 
   useEffect(() => {
-    void loadMobileHome().then(setHome);
+    void loadMobileHome().then((res) => setHome({ dashboard: res.dashboard, dna: res.dna, leaks: res.leaks, simulation: res.simulation }));
     void loadBusiness().then(setBusiness);
   }, []);
 
+  function changeTab(next: Tab) {
+    setTab(next);
+    if (next === "home") setHomeRoute("main");
+  }
+
   return (
-    <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" />
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {tab === "home" && (home ? <HomeScreen {...home} /> : <Loading />)}
-        {tab === "agent" && <AgentScreen />}
-        {tab === "scan" && <ScanScreen onImported={() => void loadMobileHome().then(setHome)} />}
-        {tab === "business" && (business ? <BusinessScreen {...business} /> : <Loading />)}
-      </ScrollView>
-      <View style={styles.tabBar}>
-        <PillButton label="Kişisel" active={tab === "home"} onPress={() => setTab("home")} />
-        <PillButton label="Agent" active={tab === "agent"} onPress={() => setTab("agent")} />
-        <PillButton label="Fiş" active={tab === "scan"} onPress={() => setTab("scan")} />
-        <PillButton label="KOBİ" active={tab === "business"} onPress={() => setTab("business")} />
+    <SafeAreaView style={{ flex: 1, backgroundColor: p.bg }}>
+      <View style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110, gap: 16 }} showsVerticalScrollIndicator={false}>
+          <TopBar tabLabel={tab} />
+
+          {tab === "home" &&
+            (home ? (
+              homeRoute === "main" ? (
+                <HomeScreen
+                  {...home}
+                  onOpenWhatIf={() => setHomeRoute("whatif")}
+                  onOpenSubs={() => setHomeRoute("subs")}
+                />
+              ) : homeRoute === "whatif" ? (
+                <WhatIfScreen simulation={home.simulation} onBack={() => setHomeRoute("main")} />
+              ) : (
+                <SubscriptionsScreen leaks={home.leaks} onBack={() => setHomeRoute("main")} />
+              )
+            ) : (
+              <Loading />
+            ))}
+
+          {tab === "agent" && <AgentScreen />}
+          {tab === "scan" && (
+            <ScanScreen
+              onImported={() => {
+                void loadMobileHome().then((res) =>
+                  setHome({ dashboard: res.dashboard, dna: res.dna, leaks: res.leaks, simulation: res.simulation })
+                );
+              }}
+            />
+          )}
+          {tab === "business" && (business ? <BusinessScreen {...business} /> : <Loading />)}
+        </ScrollView>
+
+        <TabBar active={tab} onChange={changeTab} />
       </View>
+    </SafeAreaView>
+  );
+}
+
+function TopBar({ tabLabel }: { tabLabel: Tab }) {
+  const p = usePalette();
+  const titles: Record<Tab, string> = {
+    home: "Fintwin",
+    agent: "Fintwin · Agent",
+    scan: "Fintwin · Belge",
+    business: "Fintwin · KOBİ"
+  };
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            backgroundColor: p.accent,
+            alignItems: "center",
+            justifyContent: "center"
+          }}
+        >
+          <Text style={{ color: p.onAccent, fontWeight: "900", fontSize: 14 }}>F</Text>
+        </View>
+        <Text style={{ color: p.ink, fontWeight: "900", fontSize: 16 }}>{titles[tabLabel]}</Text>
+      </View>
+      <ThemeToggle />
     </View>
   );
 }
 
-function HomeScreen({
-  dashboard,
-  dna,
-  leaks,
-  simulation
-}: {
-  dashboard: DashboardSummary;
-  dna: SpendingDna;
-  leaks: SubscriptionLeak[];
-  simulation: WhatIfResponse;
-}) {
-  return (
-    <>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Fintwin Mobil</Text>
-        <Text style={styles.title}>Finansal ikizin cebinde.</Text>
-        <Text style={styles.subtitle}>iOS öncelikli demo; Android uyumlu React Native CLI temeli korunur.</Text>
-      </View>
-      <View style={styles.statGrid}>
-        <Stat icon={<Gauge color={palette.accent} />} label="Sağlık" value={`${dashboard.financialHealthScore}/100`} />
-        <Stat icon={<WalletCards color={palette.accent} />} label="Gelir" value={`${dashboard.income.toLocaleString("tr-TR")} TL`} />
-        <Stat icon={<ReceiptText color={palette.accent} />} label="Gider" value={`${dashboard.expenses.toLocaleString("tr-TR")} TL`} />
-        <Stat icon={<PiggyBank color={palette.accent} />} label="Tasarruf" value={`%${dashboard.savingsRate}`} />
-      </View>
-      <Panel>
-        <Text style={styles.sectionTitle}>Spending DNA</Text>
-        {dna.categories.slice(0, 4).map((item) => (
-          <RiskBar key={item.categoryId} label={item.categoryName} value={item.riskScore} />
-        ))}
-      </Panel>
-      <Panel>
-        <Text style={styles.sectionTitle}>Scenario Compare</Text>
-        {simulation.cards.map((card) => (
-          <View style={styles.scenario} key={card.id}>
-            <Text style={styles.muted}>{card.label}</Text>
-            <Text style={styles.statValue}>{card.spendAmount.toLocaleString("tr-TR")} TL</Text>
-            <Text style={styles.muted}>{card.recommendation}</Text>
-          </View>
-        ))}
-      </Panel>
-      <Panel>
-        <Text style={styles.sectionTitle}>Abonelik Avcısı</Text>
-        {leaks.map((leak) => (
-          <View style={styles.row} key={`${leak.subscriptionId}-${leak.issue}`}>
-            <Text style={styles.rowText}>{leak.merchant}</Text>
-            <Text style={styles.muted}>{leak.monthlyImpact.toLocaleString("tr-TR")} TL</Text>
-          </View>
-        ))}
-      </Panel>
-    </>
-  );
-}
-
-function AgentScreen() {
-  const [message, setMessage] = useState("Bugün 10000 TL teknoloji harcaması yaparsam ne olur?");
-  const [response, setResponse] = useState<AgentResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function ask() {
-    setLoading(true);
-    const next = await sendAgentMessage(message);
-    setResponse(next);
-    Tts.setDefaultLanguage("tr-TR").catch(() => undefined);
-    Tts.speak(next.answer);
-    setLoading(false);
-  }
-
-  return (
-    <>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Sesli Finans Asistanı</Text>
-        <Text style={styles.title}>Agent sorunu analiz eder ve açıklar.</Text>
-      </View>
-      <Panel>
-        <Bot color={palette.accent} />
-        <TextInput value={message} onChangeText={setMessage} style={styles.input} multiline />
-        <TouchableOpacity style={styles.primaryButton} onPress={ask} disabled={loading}>
-          <Text style={styles.primaryButtonText}>{loading ? "Analiz ediliyor" : "Agent'a sor ve sesli oku"}</Text>
-        </TouchableOpacity>
-      </Panel>
-      {response ? (
-        <Panel>
-          <Text style={styles.sectionTitle}>Explainable AI</Text>
-          <Text style={styles.subtitle}>{response.answer}</Text>
-          {response.evidence.map((item) => (
-            <View style={styles.row} key={`${item.label}-${item.value}`}>
-              <Text style={styles.rowText}>{item.label}</Text>
-              <Text style={styles.muted}>{item.value}</Text>
-            </View>
-          ))}
-        </Panel>
-      ) : null}
-    </>
-  );
-}
-
-function ScanScreen({ onImported }: { onImported: () => void }) {
-  const [receiptResult, setReceiptResult] = useState<ReceiptExpenseImportResult | null>(null);
-  const [statementResult, setStatementResult] = useState<StatementImportResult | null>(null);
-  const [receiptLoading, setReceiptLoading] = useState(false);
-  const [statementLoading, setStatementLoading] = useState(false);
-
-  async function captureReceipt() {
-    setReceiptLoading(true);
-    const image = await launchCamera({
-      mediaType: "photo",
-      includeBase64: true,
-      quality: 0.8
-    });
-    if (image.errorMessage) {
-      Alert.alert("Kamera açılamadı", image.errorMessage);
-    }
-    if (!image.didCancel) {
-      const asset = image.assets?.[0];
-      const next = await importReceiptExpense(asset?.base64 ?? undefined, asset?.type ?? undefined);
-      setReceiptResult(next);
-      onImported();
-    }
-    setReceiptLoading(false);
-  }
-
-  async function pickStatement() {
-    setStatementLoading(true);
-    const image = await launchImageLibrary({
-      mediaType: "photo",
-      includeBase64: true,
-      quality: 0.8
-    });
-    if (image.errorMessage) {
-      Alert.alert("Ekstre seçilemedi", image.errorMessage);
-    }
-    if (!image.didCancel) {
-      const asset = image.assets?.[0];
-      const next = await importStatement(asset?.base64 ?? undefined, asset?.type ?? undefined);
-      setStatementResult(next);
-      onImported();
-    }
-    setStatementLoading(false);
-  }
-
-  return (
-    <>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Belge Agent'ları</Text>
-        <Text style={styles.title}>Fiş ve ekstreyi giderlere ekle.</Text>
-      </View>
-      <Panel>
-        <Camera color={palette.accent} />
-        <Text style={styles.subtitle}>Receipt Agent kameradan okur, kategoriyi bulur ve tek gider transaction'ı oluşturur.</Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={captureReceipt} disabled={receiptLoading}>
-          <Text style={styles.primaryButtonText}>{receiptLoading ? "Gider ekleniyor" : "Fişi kameradan okut"}</Text>
-        </TouchableOpacity>
-      </Panel>
-      {receiptResult ? (
-        <Panel>
-          <Text style={styles.sectionTitle}>{receiptResult.receipt.merchant}</Text>
-          <Text style={styles.statValue}>{receiptResult.transaction.amount.toLocaleString("tr-TR")} TL</Text>
-          <Text style={styles.muted}>
-            {receiptResult.receipt.occurredAt} · {receiptResult.receipt.categoryName} · giderlere eklendi
-          </Text>
-        </Panel>
-      ) : null}
-      <Panel>
-        <FileText color={palette.accent} />
-        <Text style={styles.subtitle}>Statement Agent ay sonu ekstresindeki tüm harcama kalemlerini ayırır ve kategorize eder.</Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={pickStatement} disabled={statementLoading}>
-          <Text style={styles.primaryButtonText}>{statementLoading ? "Ekstre işleniyor" : "Ekstre görseli yükle"}</Text>
-        </TouchableOpacity>
-      </Panel>
-      {statementResult ? (
-        <Panel>
-          <Text style={styles.sectionTitle}>{statementResult.statementMonth} ekstresi</Text>
-          <Text style={styles.statValue}>{statementResult.totalAmount.toLocaleString("tr-TR")} TL</Text>
-          <Text style={styles.muted}>{statementResult.importedCount} kalem giderlere eklendi.</Text>
-          {(statementResult.transactions.length ? statementResult.transactions : statementResult.items).slice(0, 6).map((item) => (
-            <View style={styles.row} key={`${item.merchant}-${item.amount}-${item.occurredAt}`}>
-              <Text style={styles.rowText}>{item.merchant}</Text>
-              <Text style={styles.muted}>{item.amount.toLocaleString("tr-TR")} TL</Text>
-            </View>
-          ))}
-        </Panel>
-      ) : null}
-    </>
-  );
-}
-
-function BusinessScreen({ dashboard, scores }: { dashboard: BusinessDashboard; scores: CollectionScore[] }) {
-  return (
-    <>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>Ayrı KOBİ Modülü</Text>
-        <Text style={styles.title}>AI CFO Lite kişisel akıştan ayrıdır.</Text>
-      </View>
-      <View style={styles.statGrid}>
-        <Stat icon={<BriefcaseBusiness color={palette.accent} />} label="Kasa" value={`${dashboard.cashBalance.toLocaleString("tr-TR")} TL`} />
-        <Stat icon={<Gauge color={palette.accent} />} label="Risk" value={dashboard.liquidityRisk} />
-      </View>
-      <Panel>
-        <Text style={styles.sectionTitle}>Nakit Akışı</Text>
-        <RiskBar label="30 gün projeksiyon" value={Math.max(0, Math.min(100, Math.round(dashboard.projected30Days / 3000)))} />
-        <RiskBar label="60 gün projeksiyon" value={Math.max(0, Math.min(100, Math.round(dashboard.projected60Days / 3000)))} />
-        <RiskBar label="90 gün projeksiyon" value={Math.max(0, Math.min(100, Math.round(dashboard.projected90Days / 3000)))} />
-      </Panel>
-      <Panel>
-        <Text style={styles.sectionTitle}>Tahsilat Skoru</Text>
-        {scores.map((score) => (
-          <View style={styles.row} key={score.customerId}>
-            <Text style={styles.rowText}>{score.customerId}</Text>
-            <Text style={styles.muted}>{score.score}/100</Text>
-          </View>
-        ))}
-      </Panel>
-    </>
-  );
-}
-
 function Loading() {
+  const p = usePalette();
   return (
-    <View style={{ paddingTop: 80 }}>
-      <ActivityIndicator color={palette.accent} />
+    <View style={{ paddingTop: 80, alignItems: "center", gap: 8 }}>
+      <ActivityIndicator color={p.accent} />
+      <Text style={{ color: p.muted, fontSize: 12 }}>Demo veri yükleniyor…</Text>
     </View>
   );
 }
