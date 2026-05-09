@@ -23,6 +23,8 @@ prompts/
 *.p8
 GoogleService-Info.plist
 google-services.json
+apps/mobile/ios/.xcode.env.local
+apps/mobile/ios/Pods/
 
 # Logs and local databases
 *.log
