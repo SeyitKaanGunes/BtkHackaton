@@ -22,8 +22,11 @@ import { QwenService } from "../src/ai/qwen.service.js";
 import { ActionsController } from "../src/actions/actions.controller.js";
 import { DataStoreService } from "../src/data/data-store.service.js";
 import { DocumentsService } from "../src/documents/documents.service.js";
+import { PdfExtractorService } from "../src/documents/pdf-extractor.service.js";
 import { ReceiptExpenseAgentService } from "../src/documents/receipt-expense-agent.service.js";
+import { StatementDocumentRepository } from "../src/documents/statement-document.repository.js";
 import { StatementExpenseAgentService } from "../src/documents/statement-expense-agent.service.js";
+import { StatementExtractorService } from "../src/documents/statement-extractor.service.js";
 import { InvestmentsController } from "../src/investments/investments.controller.js";
 import { TwelveDataService } from "../src/investments/twelve-data.service.js";
 
@@ -43,13 +46,13 @@ describe("API feature services", () => {
   });
 
   it("rejects receipt OCR when no document is provided", async () => {
-    const documents = new DocumentsService(new QwenService());
+    const documents = createTestDocuments(new QwenService());
     await expect(documents.scanReceipt({})).rejects.toThrow("imageBase64 is required");
   });
 
   it("imports a scanned receipt as an expense transaction", async () => {
     const store = createTestStore();
-    const receiptAgent = new ReceiptExpenseAgentService(new DocumentsService(qwenWith(receiptJson)), store);
+    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(qwenWith(receiptJson)), store);
     const before = store.transactions.length;
     const result = await receiptAgent.importReceipt(authUser.id, { imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" });
     expect(result.agentName).toBe("Receipt Agent");
@@ -60,7 +63,7 @@ describe("API feature services", () => {
 
   it("imports statement line items as categorized expense transactions", async () => {
     const store = createTestStore();
-    const statementAgent = new StatementExpenseAgentService(new DocumentsService(qwenWith(statementJson)), store);
+    const statementAgent = new StatementExpenseAgentService(createTestDocuments(qwenWith(statementJson)), store, {} as StatementDocumentRepository);
     const before = store.transactions.length;
     const result = await statementAgent.importStatement(authUser.id, { statementText: "StreamPlus 219 TL 2026-05-01" });
     expect(result.agentName).toBe("Statement Agent");
@@ -193,6 +196,13 @@ function createTestStore(): DataStoreService {
     }
   };
   return store as unknown as DataStoreService;
+}
+
+function createTestDocuments(qwen: QwenService): DocumentsService {
+  const pdfExtractor = {
+    extractText: vi.fn()
+  } as unknown as PdfExtractorService;
+  return new DocumentsService(qwen, new StatementExtractorService(qwen, pdfExtractor));
 }
 
 const receiptJson = JSON.stringify({

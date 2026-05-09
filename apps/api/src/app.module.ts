@@ -15,8 +15,12 @@ import { DataStoreService } from "./data/data-store.service.js";
 import { DashboardController } from "./dashboard/dashboard.controller.js";
 import { DocumentsController } from "./documents/documents.controller.js";
 import { DocumentsService } from "./documents/documents.service.js";
+import { PdfExtractorService } from "./documents/pdf-extractor.service.js";
 import { ReceiptExpenseAgentService } from "./documents/receipt-expense-agent.service.js";
+import { StatementDocumentRepository } from "./documents/statement-document.repository.js";
 import { StatementExpenseAgentService } from "./documents/statement-expense-agent.service.js";
+import { StatementExtractorService } from "./documents/statement-extractor.service.js";
+import { StatementImportFilter } from "./documents/statement-import.filter.js";
 import { InvestmentsController } from "./investments/investments.controller.js";
 import { TwelveDataService } from "./investments/twelve-data.service.js";
 import { NotificationsController } from "./notifications/notifications.controller.js";
@@ -63,10 +67,14 @@ import { TransactionsController } from "./transactions/transactions.controller.j
     DataStoreService,
     DocumentsService,
     JwtAuthGuard,
+    PdfExtractorService,
     PrismaService,
     QwenService,
     ReceiptExpenseAgentService,
+    StatementDocumentRepository,
     StatementExpenseAgentService,
+    StatementExtractorService,
+    StatementImportFilter,
     TwelveDataService
   ]
 })

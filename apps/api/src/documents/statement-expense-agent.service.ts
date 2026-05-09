@@ -1,17 +1,41 @@
-import { Inject, Injectable } from "@nestjs/common";
-import type { StatementImportResult, StatementLineItem, StatementSubscriptionCandidate, Transaction } from "@fintwin/shared";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import {
+  type StatementConfirmResult,
+  type StatementImportResult,
+  type StatementLineItem,
+  type StatementPreviewItem,
+  type StatementPreviewResult,
+  type StatementSubscriptionCandidate,
+  type Transaction
+} from "@fintwin/shared";
 import { DataStoreService } from "../data/data-store.service.js";
 import { mapCategoryNameToId } from "./category-mapper.js";
 import { DocumentsService } from "./documents.service.js";
+import { computeFileHash } from "./file-hash.js";
+import { analyzeConsistency } from "./statement-consistency.js";
+import { StatementDocumentRepository } from "./statement-document.repository.js";
+import { markDuplicates } from "./statement-duplicate-detector.js";
+
+const CACHE_HIT_WARNING = "Aynı dosyadan önbelleklenmiş sonuç kullanıldı.";
 
 @Injectable()
 export class StatementExpenseAgentService {
   constructor(
     @Inject(DocumentsService) private readonly documents: DocumentsService,
-    @Inject(DataStoreService) private readonly store: DataStoreService
+    @Inject(DataStoreService) private readonly store: DataStoreService,
+    @Inject(StatementDocumentRepository) private readonly documentRepository: StatementDocumentRepository
   ) {}
 
-  async importStatement(userId: string, input: { statementText?: string; imageBase64?: string; mimeType?: string; fileName?: string }): Promise<StatementImportResult> {
+  async importStatement(
+    userId: string,
+    input: {
+      fileBase64?: string;
+      mimeType?: string;
+      fileName?: string;
+      imageBase64?: string;
+      statementText?: string;
+    }
+  ): Promise<StatementImportResult> {
     const extraction = await this.documents.extractStatement(input);
     const uniqueItems = dedupeItems(extraction.items);
     const transactions: Transaction[] = [];
@@ -29,12 +53,116 @@ export class StatementExpenseAgentService {
       items: uniqueItems,
       transactions,
       recurringSubscriptions,
+      warnings: extraction.warnings,
+      sourceType: extraction.sourceType,
       evidence: [
         `Ekstre ayı: ${extraction.statementMonth}`,
         `Ayrıştırılan kalem: ${extraction.items.length}`,
         `Giderlere eklenen kalem: ${transactions.length}`,
         `Tekrar eden abonelik adayı: ${recurringSubscriptions.length}`
       ]
+    };
+  }
+
+  async previewStatement(
+    userId: string,
+    input: {
+      fileBase64?: string;
+      mimeType?: string;
+      fileName?: string;
+      imageBase64?: string;
+      statementText?: string;
+    }
+  ): Promise<StatementPreviewResult> {
+    const fileBase64 = input.fileBase64 ?? input.imageBase64;
+    const fileHash = fileBase64 ? computeFileHash(fileBase64) : null;
+    const cached = fileHash ? await this.documentRepository.findCachedExtraction(userId, fileHash) : undefined;
+    const extraction = cached
+      ? {
+          ...cached,
+          items: cached.items.map(stripExistingTransactionId),
+          tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          warnings: [...cached.warnings.filter((warning) => warning !== CACHE_HIT_WARNING), CACHE_HIT_WARNING]
+        }
+      : await this.documents.extractStatement(input);
+    const uniqueItems = dedupeItems(extraction.items);
+    const userTransactions = this.store.getPersonalData(userId).transactions;
+    const items = markDuplicates(uniqueItems, userId, userTransactions);
+    const consistency = analyzeConsistency(items, extraction.avgConfidence, extraction.statementMonth);
+    const warnings = [...extraction.warnings, ...consistency.warnings];
+    const totalAmount = Number(items.reduce((total, item) => total + item.amount, 0).toFixed(2));
+    const document = await this.documentRepository.create({
+      userId,
+      fileHash,
+      fileName: input.fileName,
+      statementMonth: extraction.statementMonth,
+      totalAmount,
+      items,
+      warnings,
+      sourceType: extraction.sourceType,
+      avgConfidence: extraction.avgConfidence,
+      tokenUsage: extraction.tokenUsage
+    });
+
+    return {
+      agentName: "Statement Agent",
+      documentId: document.id,
+      statementMonth: document.statementMonth,
+      totalAmount: document.totalAmount,
+      items: document.items,
+      warnings: document.warnings,
+      sourceType: document.sourceType,
+      lowConfidenceCount: consistency.lowConfidenceCount,
+      sumMismatch: consistency.sumMismatch,
+      avgConfidence: document.avgConfidence,
+      duplicateCount: document.items.filter((item) => item.existingTransactionId).length
+    };
+  }
+
+  async confirmStatement(
+    userId: string,
+    input: {
+      documentId: string;
+      selectedItemIndexes?: number[];
+      skipDuplicates?: boolean;
+    }
+  ): Promise<StatementConfirmResult> {
+    const document = await this.documentRepository.getById(input.documentId, userId);
+    if (!document) {
+      throw new BadRequestException("Belge bulunamadı");
+    }
+    if (document.status === "imported") {
+      throw new BadRequestException("Bu belge zaten içe aktarıldı");
+    }
+
+    const selectedIndexSet = input.selectedItemIndexes
+      ? new Set(input.selectedItemIndexes.filter((index) => Number.isInteger(index)))
+      : new Set(document.items.map((item) => item.index));
+    const userTransactions = this.store.getPersonalData(userId).transactions;
+    const freshItems = markDuplicates(document.items.map(stripExistingTransactionId), userId, userTransactions);
+    const selectedItems = freshItems.filter((item) => selectedIndexSet.has(item.index));
+    const skipDuplicates = input.skipDuplicates ?? true;
+    const duplicateItems = selectedItems.filter((item) => item.existingTransactionId);
+    const itemsToImport = skipDuplicates ? selectedItems.filter((item) => !item.existingTransactionId) : selectedItems;
+
+    const transactions: Transaction[] = [];
+    for (const [index, item] of itemsToImport.entries()) {
+      transactions.push(await this.store.addTransaction(this.toTransaction(userId, item, index)));
+    }
+
+    await this.documentRepository.markImported(document.id, new Date());
+    const recurringSubscriptions = this.detectRecurringSubscriptions(userId, itemsToImport);
+
+    return {
+      agentName: "Statement Agent",
+      documentId: document.id,
+      importedCount: transactions.length,
+      skippedCount: Math.max(0, document.items.length - selectedItems.length),
+      duplicateCount: skipDuplicates ? duplicateItems.length : 0,
+      transactions,
+      recurringSubscriptions,
+      statementMonth: document.statementMonth,
+      totalAmount: Number(itemsToImport.reduce((total, item) => total + item.amount, 0).toFixed(2))
     };
   }
 
@@ -96,6 +224,17 @@ function dedupeItems(items: StatementLineItem[]) {
   });
 }
 
+function stripExistingTransactionId(item: StatementPreviewItem): StatementLineItem {
+  return {
+    merchant: item.merchant,
+    amount: item.amount,
+    occurredAt: item.occurredAt,
+    categoryName: item.categoryName,
+    paymentMethod: item.paymentMethod,
+    confidence: item.confidence
+  };
+}
+
 function isSubscriptionLike(item: StatementLineItem) {
   const text = `${item.categoryName} ${item.merchant}`.toLocaleLowerCase("tr-TR");
   return /abonelik|subscription|üyelik|stream|cloud|netflix|spotify|youtube|apple|google|prime|gain|tod|exxen|blutv|digital/i.test(text);
@@ -105,7 +244,7 @@ function normalizeMerchant(value: string) {
   return value
     .toLocaleLowerCase("tr-TR")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/ı/g, "i")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");

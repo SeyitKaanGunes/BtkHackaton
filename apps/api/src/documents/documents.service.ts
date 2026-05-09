@@ -1,6 +1,7 @@
 import { BadGatewayException, BadRequestException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
-import type { ReceiptScanResult, StatementLineItem } from "@fintwin/shared";
+import type { ReceiptScanResult } from "@fintwin/shared";
 import { QwenService } from "../ai/qwen.service.js";
+import { StatementExtractorService, type RawExtraction } from "./statement-extractor.service.js";
 
 const QWEN_PRIMARY_MODEL = "qwen3.6-flash-2026-04-16";
 
@@ -22,35 +23,14 @@ Kurallar:
 - confidence 0 ile 1 arası ondalık.
 - Tüm alanlar zorunlu; lineItems en az bir öğe içerir.`;
 
-const STATEMENT_INSTRUCTION = `Sen bir Türkçe kredi kartı/banka ekstresi ayrıştırma agentısın. Yalnızca saf JSON döndür:
-{
-  "statementMonth": "YYYY-MM",
-  "items": [
-    {
-      "merchant": string,
-      "amount": number,
-      "occurredAt": "YYYY-MM-DD",
-      "categoryName": string,
-      "paymentMethod": "cash" | "debit_card" | "credit_card" | "transfer",
-      "confidence": number
-    }
-  ]
-}
-Kurallar:
-- Yalnızca harcama/gider kalemlerini çıkar; kart ödemesi, borç ödeme, dönem borcu özeti, limit, iade ve gelir kalemlerini alma.
-- amount TL cinsinden pozitif sayı olsun; virgül yerine nokta kullan.
-- categoryName Türkçe finans kategorisi olsun: Market, Yemek, Ulaşım, Teknoloji, Giyim, Abonelik, Kira veya Diğer.
-- Tarih eksikse ekstre ayını kullanarak en olası günü yaz.
-- Aynı satırı iki kez ekleme.`;
-
-interface StatementExtraction {
-  statementMonth: string;
-  items: StatementLineItem[];
-}
+type StatementExtraction = RawExtraction & { sourceType: "pdf-text" | "pdf-vision" | "image" };
 
 @Injectable()
 export class DocumentsService {
-  constructor(@Inject(QwenService) private readonly qwen: QwenService) {}
+  constructor(
+    @Inject(QwenService) private readonly qwen: QwenService,
+    @Inject(StatementExtractorService) private readonly statementExtractor: StatementExtractorService
+  ) {}
 
   async scanReceipt(input: { imageBase64?: string; mimeType?: string; textHint?: string }): Promise<ReceiptScanResult> {
     if (!input.imageBase64) {
@@ -86,41 +66,37 @@ export class DocumentsService {
     }
   }
 
-  async extractStatement(input: { statementText?: string; imageBase64?: string; mimeType?: string; fileName?: string }): Promise<StatementExtraction> {
-    if (!input.statementText && !input.imageBase64) {
-      throw new BadRequestException("statementText or imageBase64 is required for statement extraction.");
-    }
-    if (!this.qwen.isConfigured()) {
-      throw new ServiceUnavailableException("QWEN_API_KEY is not configured for statement extraction.");
+  async extractStatement(input: {
+    fileBase64?: string;
+    mimeType?: string;
+    fileName?: string;
+    imageBase64?: string;
+    statementText?: string;
+  }): Promise<StatementExtraction> {
+    if (input.fileBase64) {
+      return this.statementExtractor.extract({
+        fileBase64: input.fileBase64,
+        mimeType: input.mimeType ?? inferMimeType(input.fileName),
+        fileName: input.fileName
+      });
     }
 
-    const prompt =
-      "Bu ay sonu ekstresinden harcama kalemlerini çıkar ve kategorize et." +
-      (input.fileName ? ` Dosya adı: ${input.fileName}.` : "") +
-      (input.statementText ? ` Ekstre metni:\n${input.statementText.slice(0, 24000)}` : "");
+    if (input.imageBase64) {
+      return this.statementExtractor.extract({
+        fileBase64: input.imageBase64,
+        mimeType: input.mimeType ?? "image/jpeg",
+        fileName: input.fileName
+      });
+    }
 
-    try {
-      const userContent = input.imageBase64
-        ? [
-            { type: "text" as const, text: prompt },
-            { type: "image_url" as const, image_url: { url: `data:${input.mimeType ?? "image/jpeg"};base64,${input.imageBase64}` } }
-          ]
-        : prompt;
-      const response = await this.qwen.chat(
-        [
-          { role: "system", content: STATEMENT_INSTRUCTION },
-          { role: "user", content: userContent }
-        ],
-        { model: input.imageBase64 ? process.env.QWEN_VISION_MODEL ?? QWEN_PRIMARY_MODEL : undefined, temperature: 0 }
-      );
-      const parsed = JSON.parse(extractJson(response.content)) as Partial<StatementExtraction>;
+    if (input.statementText) {
       return {
-        statementMonth: sanitizeMonth(parsed.statementMonth),
-        items: sanitizeStatementItems(parsed.items)
+        ...(await this.statementExtractor.extractFromText(input.statementText)),
+        sourceType: "pdf-text"
       };
-    } catch {
-      throw new BadGatewayException("Statement extraction response could not be parsed.");
     }
+
+    throw new BadRequestException("fileBase64, imageBase64 or statementText is required for statement extraction.");
   }
 }
 
@@ -131,31 +107,6 @@ function extractJson(text: string): string {
   return match ? match[0] : "{}";
 }
 
-function sanitizeMonth(value?: string) {
-  const match = value?.match(/\d{4}-\d{2}/);
-  return match?.[0] ?? "2026-05";
-}
-
-function sanitizeStatementItems(items?: StatementLineItem[]) {
-  if (!Array.isArray(items)) return [];
-  return items
-    .filter((item) => item && Number(item.amount) > 0 && item.merchant)
-    .map((item) => ({
-      merchant: String(item.merchant).trim(),
-      amount: Number(item.amount),
-      occurredAt: normalizeDate(item.occurredAt),
-      categoryName: String(item.categoryName || "Diğer").trim(),
-      paymentMethod: normalizePaymentMethod(item.paymentMethod),
-      confidence: Math.max(0, Math.min(1, Number(item.confidence ?? 0.75)))
-    }));
-}
-
-function normalizeDate(value?: string) {
-  const text = String(value ?? "");
-  const match = text.match(/\d{4}-\d{2}-\d{2}/);
-  return match?.[0] ?? new Date().toISOString().slice(0, 10);
-}
-
-function normalizePaymentMethod(value?: string): StatementLineItem["paymentMethod"] {
-  return value === "cash" || value === "debit_card" || value === "transfer" ? value : "credit_card";
+function inferMimeType(fileName?: string): string {
+  return fileName?.toLocaleLowerCase("tr-TR").endsWith(".pdf") ? "application/pdf" : "application/octet-stream";
 }

@@ -19,7 +19,9 @@ import {
   type ReceiptExpenseImportResult,
   type ReceiptScanResult,
   type SpendingDna,
+  type StatementConfirmResult,
   type StatementImportResult,
+  type StatementPreviewResult,
   type SubscriptionReminderResult,
   type SubscriptionLeak,
   type WhatIfResponse
@@ -69,10 +71,42 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+export class StatementApiError extends Error {
+  constructor(message: string, public readonly code?: string) {
+    super(message);
+    this.name = "StatementApiError";
+  }
+}
+
 async function request<T>(path: string, fallback: () => T, init?: RequestInit): Promise<T> {
+  const isStatementEndpoint = path.startsWith("/documents/statement-agent/");
   try {
-    return await fetchJson<T>(path, init);
+    const response = await fetch(`${apiUrl}${path}`, {
+      ...init,
+      headers: {
+        "content-type": "application/json",
+        ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+        ...(init?.headers ?? {})
+      }
+    });
+    if (!response.ok) {
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        body = undefined;
+      }
+      const record = body && typeof body === "object" ? (body as Record<string, unknown>) : undefined;
+      if (isStatementEndpoint && typeof record?.code === "string") {
+        throw new StatementApiError(typeof record.message === "string" ? record.message : `API ${response.status}`, record.code);
+      }
+      throw new Error(`API ${response.status}`);
+    }
+    return (await response.json()) as T;
   } catch (error) {
+    if (isStatementEndpoint && error instanceof StatementApiError) {
+      throw error;
+    }
     if (demoFallbackEnabled) {
       return fallback();
     }
@@ -254,6 +288,26 @@ export function importStatement(imageBase64?: string, mimeType?: string): Promis
       evidence: ["Mobil fallback Statement Agent sonucu"]
     }),
     { method: "POST", body: JSON.stringify({ imageBase64, mimeType }) }
+  );
+}
+
+export function importStatementPreview(fileBase64?: string, mimeType?: string, fileName?: string): Promise<StatementPreviewResult> {
+  return request<StatementPreviewResult>(
+    "/documents/statement-agent/preview",
+    () => {
+      throw new Error("Statement preview demo fallback yok");
+    },
+    { method: "POST", body: JSON.stringify({ fileBase64, mimeType, fileName }) }
+  );
+}
+
+export function confirmStatementImport(documentId: string, selectedItemIndexes?: number[], skipDuplicates?: boolean): Promise<StatementConfirmResult> {
+  return request<StatementConfirmResult>(
+    "/documents/statement-agent/confirm",
+    () => {
+      throw new Error("Statement confirm demo fallback yok");
+    },
+    { method: "POST", body: JSON.stringify({ documentId, selectedItemIndexes, skipDuplicates }) }
   );
 }
 

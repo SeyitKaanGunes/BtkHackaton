@@ -122,18 +122,27 @@ model Subscription {
 }
 
 model Document {
-  id          String    @id @default(cuid())
-  userId      String
-  kind        String
-  merchant    String?
-  totalAmount Decimal?
-  taxAmount   Decimal?
-  occurredAt  DateTime?
-  rawResult   Json
-  createdAt   DateTime  @default(now())
-  user        User      @relation(fields: [userId], references: [id])
+  id             String    @id @default(cuid())
+  userId         String
+  kind           String
+  merchant       String?
+  totalAmount    Decimal?
+  taxAmount      Decimal?
+  occurredAt     DateTime?
+  rawResult      Json
+  status         String    @default("extracted")
+  fileHash       String?
+  fileName       String?
+  statementMonth String?
+  sourceType     String?
+  tokenUsage     Json?
+  importedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt])
+  @@index([userId, fileHash])
+  @@index([userId, kind, status])
 }
 
 model ActionItem {

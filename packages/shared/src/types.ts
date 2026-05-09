@@ -231,6 +231,39 @@ export interface StatementImportResult {
   transactions: Transaction[];
   recurringSubscriptions: StatementSubscriptionCandidate[];
   evidence: string[];
+  warnings?: string[];
+  sourceType?: "pdf-text" | "pdf-vision" | "image";
+}
+
+export interface StatementPreviewItem extends StatementLineItem {
+  index: number;
+  existingTransactionId?: string;
+}
+
+export interface StatementPreviewResult {
+  agentName: "Statement Agent";
+  documentId: string;
+  statementMonth: string;
+  totalAmount: number;
+  items: StatementPreviewItem[];
+  warnings: string[];
+  sourceType: "pdf-text" | "pdf-vision" | "image";
+  lowConfidenceCount: number;
+  sumMismatch: boolean;
+  avgConfidence: number;
+  duplicateCount: number;
+}
+
+export interface StatementConfirmResult {
+  agentName: "Statement Agent";
+  documentId: string;
+  importedCount: number;
+  skippedCount: number;
+  duplicateCount: number;
+  transactions: Transaction[];
+  recurringSubscriptions: StatementSubscriptionCandidate[];
+  statementMonth: string;
+  totalAmount: number;
 }
 
 export interface SubscriptionReminderRequest {

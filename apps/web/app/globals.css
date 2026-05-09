@@ -864,6 +864,11 @@ h1 {
   padding: 11px 14px;
 }
 
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .agent-result {
   display: grid;
   gap: 14px;
@@ -1013,6 +1018,125 @@ h1 {
   font: inherit;
 }
 
+.statement-upload-zone {
+  min-height: 220px;
+}
+
+.statement-preview {
+  align-content: start;
+}
+
+.statement-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.statement-summary div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.statement-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.statement-summary strong {
+  font-size: 18px;
+}
+
+.statement-warning,
+.statement-error {
+  border: 1px solid #f7d48a;
+  border-radius: 8px;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.statement-warning {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+}
+
+.statement-warning ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.statement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.statement-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.statement-table {
+  display: grid;
+  gap: 2px;
+  overflow-x: auto;
+}
+
+.statement-table-head,
+.statement-table-row {
+  display: grid;
+  grid-template-columns: 34px 110px minmax(180px, 1.4fr) minmax(110px, 0.8fr) 110px 70px;
+  gap: 10px;
+  align-items: center;
+  min-width: 720px;
+}
+
+.statement-table-head {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 0 10px 8px;
+}
+
+.statement-table-row {
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+  padding: 10px;
+}
+
+.statement-table-row.low-confidence {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.statement-table-row small {
+  display: block;
+  margin-top: 3px;
+}
+
+.statement-badge {
+  color: var(--warn);
+  font-weight: 900;
+}
+
+.statement-confirm {
+  justify-self: end;
+}
+
+.statement-error {
+  align-items: start;
+  padding: 14px;
+}
+
 .spin {
   animation: spin 0.8s linear infinite;
 }
@@ -1077,7 +1201,8 @@ h1 {
   .allocation-strip,
   .form-grid,
   .scenario-list,
-  .facts {
+  .facts,
+  .statement-summary {
     grid-template-columns: 1fr;
   }
 
