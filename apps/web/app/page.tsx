@@ -1,4 +1,5 @@
-import { AlertTriangle, Brain, CalendarClock, Gauge, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
+import type { CSSProperties } from "react";
+import { AlertTriangle, Bell, Brain, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
 import { AppShell } from "../components/app-shell";
 import { SpendingCharts } from "../components/dashboard-charts";
 import { InvestmentPortfolio } from "../components/investment-portfolio";
@@ -20,31 +21,59 @@ export default async function DashboardPage() {
     <AppShell active="/">
       <header className="workspace-header">
         <div>
-          <p className="eyebrow">Kişisel AI Financial Twin</p>
-          <h1>Karar almadan önce bütçe etkisini gör.</h1>
-        </div>
-        <div className="health-score">
-          <Gauge size={22} />
-          <span>Finansal sağlık</span>
-          <strong>{dashboard.financialHealthScore}/100</strong>
+          <p className="eyebrow">Pazartesi · 09 Mayıs</p>
+          <h1>Merhaba Seyit.</h1>
+          <p className="header-subtitle">Teknoloji harcamaların bu ay güvenli limiti aştı. Sakin bir aksiyon planı hazır.</p>
         </div>
       </header>
 
+      <section className="health-card panel">
+        <ScoreRing score={dashboard.financialHealthScore} />
+        <div>
+          <p className="eyebrow muted">Finansal Sağlık</p>
+          <h2>Orta seviye</h2>
+          <p>Güvenli aralıkta kalman için {dashboard.upcomingActions.length} öneri hazırlandı. Onaylamadan hiçbir işlem yapılmaz.</p>
+          <div className="chip-row">
+            <span className="chip accent">{dashboard.upcomingActions.length} öneri</span>
+            <span className="chip warn">{leaks.length} risk</span>
+          </div>
+        </div>
+      </section>
+
       <section className="metric-grid">
-        <Metric icon={<WalletCards size={20} />} label="Aylık gelir" value={`${dashboard.income.toLocaleString("tr-TR")} TL`} />
-        <Metric icon={<ReceiptText size={20} />} label="Aylık gider" value={`${dashboard.expenses.toLocaleString("tr-TR")} TL`} />
-        <Metric icon={<PiggyBank size={20} />} label="Tasarruf oranı" value={`%${dashboard.savingsRate}`} />
-        <Metric icon={<ShieldAlert size={20} />} label="Kampanya skoru" value={`${campaign.score}/100`} />
+        <Metric icon={<WalletCards size={18} />} label="Gelir" value={`${dashboard.income.toLocaleString("tr-TR")} TL`} caption="Mayıs 2026" tone="accent" />
+        <Metric icon={<ReceiptText size={18} />} label="Gider" value={`${dashboard.expenses.toLocaleString("tr-TR")} TL`} caption="sabit + kart" tone="warn" />
+        <Metric icon={<PiggyBank size={18} />} label="Bakiye" value={`${(dashboard.income - dashboard.expenses).toLocaleString("tr-TR")} TL`} caption="aylık net" tone="success" />
+        <Metric icon={<ShieldAlert size={18} />} label="Güvenli limit" value={`${whatIf.safeLimit.toLocaleString("tr-TR")} TL`} caption={`kampanya skoru ${campaign.score}`} tone="danger" />
       </section>
 
       <SpendingCharts dashboard={dashboard} dna={dna} />
+
+      <section className="risk-alert-grid">
+        <article className="alert-card warn">
+          <AlertTriangle size={20} />
+          <div>
+            <span>Teknoloji kampanya riski</span>
+            <strong>Önümüzdeki 72 saat kritik.</strong>
+            <p>Kampanya hassasiyetin yüksek. Harcamadan önce what-if simülasyonunu kontrol et.</p>
+          </div>
+        </article>
+        <article className="alert-card danger">
+          <Brain size={20} />
+          <div>
+            <span>Abonelik sızıntısı</span>
+            <strong>{leaks.length} bulgu açık.</strong>
+            <p>Aylık {leaks.reduce((total, leak) => total + leak.monthlyImpact, 0).toLocaleString("tr-TR")} TL geri kazanılabilir alan var.</p>
+          </div>
+        </article>
+      </section>
 
       <InvestmentPortfolio initialPortfolio={investmentPortfolio} />
 
       <section className="split-layout">
         <div className="panel">
           <div className="section-title">
-            <span>Scenario Compare</span>
+            <span>What-if senaryoları</span>
             <strong>{whatIf.safeLimit.toLocaleString("tr-TR")} TL güvenli limit</strong>
           </div>
           <div className="scenario-list">
@@ -73,12 +102,12 @@ export default async function DashboardPage() {
         <div className="panel">
           <div className="section-title">
             <span>Finansal Aksiyon Merkezi</span>
-            <strong>{dashboard.upcomingActions.length} açık aksiyon</strong>
+            <span className="chip warn">{dashboard.upcomingActions.length} açık aksiyon</span>
           </div>
           <div className="action-list">
             {dashboard.upcomingActions.map((action) => (
               <div className="action-row" key={action.id}>
-                <CalendarClock size={18} />
+                <Bell size={18} />
                 <span>{action.title}</span>
                 <small>{action.status}</small>
               </div>
@@ -88,7 +117,7 @@ export default async function DashboardPage() {
         <div className="panel">
           <div className="section-title">
             <span>Akıllı Abonelik Avcısı</span>
-            <strong>{leaks.length} bulgu</strong>
+            <span className="chip danger">{leaks.length} bulgu</span>
           </div>
           <div className="action-list">
             {leaks.map((leak) => (
@@ -105,12 +134,35 @@ export default async function DashboardPage() {
   );
 }
 
-function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function ScoreRing({ score }: { score: number }) {
   return (
-    <div className="metric">
-      {icon}
+    <div className="score-ring" style={{ "--score": score } as CSSProperties}>
+      <strong>{score}</strong>
+      <span>/100</span>
+      <small>sağlık</small>
+    </div>
+  );
+}
+
+function Metric({
+  icon,
+  label,
+  value,
+  caption,
+  tone = "accent"
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  caption?: string;
+  tone?: "accent" | "warn" | "danger" | "success";
+}) {
+  return (
+    <div className={`metric ${tone}`}>
+      <span className="metric-icon">{icon}</span>
       <span>{label}</span>
       <strong>{value}</strong>
+      {caption ? <small>{caption}</small> : null}
     </div>
   );
 }

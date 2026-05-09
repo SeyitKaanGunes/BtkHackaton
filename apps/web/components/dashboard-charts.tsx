@@ -1,13 +1,10 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { DashboardSummary, SpendingDna } from "@fintwin/shared";
 
 export function SpendingCharts({ dashboard, dna }: { dashboard: DashboardSummary; dna: SpendingDna }) {
-  const riskRows = dna.categories.slice(0, 5).map((item) => ({
-    name: item.categoryName,
-    risk: item.riskScore
-  }));
+  const totalCategorySpend = dashboard.categoryBreakdown.reduce((total, item) => total + item.value, 0);
+  const riskRows = dna.categories.slice(0, 5);
 
   return (
     <section className="chart-grid" aria-label="Finans grafikleri">
@@ -16,28 +13,21 @@ export function SpendingCharts({ dashboard, dna }: { dashboard: DashboardSummary
           <span>Kategori Dağılımı</span>
           <strong>{dashboard.expenses.toLocaleString("tr-TR")} TL</strong>
         </div>
-        <div className="chart-box">
-          <ResponsiveContainer width="100%" height={260} minWidth={260}>
-            <PieChart>
-              <Pie
-                data={dashboard.categoryBreakdown}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="82%"
-                startAngle={180}
-                endAngle={0}
-                innerRadius={70}
-                outerRadius={112}
-                paddingAngle={2}
-              >
-                {dashboard.categoryBreakdown.map((entry) => (
-                  <Cell fill={entry.color} key={entry.categoryId} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => `${Number(value).toLocaleString("tr-TR")} TL`} />
-            </PieChart>
-          </ResponsiveContainer>
+        <div className="progress-list">
+          {dashboard.categoryBreakdown.slice(0, 5).map((item) => {
+            const width = totalCategorySpend > 0 ? Math.round((item.value / totalCategorySpend) * 100) : 0;
+            return (
+              <div className="progress-row" key={item.categoryId}>
+                <div>
+                  <span>{item.name}</span>
+                  <strong>{item.value.toLocaleString("tr-TR")} TL</strong>
+                </div>
+                <div className="progress-track" aria-hidden="true">
+                  <span style={{ width: `${width}%`, background: item.color }} />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
       <div className="panel">
@@ -45,18 +35,28 @@ export function SpendingCharts({ dashboard, dna }: { dashboard: DashboardSummary
           <span>Spending DNA Riskleri</span>
           <strong>{dna.overallRisk}/100</strong>
         </div>
-        <div className="chart-box">
-          <ResponsiveContainer width="100%" height={260} minWidth={260}>
-            <BarChart data={riskRows} layout="vertical" margin={{ left: 12, right: 16, top: 8, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" domain={[0, 100]} hide />
-              <YAxis dataKey="name" type="category" width={86} />
-              <Tooltip formatter={(value) => `${value}/100`} />
-              <Bar dataKey="risk" radius={[0, 8, 8, 0]} fill="#0f766e" />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="progress-list">
+          <RiskRow label="Genel risk" value={dna.overallRisk} />
+          {riskRows.map((item) => (
+            <RiskRow key={item.categoryId} label={item.categoryName} value={item.riskScore} />
+          ))}
         </div>
       </div>
     </section>
+  );
+}
+
+function RiskRow({ label, value }: { label: string; value: number }) {
+  const tone = value >= 80 ? "danger" : value >= 60 ? "warn" : "accent";
+  return (
+    <div className={`progress-row ${tone}`}>
+      <div>
+        <span>{label}</span>
+        <strong>{value}/100</strong>
+      </div>
+      <div className="progress-track" aria-hidden="true">
+        <span style={{ width: `${Math.max(4, Math.min(value, 100))}%` }} />
+      </div>
+    </div>
   );
 }

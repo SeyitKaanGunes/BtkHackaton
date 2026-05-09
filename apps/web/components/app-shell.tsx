@@ -36,6 +36,10 @@ export function AppShell({ children, active = "/" }: { children: React.ReactNode
         </div>
       </aside>
       <main className="workspace">{children}</main>
+      <Link className="agent-fab" href="/agent" aria-label="Finansal ikiz agent paneli">
+        <Bot size={22} />
+        <span>İkiz</span>
+      </Link>
     </div>
   );
 }
