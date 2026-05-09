@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from "react-native";
 import { launchCamera, launchImageLibrary } from "react-native-image-picker";
-import { Bell, Camera, FileText, Image as ImageIcon, ReceiptText, ShieldCheck, X } from "lucide-react-native";
+import { Bell, Camera, CheckCircle2, FileText, Image as ImageIcon, ReceiptText, ShieldCheck, X } from "lucide-react-native";
 import type { ReceiptExpenseImportResult, StatementImportResult } from "@fintwin/shared";
 import { createSubscriptionReminder, importReceiptExpense, importStatement } from "../api";
-import { Btn, Card, Chip, Divider, Eyebrow, KV, ScreenHeader, SectionTitle } from "../ui";
+import { Btn, Card, Chip, Divider, Eyebrow, KV, ScreenHeader } from "../ui";
 import { radius, space, usePalette } from "../theme";
 
 export function ScanScreen({ onImported }: { onImported: () => void }) {
@@ -15,27 +15,39 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
   const [loading, setLoading] = useState(false);
 
   async function captureReceipt(source: "camera" | "library") {
-    setLoading(true);
-    const launcher = source === "camera" ? launchCamera : launchImageLibrary;
-    const image = await launcher({ mediaType: "photo", includeBase64: true, quality: 0.8 });
-    if (image.errorMessage) Alert.alert("Görsel açılamadı", image.errorMessage);
-    if (!image.didCancel) {
-      const asset = image.assets?.[0];
-      if (mode === "receipt") {
-        const next = await importReceiptExpense(asset?.base64 ?? undefined, asset?.type ?? undefined);
-        setReceiptResult(next);
-      } else {
-        const next = await importStatement(asset?.base64 ?? undefined, asset?.type ?? undefined);
-        setStatementResult(next);
+    try {
+      setLoading(true);
+      const launcher = source === "camera" ? launchCamera : launchImageLibrary;
+      const image = await launcher({ mediaType: "photo", includeBase64: true, quality: 0.8 });
+      if (image.errorMessage) {
+        Alert.alert("Görsel açılamadı", image.errorMessage);
+        return;
       }
-      onImported();
+      if (!image.didCancel) {
+        const asset = image.assets?.[0];
+        if (mode === "receipt") {
+          const next = await importReceiptExpense(asset?.base64 ?? undefined, asset?.type ?? undefined);
+          setReceiptResult(next);
+        } else {
+          const next = await importStatement(asset?.base64 ?? undefined, asset?.type ?? undefined);
+          setStatementResult(next);
+        }
+        onImported();
+      }
+    } catch (error) {
+      Alert.alert("Belge işlenemedi", error instanceof Error ? error.message : "Agent belgeyi analiz edemedi.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (
     <View style={{ gap: space[4] }}>
-      <ScreenHeader eyebrow="Belge Agent'ları" title="Fişi tara, gidere dönüştür." subtitle="Receipt ve Statement Agent kameradan veya galeriden okur, kategorize eder." />
+      <ScreenHeader
+        eyebrow="Belge Agent'ları"
+        title="Belgeyi agent'a okut."
+        subtitle="Fiş tek gider olarak eklenir; ekstredeki aylık harcama kalemleri ve abonelikler ayrı ayrı çıkarılır."
+      />
 
       <View style={{ flexDirection: "row", backgroundColor: p.surface2, borderRadius: radius.md, padding: 4, gap: 4 }}>
         {([
@@ -82,8 +94,10 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
           </Text>
           <Text style={{ color: p.muted, fontSize: 12, textAlign: "center", lineHeight: 17 }}>
             {loading
-              ? "AI tutar, KDV, kategori ve ödeme yöntemini çıkarıyor."
-              : "Kameradan çek veya galeriden yükle. Tek dokunuşla giderlere eklenecek."}
+              ? mode === "receipt"
+                ? "AI tutar, KDV, kategori ve ödeme yöntemini çıkarıyor."
+                : "AI aylık harcama kalemlerini ve abonelikleri çıkarıyor."
+              : "Kameradan çek veya galeriden yükle. Agent sonucu otomatik giderlere işler."}
           </Text>
         </View>
         {!loading ? (
@@ -105,9 +119,9 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
         <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
           <ShieldCheck color={p.accent} size={18} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ color: p.ink, fontWeight: "800", fontSize: 13 }}>Veri taslak olarak gelir</Text>
+            <Text style={{ color: p.ink, fontWeight: "800", fontSize: 13 }}>Otomatik gider kaydı</Text>
             <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>
-              OCR çıktısı kaydetmeden önce doğrulanır. Sen onaylamadan otomatik işlem oluşmaz.
+              Fiş tek işlem olarak, ekstre kalemleri ayrı ayrı giderlere eklenir. Sonuç kartında kategori ve güven skorunu görebilirsin.
             </Text>
           </View>
         </View>
@@ -132,6 +146,10 @@ function ReceiptResultCard({ result, onDismiss }: { result: ReceiptExpenseImport
           <X color={p.muted} size={18} />
         </Pressable>
       </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <CheckCircle2 color={p.good} size={16} />
+        <Text style={{ color: p.good, fontWeight: "800", fontSize: 12 }}>Giderlere otomatik eklendi</Text>
+      </View>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
         <View>
           <Text style={{ color: p.muted, fontSize: 11 }}>Toplam</Text>
@@ -146,6 +164,7 @@ function ReceiptResultCard({ result, onDismiss }: { result: ReceiptExpenseImport
       <KV k="Tarih" v={r.occurredAt} />
       <KV k="Kategori" v={r.categoryName} vTone="accent" />
       <KV k="Ödeme tipi" v={r.paymentMethod === "credit_card" ? "Kredi kartı" : r.paymentMethod} />
+      <KV k="İşlem durumu" v={result.addedToExpenses ? "Kaydedildi" : "Beklemede"} vTone={result.addedToExpenses ? "accent" : "warn"} />
       {r.lineItems?.length ? (
         <>
           <Divider />
@@ -158,14 +177,7 @@ function ReceiptResultCard({ result, onDismiss }: { result: ReceiptExpenseImport
           ))}
         </>
       ) : null}
-      <View style={{ flexDirection: "row", gap: 6, marginTop: 4 }}>
-        <View style={{ flex: 2 }}>
-          <Btn label="İşlem olarak kaydet" onPress={() => undefined} variant="primary" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Btn label="Düzenle" onPress={() => undefined} variant="secondary" />
-        </View>
-      </View>
+      <Btn label="Yeni belge tara" onPress={onDismiss} variant="secondary" />
     </Card>
   );
 }
@@ -213,6 +225,12 @@ function StatementResultCard({ result, onDismiss, onImported }: { result: Statem
           <Text style={{ color: p.muted, fontSize: 11 }}>Eklenen</Text>
           <Text style={{ color: p.ink, fontSize: 18, fontWeight: "900" }}>{result.importedCount} kalem</Text>
         </View>
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <CheckCircle2 color={p.good} size={16} />
+        <Text style={{ color: p.good, fontWeight: "800", fontSize: 12 }}>
+          {result.importedCount} harcama kalemi giderlere eklendi
+        </Text>
       </View>
 
       {hasSubs ? (
