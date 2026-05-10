@@ -57,7 +57,7 @@ export class ApiRequestError extends Error {
     message: string,
     public readonly code?: string
   ) {
-    super(`API ${status}: ${message}`);
+    super(message);
     this.name = "ApiRequestError";
   }
 }

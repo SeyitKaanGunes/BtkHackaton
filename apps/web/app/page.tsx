@@ -23,7 +23,7 @@ export default async function DashboardPage() {
       <header className="workspace-header">
         <div>
           <p className="eyebrow">{todayLabel}</p>
-          <h1>Merhaba {firstName(user.name)}.</h1>
+          <h1>Merhaba {user.name}.</h1>
           <p className="header-subtitle">Teknoloji harcamaların bu ay güvenli limiti aştı. Sakin bir aksiyon planı hazır.</p>
         </div>
       </header>
@@ -131,10 +131,6 @@ export default async function DashboardPage() {
       </section>
     </AppShell>
   );
-}
-
-function firstName(name: string) {
-  return name.trim().split(/\s+/)[0] || "Fintwin";
 }
 
 function ScoreRing({ score }: { score: number }) {
