@@ -86,7 +86,7 @@ The KOBI features live separately under the business module: AI CFO Lite, cash f
 ## Document Agents
 
 - `Receipt Agent`: `POST /documents/receipt-agent/import` reads a receipt image, detects merchant, amount, tax, date, payment method and category, then adds one expense transaction.
-- `Statement Agent`: `POST /documents/statement-agent/import` reads an end-of-month statement image/text, extracts monthly spending rows, categorizes each row and adds them as expense transactions.
+- `Statement Agent`: `POST /documents/statement-agent/preview` reads an end-of-month statement PDF/image/text and returns categorized spending rows for review; `POST /documents/statement-agent/confirm` adds the selected rows as expense transactions.
 - Subscription reminders: `POST /actions/subscription-reminder` creates a dated pending action from recurring subscriptions detected in the statement analysis.
 
 Document agents require `QWEN_API_KEY`; they no longer return demo receipt or statement results when the key or input document is missing.

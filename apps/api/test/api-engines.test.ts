@@ -61,12 +61,15 @@ describe("API feature services", () => {
     expect(store.transactions.length).toBe(before + 1);
   });
 
-  it("imports statement line items as categorized expense transactions", async () => {
+  it("previews and confirms statement line items as categorized expense transactions", async () => {
     const store = createTestStore();
-    const statementAgent = new StatementExpenseAgentService(createTestDocuments(qwenWith(statementJson)), store, {} as StatementDocumentRepository);
+    const statementRepository = createTestStatementRepository();
+    const statementAgent = new StatementExpenseAgentService(createTestDocuments(qwenWith(statementJson)), store, statementRepository);
     const before = store.transactions.length;
-    const result = await statementAgent.importStatement(authUser.id, { statementText: "StreamPlus 219 TL 2026-05-01" });
+    const preview = await statementAgent.previewStatement(authUser.id, { statementText: "StreamPlus 219 TL 2026-05-01" });
+    const result = await statementAgent.confirmStatement(authUser.id, { documentId: preview.documentId, skipDuplicates: false });
     expect(result.agentName).toBe("Statement Agent");
+    expect(preview.documentId).toBe("doc-statement-test");
     expect(result.importedCount).toBeGreaterThan(1);
     expect(result.recurringSubscriptions.length).toBeGreaterThan(0);
     expect(result.transactions.every((transaction) => transaction.type === "expense")).toBe(true);
@@ -203,6 +206,41 @@ function createTestDocuments(qwen: QwenService): DocumentsService {
     extractText: vi.fn()
   } as unknown as PdfExtractorService;
   return new DocumentsService(qwen, new StatementExtractorService(qwen, pdfExtractor));
+}
+
+function createTestStatementRepository(): StatementDocumentRepository {
+  type CreateInput = Parameters<StatementDocumentRepository["create"]>[0];
+  type PreviewDocument = Awaited<ReturnType<StatementDocumentRepository["create"]>>;
+  const documents = new Map<string, PreviewDocument>();
+  return {
+    findCachedExtraction: vi.fn(async () => undefined),
+    create: vi.fn(async (input: CreateInput): Promise<PreviewDocument> => {
+      const document: PreviewDocument = {
+        id: "doc-statement-test",
+        userId: input.userId,
+        status: "extracted",
+        fileName: input.fileName,
+        createdAt: new Date("2026-05-10T12:00:00.000Z"),
+        items: input.items,
+        warnings: input.warnings,
+        statementMonth: input.statementMonth,
+        totalAmount: input.totalAmount,
+        sourceType: input.sourceType,
+        avgConfidence: input.avgConfidence,
+        tokenUsage: input.tokenUsage
+      };
+      documents.set(document.id, document);
+      return document;
+    }),
+    getById: vi.fn(async (id: string, userId: string): Promise<PreviewDocument | undefined> => {
+      const document = documents.get(id);
+      return document?.userId === userId ? document : undefined;
+    }),
+    markImported: vi.fn(async (id: string): Promise<void> => {
+      const document = documents.get(id);
+      if (document) documents.set(id, { ...document, status: "imported" });
+    })
+  } as unknown as StatementDocumentRepository;
 }
 
 const receiptJson = JSON.stringify({

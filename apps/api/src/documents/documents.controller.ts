@@ -27,21 +27,6 @@ export class DocumentsController {
     return this.receiptAgent.importReceipt(user.id, body);
   }
 
-  @Post("statement-agent/import")
-  importStatement(
-    @CurrentUser() user: AuthUser,
-    @Body()
-    body: {
-      fileBase64?: string;
-      mimeType?: string;
-      fileName?: string;
-      imageBase64?: string;
-      statementText?: string;
-    }
-  ) {
-    return this.statementAgent.importStatement(user.id, body);
-  }
-
   @Post("statement-agent/preview")
   previewStatement(
     @CurrentUser() user: AuthUser,

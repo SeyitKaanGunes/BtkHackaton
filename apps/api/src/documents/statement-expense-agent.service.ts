@@ -1,7 +1,6 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import {
   type StatementConfirmResult,
-  type StatementImportResult,
   type StatementLineItem,
   type StatementPreviewItem,
   type StatementPreviewResult,
@@ -25,44 +24,6 @@ export class StatementExpenseAgentService {
     @Inject(DataStoreService) private readonly store: DataStoreService,
     @Inject(StatementDocumentRepository) private readonly documentRepository: StatementDocumentRepository
   ) {}
-
-  async importStatement(
-    userId: string,
-    input: {
-      fileBase64?: string;
-      mimeType?: string;
-      fileName?: string;
-      imageBase64?: string;
-      statementText?: string;
-    }
-  ): Promise<StatementImportResult> {
-    const extraction = await this.documents.extractStatement(input);
-    const uniqueItems = dedupeItems(extraction.items);
-    const transactions: Transaction[] = [];
-    for (const [index, item] of uniqueItems.entries()) {
-      transactions.push(await this.store.addTransaction(this.toTransaction(userId, item, index)));
-    }
-    const recurringSubscriptions = this.detectRecurringSubscriptions(userId, uniqueItems);
-
-    return {
-      agentName: "Statement Agent",
-      statementMonth: extraction.statementMonth,
-      totalAmount: transactions.reduce((total, transaction) => total + transaction.amount, 0),
-      importedCount: transactions.length,
-      skippedCount: Math.max(0, extraction.items.length - uniqueItems.length),
-      items: uniqueItems,
-      transactions,
-      recurringSubscriptions,
-      warnings: extraction.warnings,
-      sourceType: extraction.sourceType,
-      evidence: [
-        `Ekstre ayı: ${extraction.statementMonth}`,
-        `Ayrıştırılan kalem: ${extraction.items.length}`,
-        `Giderlere eklenen kalem: ${transactions.length}`,
-        `Tekrar eden abonelik adayı: ${recurringSubscriptions.length}`
-      ]
-    };
-  }
 
   async previewStatement(
     userId: string,

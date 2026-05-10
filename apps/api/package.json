@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start:dev": "npm run build -w @fintwin/shared && tsx watch src/main.ts",
+    "start:dev": "npm run build -w @fintwin/shared && npm run prisma:generate && tsx watch src/main.ts",
     "start": "node dist/main.js",
-    "build": "npm run build -w @fintwin/shared && tsc -p tsconfig.json",
-    "lint": "npm run build -w @fintwin/shared && tsc -p tsconfig.json --noEmit",
-    "typecheck": "npm run build -w @fintwin/shared && tsc -p tsconfig.json --noEmit",
-    "test": "npm run build -w @fintwin/shared && vitest run",
+    "build": "npm run build -w @fintwin/shared && npm run prisma:generate && tsc -p tsconfig.json",
+    "lint": "npm run build -w @fintwin/shared && npm run prisma:generate && tsc -p tsconfig.json --noEmit",
+    "typecheck": "npm run build -w @fintwin/shared && npm run prisma:generate && tsc -p tsconfig.json --noEmit",
+    "test": "npm run build -w @fintwin/shared && npm run prisma:generate && vitest run",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:push": "prisma db push --schema prisma/schema.prisma"
   },

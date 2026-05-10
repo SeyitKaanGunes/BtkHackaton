@@ -1,30 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, Dimensions, Modal, PanResponder, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
-import { launchCamera, launchImageLibrary } from "react-native-image-picker";
+import { ActivityIndicator, Animated, Dimensions, Modal, PanResponder, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import Tts from "react-native-tts";
 import {
   AlertTriangle,
   Bot,
   BriefcaseBusiness,
   Building2,
-  Camera,
   Check,
   CheckCircle2,
   ChevronRight,
   Clock3,
   Edit3,
   FileScan,
-  FileText,
   Landmark,
   Mic2,
   PauseCircle,
-  ReceiptText,
   RefreshCcw,
   Search,
   Send,
   ShieldAlert,
   Target,
-  Upload,
+  ReceiptText,
   WalletCards,
   X
 } from "lucide-react-native";
@@ -35,15 +31,14 @@ import type {
   CollectionScore,
   DashboardSummary,
   Goal,
-  ReceiptScanResult,
   ScenarioCard,
   SpendingDna,
-  StatementImportResult,
   SubscriptionLeak,
   WhatIfResponse
 } from "@fintwin/shared";
-import { hasAuthToken, importStatement, isDemoFallbackEnabled, loadBusiness, loadMobileHome, login, register, scanReceipt, sendAgentMessage, setAuthToken } from "./src/api";
+import { hasAuthToken, isDemoFallbackEnabled, loadBusiness, loadMobileHome, login, register, sendAgentMessage, setAuthToken } from "./src/api";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
+import { ScanScreen } from "./src/screens/ScanScreen";
 import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles } from "./src/ui";
 
 type Tab = "home" | "portfolio" | "business";
@@ -59,13 +54,14 @@ export default function App() {
   const [business, setBusiness] = useState<BusinessData | null>(null);
   const [agentOpen, setAgentOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!authenticated) return;
     setLoadError(null);
     void loadMobileHome().then(setHome).catch((error) => setLoadError(error instanceof Error ? error.message : "Veri yüklenemedi."));
     void loadBusiness().then(setBusiness).catch((error) => setLoadError(error instanceof Error ? error.message : "Veri yüklenemedi."));
-  }, [authenticated]);
+  }, [authenticated, refreshTick]);
 
   if (!authenticated) {
     return <AuthScreen onAuthenticated={() => setAuthenticated(true)} />;
@@ -75,7 +71,7 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={palette.bg} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {tab === "home" && (home ? <HomeScreen {...home} /> : loadError ? <LoadError message={loadError} /> : <Loading />)}
+        {tab === "home" && (home ? <HomeScreen {...home} onImported={() => setRefreshTick((value) => value + 1)} /> : loadError ? <LoadError message={loadError} /> : <Loading />)}
         {tab === "portfolio" && <PortfolioScreen />}
         {tab === "business" && (business ? <BusinessScreen {...business} /> : loadError ? <LoadError message={loadError} /> : <Loading />)}
       </ScrollView>
@@ -265,13 +261,15 @@ function HomeScreen({
   dna,
   campaign,
   leaks,
-  simulation
+  simulation,
+  onImported
 }: {
   dashboard: DashboardSummary;
   dna: SpendingDna;
   campaign: HomeData["campaign"];
   leaks: SubscriptionLeak[];
   simulation: WhatIfResponse;
+  onImported: () => void;
 }) {
   const subscriptionLeaks = useMemo(() => withTrialLeak(leaks), [leaks]);
   const monthlyLeak = subscriptionLeaks.reduce((total, leak) => total + leak.monthlyImpact, 0);
@@ -316,7 +314,7 @@ function HomeScreen({
       <CategoryRiskList dna={dna} />
       <GoalsSection goals={dashboard.goals} />
       <ActionCenter actions={dashboard.upcomingActions} />
-      <ReceiptDock />
+      <ScanScreen onImported={onImported} />
       <WhatIfPreview simulation={simulation} />
       <SubscriptionHunter leaks={subscriptionLeaks} />
     </>
@@ -715,367 +713,6 @@ function AgentResult({ response }: { response: AgentResponse }) {
   );
 }
 
-function ReceiptDock() {
-  const [mode, setMode] = useState<"receipt" | "statement">("receipt");
-  const [receiptResult, setReceiptResult] = useState<ReceiptScanResult | null>(null);
-  const [statementResult, setStatementResult] = useState<StatementImportResult | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function scanFrom(source: "camera" | "library") {
-    setLoading(true);
-    try {
-      const image = await (source === "camera" ? launchCamera : launchImageLibrary)({
-        mediaType: "photo",
-        includeBase64: true
-      });
-      if (image.errorMessage) {
-        Alert.alert("Görsel seçilemedi", image.errorMessage);
-      }
-      if (!image.didCancel) {
-        const asset = image.assets?.[0];
-        if (mode === "receipt") {
-          const next = await scanReceipt(asset?.base64 ?? undefined, asset?.type ?? undefined);
-          setReceiptResult(next);
-        } else {
-          const next = await importStatement(asset?.base64 ?? undefined, asset?.type ?? undefined);
-          setStatementResult(next);
-        }
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function selectMode(next: "receipt" | "statement") {
-    if (next === mode) return;
-    setMode(next);
-    setReceiptResult(null);
-    setStatementResult(null);
-  }
-
-  return (
-    <Panel>
-      <SectionTitle title="Belge Tarama" meta="kişisel sekmesi" />
-      <View style={localStyles.modeToggle}>
-        <ModeChip
-          label="Fiş"
-          icon={<ReceiptText size={14} color={mode === "receipt" ? palette.surface : palette.muted} />}
-          active={mode === "receipt"}
-          onPress={() => selectMode("receipt")}
-        />
-        <ModeChip
-          label="Ekstre"
-          icon={<FileText size={14} color={mode === "statement" ? palette.surface : palette.muted} />}
-          active={mode === "statement"}
-          onPress={() => selectMode("statement")}
-        />
-      </View>
-
-      {loading ? (
-        <View style={localStyles.receiptLoading}>
-          <FileScan size={34} color={palette.primary} />
-          <ActivityIndicator color={palette.primary} />
-          <Text style={localStyles.cardTitle}>{mode === "receipt" ? "Tarama sürüyor" : "Ekstre okunuyor"}</Text>
-          <Text style={styles.bodyMuted}>
-            {mode === "receipt"
-              ? "Qwen OCR tutar, KDV, kategori ve ödeme tipini ayrıştırıyor."
-              : "Statement Agent kalemleri ve abonelikleri çıkarıyor."}
-          </Text>
-        </View>
-      ) : mode === "receipt" && receiptResult ? (
-        <ReceiptInlineBody result={receiptResult} onScanAgain={() => scanFrom("camera")} />
-      ) : mode === "statement" && statementResult ? (
-        <StatementInlineBody result={statementResult} onScanAgain={() => scanFrom("library")} />
-      ) : (
-        <ReceiptDockEmpty
-          mode={mode}
-          onCamera={() => scanFrom("camera")}
-          onLibrary={() => scanFrom("library")}
-        />
-      )}
-    </Panel>
-  );
-}
-
-function ModeChip({ label, icon, active, onPress }: { label: string; icon: React.ReactNode; active: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[localStyles.modeChip, active && localStyles.modeChipActive]}
-    >
-      {icon}
-      <Text style={[localStyles.modeChipText, active && localStyles.modeChipTextActive]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function ReceiptDockEmpty({ mode, onCamera, onLibrary }: { mode: "receipt" | "statement"; onCamera: () => void; onLibrary: () => void }) {
-  return (
-    <>
-      <View style={localStyles.receiptDockFrame}>
-        <View style={localStyles.receiptIconLarge}>
-          {mode === "receipt" ? <FileScan size={24} color={palette.primary} /> : <FileText size={24} color={palette.primary} />}
-        </View>
-        <View style={localStyles.alertCopy}>
-          <Text style={localStyles.cardTitle}>
-            {mode === "receipt" ? "Fiş veya faturayı kişisel akışa ekle" : "Ekstre görselini kişisel akışa ekle"}
-          </Text>
-          <Text style={styles.bodyMuted}>
-            {mode === "receipt"
-              ? "OCR tutarı, KDV'yi, kategoriyi ve ödeme tipini otomatik çıkarır."
-              : "Aylık kalemler ve tekrar eden abonelikler ayrı ayrı tespit edilir."}
-          </Text>
-        </View>
-      </View>
-      <View style={localStyles.actionButtons}>
-        <Button label="Kameradan çek" icon={<Camera size={15} color={palette.surface} />} onPress={onCamera} style={localStyles.flexButton} />
-        <Button label="Galeriden seç" variant="secondary" icon={<Upload size={15} color={palette.primary} />} onPress={onLibrary} style={localStyles.flexButton} />
-      </View>
-      {mode === "receipt" ? (
-        <>
-          <RecentScan title="BIM Mağaza · Şişli" category="Market · 7 May" amount="318,50 ₺" />
-          <RecentScan title="Shell İstinye" category="Ulaşım · 4 May" amount="1.480,00 ₺" />
-        </>
-      ) : (
-        <>
-          <RecentScan title="Garanti BBVA · Mayıs" category="4 kalem · sızıntı 1" amount="15.059,00 ₺" />
-          <RecentScan title="Akbank · Nisan" category="3 kalem · sızıntı 0" amount="9.420,00 ₺" />
-        </>
-      )}
-    </>
-  );
-}
-
-function ReceiptInlineBody({ result, onScanAgain }: { result: ReceiptScanResult; onScanAgain: () => void }) {
-  return (
-    <>
-      <View style={styles.rowBetween}>
-        <Badge label="Tarama başarılı" tone="teal" />
-        <Badge label={`Güven %${Math.round(result.confidence * 100)}`} tone="primary" />
-      </View>
-      <View style={localStyles.receiptDockFrame}>
-        <View style={localStyles.receiptIconLarge}>
-          <ReceiptText size={24} color={palette.primary} />
-        </View>
-        <View style={localStyles.alertCopy}>
-          <Text style={localStyles.receiptMerchant}>{result.merchant}</Text>
-          <Text style={styles.bodyMuted}>Kadıköy / İstanbul · {result.occurredAt} 14:32</Text>
-        </View>
-      </View>
-      <View style={styles.metricGrid}>
-        <MiniFact label="Toplam" value={money(result.totalAmount)} />
-        <MiniFact label="KDV" value={money(result.taxAmount)} />
-        <MiniFact label="Kategori" value={result.categoryName} />
-        <MiniFact label="Ödeme" value={paymentLabel(result.paymentMethod)} />
-      </View>
-      <View style={localStyles.actionButtons}>
-        <Button label="İşlem olarak kaydet" icon={<Check size={15} color={palette.surface} />} style={localStyles.flexButton} />
-        <Button label="Tekrar tara" variant="secondary" icon={<RefreshCcw size={15} color={palette.primary} />} onPress={onScanAgain} style={localStyles.flexButton} />
-      </View>
-      <View style={localStyles.patternCard}>
-        <Text style={styles.body}>İkiz önerisi: Market kategorisi ay başından beri %18 üzerinde. Hafta sonu alışveriş hassasiyeti yüksek.</Text>
-      </View>
-    </>
-  );
-}
-
-function StatementInlineBody({ result, onScanAgain }: { result: StatementImportResult; onScanAgain: () => void }) {
-  const items = result.transactions.length ? result.transactions : result.items;
-  const recurring = result.recurringSubscriptions ?? [];
-  const evidenceLine = result.evidence?.[0] ?? "İkiz: ekstrede tespit edilen kalemler kişisel akışa eklendi.";
-
-  return (
-    <>
-      <View style={styles.rowBetween}>
-        <View style={localStyles.alertCopy}>
-          <Text style={localStyles.receiptMerchant}>{result.statementMonth} ekstresi</Text>
-          <Text style={styles.bodyMuted}>
-            {result.agentName} · {result.importedCount} kalem · {recurring.length} abonelik
-          </Text>
-        </View>
-        <Badge label={money(result.totalAmount)} tone="primary" />
-      </View>
-      <View style={styles.metricGrid}>
-        <MiniFact label="Toplam" value={money(result.totalAmount)} />
-        <MiniFact label="Eklenen" value={`${result.importedCount} kalem`} />
-        <MiniFact label="Atlanan" value={`${result.skippedCount} kalem`} />
-        <MiniFact label="Abonelik" value={`${recurring.length}`} />
-      </View>
-      <SectionTitle title="Kalemler" meta={`${items.length} işlem`} />
-      {items.slice(0, 6).map((it, idx) => (
-        <View style={localStyles.lineItem} key={`${it.merchant}-${it.amount}-${idx}`}>
-          <View style={localStyles.alertCopy}>
-            <Text style={localStyles.cardTitle}>{it.merchant}</Text>
-            <Text style={styles.bodyMuted}>
-              {it.occurredAt}
-              {"categoryName" in it && it.categoryName ? ` · ${it.categoryName}` : ""}
-            </Text>
-          </View>
-          <Mono style={localStyles.lineAmount}>{money(it.amount)}</Mono>
-        </View>
-      ))}
-      {recurring.length ? (
-        <>
-          <SectionTitle title="Tekrar eden abonelikler" meta="ikiz tespit" />
-          {recurring.map((sub) => (
-            <View style={localStyles.leakCard} key={sub.id}>
-              <View style={styles.rowBetween}>
-                <View style={localStyles.alertCopy}>
-                  <Text style={localStyles.cardTitle}>{sub.merchant}</Text>
-                  <Text style={styles.bodyMuted}>
-                    {sub.occurrenceCount} tekrar · sonraki {sub.nextEstimatedAt}
-                  </Text>
-                </View>
-                <Mono style={localStyles.negativeValue}>− {money(sub.amount)}</Mono>
-              </View>
-            </View>
-          ))}
-        </>
-      ) : null}
-      <View style={localStyles.actionButtons}>
-        <Button label="Hepsini onayla" icon={<Check size={15} color={palette.surface} />} style={localStyles.flexButton} />
-        <Button label="Tekrar yükle" variant="secondary" icon={<RefreshCcw size={15} color={palette.primary} />} onPress={onScanAgain} style={localStyles.flexButton} />
-      </View>
-      <View style={localStyles.patternCard}>
-        <Text style={styles.body}>{evidenceLine}</Text>
-      </View>
-    </>
-  );
-}
-
-function ScanScreen() {
-  const [result, setResult] = useState<ReceiptScanResult | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function scanFrom(source: "camera" | "library") {
-    setLoading(true);
-    const image = await (source === "camera" ? launchCamera : launchImageLibrary)({
-      mediaType: "photo",
-      includeBase64: true
-    });
-    if (image.errorMessage) {
-      Alert.alert("Görsel seçilemedi", image.errorMessage);
-    }
-    if (!image.didCancel) {
-      const asset = image.assets?.[0];
-      const next = await scanReceipt(asset?.base64 ?? undefined, asset?.type ?? undefined);
-      setResult(next);
-    }
-    setLoading(false);
-  }
-
-  return (
-    <>
-      <ScreenHeader
-        eyebrow="Fiş & Fatura"
-        title="Fişi tarayıp kayıt et"
-        subtitle="Görselden tutar, KDV, kategori ve kalemleri çıkarırız."
-      />
-      {loading ? (
-        <ReceiptScanning />
-      ) : result ? (
-        <ReceiptResult result={result} onScanAgain={() => scanFrom("camera")} />
-      ) : (
-        <ReceiptEmpty onCaptureImage={() => scanFrom("camera")} onPickImage={() => scanFrom("library")} />
-      )}
-    </>
-  );
-}
-
-function ReceiptEmpty({ onCaptureImage, onPickImage }: { onCaptureImage: () => void; onPickImage: () => void }) {
-  return (
-    <>
-      <Panel style={localStyles.uploadPanel}>
-        <View style={localStyles.scanFrame}>
-          <Camera size={32} color={palette.primary} />
-          <Text style={localStyles.cardTitle}>Fiş veya fatura çek</Text>
-          <Text style={styles.bodyMuted}>Köşelerini çerçeveye hizala</Text>
-        </View>
-        <View style={localStyles.actionButtons}>
-          <Button label="Kameradan çek" icon={<Camera size={15} color={palette.surface} />} onPress={onCaptureImage} style={localStyles.flexButton} />
-          <Button label="Galeriden seç" variant="secondary" icon={<Upload size={15} color={palette.primary} />} onPress={onPickImage} style={localStyles.flexButton} />
-        </View>
-        <Button label="Manuel gir" variant="ghost" icon={<Edit3 size={15} color={palette.ink} />} />
-      </Panel>
-      <Panel>
-        <SectionTitle title="Son taramalar" meta="bu hafta 4 kayıt" />
-        <RecentScan title="BIM Mağaza · Şişli" category="Market · 7 May" amount="318,50 ₺" />
-        <RecentScan title="Migros Jet · Beşiktaş" category="Market · 6 May" amount="142,20 ₺" />
-        <RecentScan title="Shell İstinye" category="Ulaşım · 4 May" amount="1.480,00 ₺" />
-      </Panel>
-    </>
-  );
-}
-
-function ReceiptScanning() {
-  return (
-    <Panel style={localStyles.emptyPanel}>
-      <FileScan size={34} color={palette.primary} />
-      <ActivityIndicator color={palette.primary} />
-      <Text style={localStyles.cardTitle}>Tarama sürüyor</Text>
-      <Text style={styles.bodyMuted}>Qwen OCR tutar, KDV, kategori ve ödeme tipini ayrıştırıyor.</Text>
-    </Panel>
-  );
-}
-
-function ReceiptResult({ result, onScanAgain }: { result: ReceiptScanResult; onScanAgain: () => void }) {
-  return (
-    <Panel>
-      <View style={styles.rowBetween}>
-        <Badge label="Tarama başarılı" tone="teal" />
-        <Badge label={`Güven %${Math.round(result.confidence * 100)}`} tone="primary" />
-      </View>
-      <View>
-        <Text style={localStyles.receiptMerchant}>{result.merchant}</Text>
-        <Text style={styles.bodyMuted}>Kadıköy / İstanbul · {result.occurredAt} 14:32</Text>
-      </View>
-      <View style={styles.metricGrid}>
-        <MiniFact label="Toplam" value={money(result.totalAmount)} />
-        <MiniFact label="KDV" value={money(result.taxAmount)} />
-        <MiniFact label="Kategori" value={result.categoryName} />
-        <MiniFact label="Ödeme" value={paymentLabel(result.paymentMethod)} />
-      </View>
-      <SectionTitle title="Kalemler" meta={`${result.lineItems.length} kayıt`} />
-      {result.lineItems.map((item) => (
-        <View style={localStyles.lineItem} key={`${item.name}-${item.amount}`}>
-          <View style={localStyles.alertCopy}>
-            <Text style={localStyles.cardTitle}>{item.name}</Text>
-            <Text style={styles.bodyMuted}>{item.name === "Temel gıda" ? "ekmek, süt, yumurta, peynir" : "çamaşır, deterjan, sabun"}</Text>
-          </View>
-          <Mono style={localStyles.lineAmount}>{money(item.amount)}</Mono>
-        </View>
-      ))}
-      <View style={localStyles.actionButtons}>
-        <Button label="İşlem olarak kaydet" icon={<Check size={15} color={palette.surface} />} style={localStyles.flexButton} />
-        <Button label="Düzenle" variant="ghost" icon={<Edit3 size={15} color={palette.ink} />} style={localStyles.flexButton} />
-      </View>
-      <Button label="Tekrar tara" variant="secondary" icon={<RefreshCcw size={15} color={palette.primary} />} onPress={onScanAgain} />
-      <View style={localStyles.patternCard}>
-        <Text style={styles.body}>
-          İkiz önerisi: “Market” kategorisi ay başından beri %18 üzerinde. Hafta sonu alışveriş hassasiyeti yüksek.
-        </Text>
-      </View>
-    </Panel>
-  );
-}
-
-function RecentScan({ title, category, amount }: { title: string; category: string; amount: string }) {
-  return (
-    <View style={localStyles.recentScan}>
-      <View style={styles.row}>
-        <View style={localStyles.receiptIcon}>
-          <ReceiptText size={16} color={palette.primary} />
-        </View>
-        <View style={localStyles.alertCopy}>
-          <Text style={localStyles.cardTitle}>{title}</Text>
-          <Text style={styles.bodyMuted}>{category}</Text>
-        </View>
-      </View>
-      <Mono style={localStyles.lineAmount}>{amount}</Mono>
-    </View>
-  );
-}
-
 function BusinessScreen({ dashboard, scores }: { dashboard: BusinessDashboard; scores: CollectionScore[] }) {
   return (
     <>
@@ -1261,15 +898,6 @@ function riskLabel(level: string) {
   }[level] ?? level;
 }
 
-function paymentLabel(method: string) {
-  return {
-    cash: "Nakit",
-    debit_card: "Banka kartı",
-    credit_card: "Kredi kartı",
-    transfer: "Transfer"
-  }[method] ?? method;
-}
-
 function leakIssueLabel(issue: SubscriptionLeak["issue"]) {
   return {
     unused: "Kullanılmıyor",
@@ -1357,33 +985,6 @@ const localStyles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "700"
-  },
-  modeToggle: {
-    flexDirection: "row",
-    backgroundColor: palette.surface2,
-    borderRadius: 10,
-    padding: 4,
-    gap: 4
-  },
-  modeChip: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 9,
-    borderRadius: 8,
-    gap: 6
-  },
-  modeChipActive: {
-    backgroundColor: palette.primary
-  },
-  modeChipText: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: "800"
-  },
-  modeChipTextActive: {
-    color: palette.surface
   },
   agentBubble: {
     position: "absolute",
@@ -1720,87 +1321,6 @@ const localStyles = StyleSheet.create({
     borderTopWidth: 1,
     paddingTop: 12,
     gap: 4
-  },
-  uploadPanel: {
-    gap: 14
-  },
-  receiptDockFrame: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.line,
-    backgroundColor: "#FBFCFA",
-    padding: 12,
-    gap: 12
-  },
-  receiptIconLarge: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: palette.primarySoft,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  receiptLoading: {
-    minHeight: 160,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.line,
-    backgroundColor: "#FBFCFA",
-    padding: 16
-  },
-  scanFrame: {
-    minHeight: 220,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: palette.primary,
-    backgroundColor: palette.primarySoft,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    padding: 20
-  },
-  recentScan: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    borderTopColor: palette.line,
-    borderTopWidth: 1,
-    paddingTop: 12
-  },
-  receiptIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: palette.primarySoft,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  receiptMerchant: {
-    color: palette.ink,
-    fontSize: 24,
-    lineHeight: 30,
-    fontWeight: "900"
-  },
-  lineItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    borderTopColor: palette.line,
-    borderTopWidth: 1,
-    paddingTop: 12
-  },
-  lineAmount: {
-    color: palette.ink,
-    fontSize: 14,
-    fontWeight: "900"
   },
   cfoHero: {
     backgroundColor: palette.secondary,

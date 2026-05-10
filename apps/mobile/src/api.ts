@@ -20,7 +20,6 @@ import {
   type ReceiptScanResult,
   type SpendingDna,
   type StatementConfirmResult,
-  type StatementImportResult,
   type StatementPreviewResult,
   type SubscriptionReminderResult,
   type SubscriptionLeak,
@@ -253,40 +252,6 @@ export function importReceiptExpense(imageBase64?: string, mimeType?: string): P
         evidence: ["Mobil fallback Receipt Agent sonucu"]
       };
     },
-    { method: "POST", body: JSON.stringify({ imageBase64, mimeType }) }
-  );
-}
-
-export function importStatement(imageBase64?: string, mimeType?: string): Promise<StatementImportResult> {
-  return request<StatementImportResult>(
-    "/documents/statement-agent/import",
-    () => ({
-      agentName: "Statement Agent",
-      statementMonth: "2026-05",
-      totalAmount: 15059,
-      importedCount: 4,
-      skippedCount: 0,
-      items: [
-        { merchant: "TeknoMarket", amount: 9800, occurredAt: "2026-05-07", categoryName: "Teknoloji", paymentMethod: "credit_card", confidence: 0.88 },
-        { merchant: "Gece Burger", amount: 840, occurredAt: "2026-05-08", categoryName: "Yemek", paymentMethod: "credit_card", confidence: 0.86 },
-        { merchant: "ModaBox", amount: 4200, occurredAt: "2026-05-08", categoryName: "Giyim", paymentMethod: "credit_card", confidence: 0.84 },
-        { merchant: "StreamPlus", amount: 219, occurredAt: "2026-05-01", categoryName: "Abonelik", paymentMethod: "credit_card", confidence: 0.9 }
-      ],
-      transactions: [],
-      recurringSubscriptions: [
-        {
-          id: "recurring-streamplus-219",
-          merchant: "StreamPlus",
-          amount: 219,
-          categoryName: "Abonelik",
-          occurrenceCount: 2,
-          lastChargedAt: "2026-05-01",
-          nextEstimatedAt: "2026-06-01",
-          confidence: 0.9
-        }
-      ],
-      evidence: ["Mobil fallback Statement Agent sonucu"]
-    }),
     { method: "POST", body: JSON.stringify({ imageBase64, mimeType }) }
   );
 }

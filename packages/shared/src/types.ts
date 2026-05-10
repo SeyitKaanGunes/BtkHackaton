@@ -221,20 +221,6 @@ export interface StatementSubscriptionCandidate {
   confidence: number;
 }
 
-export interface StatementImportResult {
-  agentName: "Statement Agent";
-  statementMonth: string;
-  totalAmount: number;
-  importedCount: number;
-  skippedCount: number;
-  items: StatementLineItem[];
-  transactions: Transaction[];
-  recurringSubscriptions: StatementSubscriptionCandidate[];
-  evidence: string[];
-  warnings?: string[];
-  sourceType?: "pdf-text" | "pdf-vision" | "image";
-}
-
 export interface StatementPreviewItem extends StatementLineItem {
   index: number;
   existingTransactionId?: string;
