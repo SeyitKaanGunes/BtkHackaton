@@ -52,7 +52,7 @@ export class AgentService {
       })
       .addNode("simulation", async (state) => {
         const simulation = buildWhatIfScenarios(
-          { amount: this.extractAmount(state.message), categoryId: "cat-tech", description: state.message },
+          { amount: this.extractAmount(state.message), categoryId: this.extractCategoryId(state.message), description: state.message },
           {
             accounts: data.accounts,
             actions: data.actions,
@@ -139,7 +139,18 @@ export class AgentService {
 
   private extractAmount(message: string) {
     const match = message.replace(/\./g, "").match(/(\d{3,})/);
-    return match ? Number(match[1]) : 10000;
+    return match ? Number(match[1]) : undefined;
+  }
+
+  private extractCategoryId(message: string) {
+    const normalized = message.toLocaleLowerCase("tr-TR");
+    if (/(teknoloji|elektronik|telefon|bilgisayar|yazılım|software|tekno)/i.test(normalized)) return "cat-tech";
+    if (/(market|bakkal|gıda|groceries)/i.test(normalized)) return "cat-market";
+    if (/(yemek|restoran|burger|kahve|kafe)/i.test(normalized)) return "cat-food";
+    if (/(ulaşım|taksi|metro|otobüs|benzin)/i.test(normalized)) return "cat-transport";
+    if (/(giyim|kıyafet|moda|ayakkabı)/i.test(normalized)) return "cat-clothes";
+    if (/(abonelik|subscription|üyelik|stream|cloud)/i.test(normalized)) return "cat-subscription";
+    return undefined;
   }
 
   private async educationalAnswer(message: string): Promise<string> {

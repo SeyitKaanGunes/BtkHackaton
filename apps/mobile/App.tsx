@@ -36,7 +36,7 @@ import type {
   SubscriptionLeak,
   WhatIfResponse
 } from "@fintwin/shared";
-import { hasAuthToken, loadBusiness, loadMobileHome, login, register, sendAgentMessage, setAuthToken } from "./src/api";
+import { hasAuthToken, loadBusiness, loadMobileHome, login, register, sendAgentMessage, setAuthToken, type AuthUserProfile } from "./src/api";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
 import { ScanScreen } from "./src/screens/ScanScreen";
 import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles } from "./src/ui";
@@ -257,6 +257,7 @@ function AgentModal({ visible, onClose }: { visible: boolean; onClose: () => voi
 }
 
 function HomeScreen({
+  user,
   dashboard,
   dna,
   campaign,
@@ -264,6 +265,7 @@ function HomeScreen({
   simulation,
   onImported
 }: {
+  user: AuthUserProfile;
   dashboard: DashboardSummary;
   dna: SpendingDna;
   campaign: HomeData["campaign"];
@@ -271,19 +273,27 @@ function HomeScreen({
   simulation: WhatIfResponse;
   onImported: () => void;
 }) {
-  const subscriptionLeaks = useMemo(() => withTrialLeak(leaks), [leaks]);
-  const monthlyLeak = subscriptionLeaks.reduce((total, leak) => total + leak.monthlyImpact, 0);
+  const monthlyLeak = leaks.reduce((total, leak) => total + leak.monthlyImpact, 0);
+  const hasFinancialData =
+    dashboard.income > 0 ||
+    dashboard.expenses > 0 ||
+    dashboard.balance !== 0 ||
+    dashboard.categoryBreakdown.length > 0 ||
+    dashboard.goals.length > 0 ||
+    campaign.score > 0 ||
+    simulation.cards.length > 0;
+  const primaryRiskCategory = dna.categories.find((category) => category.riskScore >= 65 || category.monthlySpend > 0);
 
   return (
     <>
-      <FinancialHero dashboard={dashboard} simulation={simulation} />
+      <FinancialHero user={user} dashboard={dashboard} simulation={simulation} hasFinancialData={hasFinancialData} />
 
       <View style={styles.metricGrid}>
         <MetricCard
           icon={<WalletCards size={18} color={palette.primary} />}
           label="Gelir"
           value={money(dashboard.income)}
-          caption="Mayıs 2026"
+          caption={dashboard.periodLabel}
           tone="primary"
         />
         <MetricCard
@@ -303,35 +313,47 @@ function HomeScreen({
         <MetricCard
           icon={<ShieldAlert size={18} color={palette.danger} />}
           label="Güvenli limit"
-          value={money(simulation.safeLimit)}
-          caption="Teknoloji kategorisi"
+          value={hasFinancialData ? money(simulation.safeLimit) : "Beklemede"}
+          caption={primaryRiskCategory?.categoryName ?? "veri bekleniyor"}
           tone="danger"
         />
       </View>
 
-      <RiskAlerts monthlyLeak={monthlyLeak} simulation={simulation} />
+      <RiskAlerts alerts={dashboard.riskAlerts} monthlyLeak={monthlyLeak} leaks={leaks} />
       <SpendingDnaCard dna={dna} />
-      <CategoryRiskList dna={dna} />
+      <CategoryRiskList dna={dna} periodLabel={dashboard.periodLabel} />
       <GoalsSection goals={dashboard.goals} />
       <ActionCenter actions={dashboard.upcomingActions} />
       <ScanScreen onImported={onImported} />
       <WhatIfPreview simulation={simulation} />
-      <SubscriptionHunter leaks={subscriptionLeaks} />
+      <SubscriptionHunter leaks={leaks} />
     </>
   );
 }
 
-function FinancialHero({ dashboard, simulation }: { dashboard: DashboardSummary; simulation: WhatIfResponse }) {
+function FinancialHero({
+  user,
+  dashboard,
+  simulation,
+  hasFinancialData
+}: {
+  user: AuthUserProfile;
+  dashboard: DashboardSummary;
+  simulation: WhatIfResponse;
+  hasFinancialData: boolean;
+}) {
   const monthEnd = simulation.cards[0]?.monthEndBalance ?? dashboard.balance;
 
   return (
     <Panel style={localStyles.hero}>
       <View style={styles.rowBetween}>
         <View style={localStyles.heroCopy}>
-          <Text style={localStyles.overline}>Kişisel · Mayıs 2026</Text>
-          <Text style={localStyles.heroTitle}>Merhaba, Seyit</Text>
+          <Text style={localStyles.overline}>Kişisel · {dashboard.periodLabel}</Text>
+          <Text style={localStyles.heroTitle}>Merhaba, {user.name}</Text>
           <Text style={localStyles.heroSubtitle}>
-            Teknoloji harcamaların bu ay güvenli limiti aştı. Sakin kal, ikizin kanıtlarla bakıyor.
+            {hasFinancialData
+              ? "Finansal ikizin bu dönemki gelir, gider, risk ve aksiyon sinyallerini gerçek kayıtlarından izliyor."
+              : "Gelir, gider, fiş veya ekstre eklediğinde finansal ikizin gerçek analiz üretmeye başlayacak."}
           </Text>
         </View>
         <ScoreGauge score={dashboard.financialHealthScore} />
@@ -351,26 +373,33 @@ function FinancialHero({ dashboard, simulation }: { dashboard: DashboardSummary;
   );
 }
 
-function RiskAlerts({ monthlyLeak, simulation }: { monthlyLeak: number; simulation: WhatIfResponse }) {
+function RiskAlerts({ alerts, monthlyLeak, leaks }: { alerts: DashboardSummary["riskAlerts"]; monthlyLeak: number; leaks: SubscriptionLeak[] }) {
+  const totalSignals = alerts.length + leaks.length;
   return (
     <Panel>
-      <SectionTitle title="Risk Uyarıları" meta="2 aktif sinyal" />
-      <AlertCard
-        icon={<AlertTriangle size={18} color={palette.warn} />}
-        badge="Kampanya Riski"
-        title="Teknoloji harcaması güvenli limiti aştı"
-        description={`9.800 ₺ harcandı · güvenli limit ${money(simulation.safeLimit)}`}
-        action="İncele"
-        tone="warn"
-      />
-      <AlertCard
-        icon={<ShieldAlert size={18} color={palette.danger} />}
-        badge="Abonelik sızıntısı"
-        title={`Ayda ${money(monthlyLeak)} tasarruf potansiyeli`}
-        description="StreamPlus, CloudBox ve NewsDaily ikiz tarafından işaretlendi."
-        action="Avcıyı aç"
-        tone="danger"
-      />
+      <SectionTitle title="Risk Uyarıları" meta={totalSignals ? `${totalSignals} aktif sinyal` : "Risk yok"} />
+      {alerts.map((alert) => (
+        <AlertCard
+          key={alert.title}
+          icon={<AlertTriangle size={18} color={alert.level === "critical" || alert.level === "high" ? palette.danger : palette.warn} />}
+          badge={riskLabel(alert.level)}
+          title={alert.title}
+          description={alert.description}
+          action="İncele"
+          tone={riskTone(alert.level)}
+        />
+      ))}
+      {leaks.length ? (
+        <AlertCard
+          icon={<ShieldAlert size={18} color={palette.danger} />}
+          badge="Abonelik sızıntısı"
+          title={`Ayda ${money(monthlyLeak)} tasarruf potansiyeli`}
+          description={`${leaks.length} bulgu gerçek abonelik kayıtlarından üretildi.`}
+          action="Avcıyı aç"
+          tone="danger"
+        />
+      ) : null}
+      {!totalSignals ? <EmptyPanelMessage message="Şu an gösterilecek bütçe riski veya abonelik sızıntısı yok." /> : null}
     </Panel>
   );
 }
@@ -403,25 +432,32 @@ function AlertCard({
           <ChevronRight size={18} color={palette.ink} />
         </View>
       </View>
-      <Text style={[localStyles.actionLink, { color: tone === "danger" ? palette.danger : palette.warn }]}>{action}</Text>
+      <Text style={[localStyles.actionLink, { color: tone === "danger" ? palette.danger : tone === "primary" ? palette.primary : palette.warn }]}>{action}</Text>
     </View>
   );
 }
 
 function SpendingDnaCard({ dna }: { dna: SpendingDna }) {
+  const hasSignals = dna.categories.some((category) => category.monthlySpend > 0 || category.riskScore > 0);
   return (
     <Panel>
       <SectionTitle title="Spending DNA" meta="ikiz davranış profili" />
-      <View style={localStyles.dnaGrid}>
-        <MiniSignal label="Genel risk" value={`${dna.overallRisk}/100`} tone="danger" />
-        <MiniSignal label="Maaş sonrası refleks" value={`${dna.paydayReflexScore}/100`} tone="danger" />
-        <MiniSignal label="Gece / hafta sonu" value={`${dna.weekendNightScore}/100`} tone="warn" />
-        <MiniSignal label="Kampanya hassasiyeti" value={`${dna.campaignSensitivity}/100`} tone="primary" />
-        <MiniSignal label="Tasarruf disiplini" value={`${dna.savingDiscipline}/100`} tone="teal" />
-      </View>
-      <View style={localStyles.patternCard}>
-        <Text style={styles.body}>{dna.patterns[0]}</Text>
-      </View>
+      {hasSignals ? (
+        <>
+          <View style={localStyles.dnaGrid}>
+            <MiniSignal label="Genel risk" value={`${dna.overallRisk}/100`} tone="danger" />
+            <MiniSignal label="Maaş sonrası refleks" value={`${dna.paydayReflexScore}/100`} tone="danger" />
+            <MiniSignal label="Gece / hafta sonu" value={`${dna.weekendNightScore}/100`} tone="warn" />
+            <MiniSignal label="Kampanya hassasiyeti" value={`${dna.campaignSensitivity}/100`} tone="primary" />
+            <MiniSignal label="Tasarruf disiplini" value={`${dna.savingDiscipline}/100`} tone="teal" />
+          </View>
+          <View style={localStyles.patternCard}>
+            <Text style={styles.body}>{dna.patterns[0]}</Text>
+          </View>
+        </>
+      ) : (
+        <EmptyPanelMessage message="Harcama verisi eklendiğinde Spending DNA davranış profili oluşacak." />
+      )}
     </Panel>
   );
 }
@@ -435,24 +471,23 @@ function MiniSignal({ label, value, tone }: { label: string; value: string; tone
   );
 }
 
-function CategoryRiskList({ dna }: { dna: SpendingDna }) {
+function CategoryRiskList({ dna, periodLabel }: { dna: SpendingDna; periodLabel: string }) {
+  const riskItems = dna.categories.filter((item) => item.monthlySpend > 0 || item.riskScore > 0).slice(0, 4);
   return (
     <Panel>
-      <SectionTitle title="Kategori Riskleri" meta="Mayıs ayı" />
-      <View style={styles.wrapRow}>
-        <Badge label="Hepsi" tone="primary" />
-        <Badge label="Kira" tone="danger" />
-        <Badge label="Teknoloji" tone="danger" />
-        <Badge label="Abonelik" tone="warn" />
-      </View>
-      {dna.categories.slice(0, 4).map((item) => (
-        <RiskBar
-          key={item.categoryId}
-          label={item.categoryName}
-          value={item.riskScore}
-          amount={money(item.monthlySpend)}
-        />
-      ))}
+      <SectionTitle title="Kategori Riskleri" meta={periodLabel} />
+      {riskItems.length ? (
+        riskItems.map((item) => (
+          <RiskBar
+            key={item.categoryId}
+            label={item.categoryName}
+            value={item.riskScore}
+            amount={money(item.monthlySpend)}
+          />
+        ))
+      ) : (
+        <EmptyPanelMessage message="Kategori riski için önce fiş, işlem veya ekstre verisi eklenmeli." />
+      )}
     </Panel>
   );
 }
@@ -461,21 +496,25 @@ function GoalsSection({ goals }: { goals: Goal[] }) {
   return (
     <Panel>
       <SectionTitle title="Hedefler" meta="Hedef ekle" />
-      {goals.map((goal) => {
-        const percent = Math.round((goal.currentAmount / goal.targetAmount) * 100);
-        return (
-          <View style={localStyles.goalCard} key={goal.id}>
-            <View style={styles.rowBetween}>
-              <Text style={localStyles.cardTitle}>{goal.title}</Text>
-              <Badge label={`%${percent}`} tone="teal" />
+      {goals.length ? (
+        goals.map((goal) => {
+          const percent = Math.round((goal.currentAmount / goal.targetAmount) * 100);
+          return (
+            <View style={localStyles.goalCard} key={goal.id}>
+              <View style={styles.rowBetween}>
+                <Text style={localStyles.cardTitle}>{goal.title}</Text>
+                <Badge label={`%${percent}`} tone="teal" />
+              </View>
+              <Text style={styles.bodyMuted}>
+                {money(goal.currentAmount)} / {money(goal.targetAmount)}
+              </Text>
+              <ProgressBar value={percent} tone="teal" />
             </View>
-            <Text style={styles.bodyMuted}>
-              {money(goal.currentAmount)} / {money(goal.targetAmount)}
-            </Text>
-            <ProgressBar value={percent} tone="teal" />
-          </View>
-        );
-      })}
+          );
+        })
+      ) : (
+        <EmptyPanelMessage message="Aktif finansal hedef yok." />
+      )}
     </Panel>
   );
 }
@@ -484,9 +523,7 @@ function ActionCenter({ actions }: { actions: ActionItem[] }) {
   return (
     <Panel>
       <SectionTitle title="Aksiyon Merkezi" meta={`Onay bekleyen ${actions.length} öneri`} />
-      {actions.map((action) => (
-        <ActionCard key={action.id} action={action} />
-      ))}
+      {actions.length ? actions.map((action) => <ActionCard key={action.id} action={action} />) : <EmptyPanelMessage message="Onay bekleyen finansal aksiyon yok." />}
     </Panel>
   );
 }
@@ -498,7 +535,7 @@ function ActionCard({ action }: { action: ActionItem }) {
     <View style={localStyles.actionCard}>
       <View style={styles.rowBetween}>
         <Badge label={isDelay ? "Emotional Delay" : "Hatırlatıcı"} tone={isDelay ? "primary" : "teal"} />
-        <Text style={localStyles.actionMeta}>{action.dueAt ? "14 Mayıs · 18:00" : "aktivasyon bekliyor"}</Text>
+        <Text style={localStyles.actionMeta}>{action.dueAt ? formatShortDate(action.dueAt) : "aktivasyon bekliyor"}</Text>
       </View>
       <Text style={localStyles.cardTitle}>{action.title}</Text>
       <Text style={styles.bodyMuted}>{action.description}</Text>
@@ -512,32 +549,41 @@ function ActionCard({ action }: { action: ActionItem }) {
 }
 
 function WhatIfPreview({ simulation }: { simulation: WhatIfResponse }) {
+  const delayMinutes = simulation.emotionalDelayMinutes;
   return (
     <Panel>
-      <SectionTitle title="What-If Senaryosu" meta="Emotional Delay" />
-      <Text style={localStyles.quote}>“10.000 ₺ teknoloji harcarsam ne olur?”</Text>
-      <View style={styles.wrapRow}>
-        {[3900, 7000, 10000, 15000].map((amount) => (
-          <Badge key={amount} label={money(amount)} tone={amount === simulation.safeLimit ? "teal" : amount >= 10000 ? "danger" : "primary"} />
-        ))}
-      </View>
-      {simulation.cards.map((card) => (
-        <ScenarioCardView key={card.id} card={card} />
-      ))}
-      <View style={localStyles.delayCard}>
-        <View style={styles.row}>
-          <PauseCircle size={20} color={palette.primary} />
-          <View style={localStyles.alertCopy}>
-            <Text style={localStyles.cardTitle}>{simulation.emotionalDelayMinutes || 10} dakika beklet</Text>
-            <Text style={styles.bodyMuted}>İkizin sakin bir karar için bekleme önerir.</Text>
+      <SectionTitle title="What-If Senaryosu" meta={delayMinutes ? "Emotional Delay" : "Veri durumu"} />
+      <Text style={localStyles.quote}>“{simulation.question}”</Text>
+      {simulation.cards.length ? (
+        <>
+          <View style={styles.wrapRow}>
+            {simulation.cards.map((card) => (
+              <Badge key={card.id} label={money(card.spendAmount)} tone={card.id === "safe" ? "teal" : card.id === "risky" ? "danger" : "primary"} />
+            ))}
           </View>
-          <Mono style={localStyles.timer}>10:00</Mono>
-        </View>
-      </View>
-      <View style={localStyles.actionButtons}>
-        <Button label="10 dakika beklet" style={localStyles.flexButton} />
-        <Button label="Alternatif fiyat" variant="secondary" icon={<Search size={15} color={palette.primary} />} style={localStyles.flexButton} />
-      </View>
+          {simulation.cards.map((card) => (
+            <ScenarioCardView key={card.id} card={card} />
+          ))}
+          <View style={localStyles.delayCard}>
+            <View style={styles.row}>
+              <PauseCircle size={20} color={palette.primary} />
+              <View style={localStyles.alertCopy}>
+                <Text style={localStyles.cardTitle}>{delayMinutes ? `${delayMinutes} dakika beklet` : "Bekleme önerisi yok"}</Text>
+                <Text style={styles.bodyMuted}>
+                  {delayMinutes ? "İkizin sakin bir karar için bekleme önerir." : "Bu senaryoda ek Emotional Delay gerekmiyor."}
+                </Text>
+              </View>
+              <Mono style={localStyles.timer}>{delayMinutes ? `${delayMinutes}:00` : "0:00"}</Mono>
+            </View>
+          </View>
+          <View style={localStyles.actionButtons}>
+            <Button label={delayMinutes ? `${delayMinutes} dakika beklet` : "Senaryoyu izle"} style={localStyles.flexButton} />
+            <Button label="Alternatif fiyat" variant="secondary" icon={<Search size={15} color={palette.primary} />} style={localStyles.flexButton} />
+          </View>
+        </>
+      ) : (
+        <EmptyPanelMessage message="Gelir, gider veya bütçe verisi eklenince what-if senaryoları gerçek limitlerle hesaplanır." />
+      )}
     </Panel>
   );
 }
@@ -573,9 +619,11 @@ function SubscriptionHunter({ leaks }: { leaks: SubscriptionLeak[] }) {
         <Badge label="Fiyat artışı" tone="danger" />
         <Badge label="Mükerrer" tone="primary" />
       </View>
-      {leaks.map((leak) => (
-        <SubscriptionLeakCard key={`${leak.subscriptionId}-${leak.issue}`} leak={leak} />
-      ))}
+      {leaks.length ? (
+        leaks.map((leak) => <SubscriptionLeakCard key={`${leak.subscriptionId}-${leak.issue}`} leak={leak} />)
+      ) : (
+        <EmptyPanelMessage message="Tekrar eden abonelik veya sızıntı bulgusu yok." />
+      )}
     </Panel>
   );
 }
@@ -874,6 +922,20 @@ function money(value: number) {
   return `${Math.round(value).toLocaleString("tr-TR")} ₺`;
 }
 
+function formatShortDate(value: string) {
+  const hasTime = value.includes("T");
+  const date = new Date(hasTime ? value : `${value}T12:00:00`);
+  return new Intl.DateTimeFormat("tr-TR", hasTime ? { day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "long" }).format(date);
+}
+
+function EmptyPanelMessage({ message }: { message: string }) {
+  return (
+    <View style={localStyles.emptyMessage}>
+      <Text style={styles.bodyMuted}>{message}</Text>
+    </View>
+  );
+}
+
 function shortMoney(value: number) {
   return `${Math.round(value / 1000).toLocaleString("tr-TR")} K ₺`;
 }
@@ -898,6 +960,12 @@ function riskLabel(level: string) {
   }[level] ?? level;
 }
 
+function riskTone(level: string): "warn" | "danger" | "primary" {
+  if (level === "critical" || level === "high") return "danger";
+  if (level === "medium") return "warn";
+  return "primary";
+}
+
 function leakIssueLabel(issue: SubscriptionLeak["issue"]) {
   return {
     unused: "Kullanılmıyor",
@@ -905,17 +973,6 @@ function leakIssueLabel(issue: SubscriptionLeak["issue"]) {
     small_leak: "Yeni",
     price_increase: "Fiyat artışı"
   }[issue];
-}
-
-function withTrialLeak(leaks: SubscriptionLeak[]): SubscriptionLeak[] {
-  if (leaks.some((leak) => leak.subscriptionId === "sub-newsdaily")) return leaks;
-  return leaks.concat({
-    subscriptionId: "sub-newsdaily",
-    merchant: "NewsDaily",
-    issue: "small_leak",
-    monthlyImpact: 79,
-    recommendation: "14 günlük deneme bitti, ücretli geçiş başlamadan incele."
-  });
 }
 
 const localStyles = StyleSheet.create({
@@ -1173,6 +1230,13 @@ const localStyles = StyleSheet.create({
     backgroundColor: palette.primarySoft,
     borderRadius: 8,
     padding: 12
+  },
+  emptyMessage: {
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: "#FBFCFA"
   },
   goalCard: {
     borderColor: palette.line,

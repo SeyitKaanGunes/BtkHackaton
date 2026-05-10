@@ -130,23 +130,25 @@ export function getCurrentUser() {
 }
 
 export async function loadMobileHome(): Promise<{
+  user: AuthUserProfile;
   dashboard: DashboardSummary;
   dna: SpendingDna;
   campaign: CampaignReadiness;
   leaks: SubscriptionLeak[];
   simulation: WhatIfResponse;
 }> {
-  const [dashboard, dna, campaign, leaks, simulation] = await Promise.all([
+  const [user, dashboard, dna, campaign, leaks, simulation] = await Promise.all([
+    getCurrentUser(),
     request<DashboardSummary>("/dashboard/personal"),
     request<SpendingDna>("/spending-dna"),
     request<CampaignReadiness>("/campaigns/readiness"),
     request<SubscriptionLeak[]>("/subscriptions/leakage"),
     request<WhatIfResponse>("/simulations/what-if", {
       method: "POST",
-      body: JSON.stringify({ amount: 10000, categoryId: "cat-tech" })
+      body: JSON.stringify({})
     })
   ]);
-  return { dashboard, dna, campaign, leaks, simulation };
+  return { user, dashboard, dna, campaign, leaks, simulation };
 }
 
 export function loadInvestmentPortfolio(): Promise<InvestmentPortfolioSummary> {

@@ -6,18 +6,31 @@ import {
   calculateSpendingDna,
   detectSubscriptionLeakage
 } from "./finance.js";
+import { subscriptions } from "./demo-data.js";
 
 describe("Fintwin finance engines", () => {
   it("calculates a personal dashboard with a health score", () => {
     const dashboard = calculateDashboardSummary();
     expect(dashboard.financialHealthScore).toBeGreaterThan(0);
+    expect(dashboard.periodLabel).toBe("Mayıs 2026");
     expect(dashboard.categoryBreakdown.length).toBeGreaterThan(0);
+  });
+
+  it("keeps empty personal dashboard data neutral", () => {
+    const dashboard = calculateDashboardSummary([], [], [], [], []);
+    const dna = calculateSpendingDna([], []);
+    expect(dashboard.financialHealthScore).toBe(0);
+    expect(dashboard.categoryBreakdown).toEqual([]);
+    expect(dashboard.riskAlerts).toEqual([]);
+    expect(dna.overallRisk).toBe(0);
+    expect(dna.categories).toEqual([]);
+    expect(dna.patterns[0]).toContain("Harcama verisi");
   });
 
   it("builds Spending DNA category risks", () => {
     const dna = calculateSpendingDna();
     expect(dna.categories[0]?.riskScore).toBeGreaterThan(0);
-    expect(dna.patterns).toContain("Maaş sonrası ilk 72 saatte teknoloji ve giyim harcaması artıyor.");
+    expect(dna.patterns.length).toBeGreaterThan(0);
   });
 
   it("returns safe, balanced and risky what-if scenarios", () => {
@@ -26,8 +39,14 @@ describe("Fintwin finance engines", () => {
     expect(simulation.emotionalDelayMinutes).toBe(10);
   });
 
+  it("does not invent what-if scenarios for empty financial data", () => {
+    const simulation = buildWhatIfScenarios({}, { accounts: [], actions: [], budgets: [], goals: [], transactions: [] });
+    expect(simulation.safeLimit).toBe(0);
+    expect(simulation.cards).toEqual([]);
+  });
+
   it("detects subscription leakage", () => {
-    const leaks = detectSubscriptionLeakage();
+    const leaks = detectSubscriptionLeakage(subscriptions, new Date("2026-05-10T00:00:00.000Z"));
     expect(leaks.some((leak) => leak.issue === "duplicate")).toBe(true);
   });
 

@@ -47,6 +47,24 @@ const riskFromScore = (score: number): RiskLevel => {
 
 const monthKey = (iso: string) => iso.slice(0, 7);
 
+function latestMonthKey(sourceTransactions: Transaction[]) {
+  let latest = "";
+  for (const transaction of sourceTransactions) {
+    if (transaction.occurredAt > latest) latest = transaction.occurredAt;
+  }
+  return latest ? monthKey(latest) : monthKey(new Date().toISOString());
+}
+
+function monthLabelFromKey(key: string) {
+  const [year, month] = key.split("-").map(Number);
+  if (!year || !month) return key;
+  return new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
+function positiveAmount(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
 export const demoDataset = {
   userId: DEMO_USER_ID,
   businessId: DEMO_BUSINESS_ID,
@@ -68,12 +86,12 @@ export function getCategoryName(categoryId: string): string {
 
 export function summarizeMonth(
   sourceTransactions: Transaction[] = transactions,
-  selectedMonth = "2026-05"
+  selectedMonth = latestMonthKey(sourceTransactions)
 ) {
   const monthTransactions = sourceTransactions.filter((transaction) => monthKey(transaction.occurredAt) === selectedMonth);
   const income = sum(monthTransactions.filter((transaction) => transaction.type === "income").map((transaction) => transaction.amount));
   const expenses = sum(monthTransactions.filter((transaction) => transaction.type === "expense").map((transaction) => transaction.amount));
-  return { monthTransactions, income, expenses, net: income - expenses };
+  return { month: selectedMonth, monthTransactions, income, expenses, net: income - expenses };
 }
 
 export function calculateSpendingDna(
@@ -81,6 +99,19 @@ export function calculateSpendingDna(
   sourceBudgets: Budget[] = budgets
 ): SpendingDna {
   const expenseTransactions = sourceTransactions.filter((transaction) => transaction.type === "expense");
+  if (expenseTransactions.length === 0) {
+    return {
+      userId: DEMO_USER_ID,
+      overallRisk: 0,
+      paydayReflexScore: 0,
+      weekendNightScore: 0,
+      campaignSensitivity: 0,
+      savingDiscipline: 0,
+      categories: [],
+      patterns: ["Harcama verisi eklendiğinde Spending DNA davranış profili oluşacak."]
+    };
+  }
+
   const categoryRisks = categories
     .filter((category) => category.kind === "expense")
     .map((category) => {
@@ -109,7 +140,20 @@ export function calculateSpendingDna(
   const paydayTransactions = expenseTransactions.filter((transaction) => new Date(transaction.occurredAt).getUTCDate() >= 5 && new Date(transaction.occurredAt).getUTCDate() <= 8);
   const campaignTransactions = expenseTransactions.filter((transaction) => transaction.tags?.includes("campaign"));
   const totalExpense = Math.max(sum(expenseTransactions.map((transaction) => transaction.amount)), 1);
-  const savingDiscipline = clamp(100 - (totalExpense / 48500) * 100 + 28);
+  const incomeBase = Math.max(sum(sourceTransactions.filter((transaction) => transaction.type === "income").map((transaction) => transaction.amount)), totalExpense, 1);
+  const savingDiscipline = clamp(100 - (totalExpense / incomeBase) * 100 + 28);
+  const topCategory = categoryRisks.find((category) => category.monthlySpend > 0);
+  const paydayRatio = sum(paydayTransactions.map((transaction) => transaction.amount)) / totalExpense;
+  const weekendNightRatio = sum(weekendNightTransactions.map((transaction) => transaction.amount)) / totalExpense;
+  const campaignRatio = sum(campaignTransactions.map((transaction) => transaction.amount)) / totalExpense;
+  const patterns = [
+    topCategory
+      ? `${topCategory.categoryName} kategorisi bu dönemin en belirgin harcama sinyali: ${topCategory.monthlySpend.toLocaleString("tr-TR")} TL.`
+      : undefined,
+    paydayRatio >= 0.25 ? "Maaş sonrası ilk günlerde harcama yoğunluğu artıyor." : undefined,
+    weekendNightRatio >= 0.2 ? "Akşam veya hafta sonu harcamaları bütçe sapmasına anlamlı katkı veriyor." : undefined,
+    campaignRatio > 0 ? "Kampanya etiketli işlemler harcama kararlarında ayrıca izlenmeli." : undefined
+  ].filter((pattern): pattern is string => Boolean(pattern));
 
   return {
     userId: DEMO_USER_ID,
@@ -119,11 +163,7 @@ export function calculateSpendingDna(
     campaignSensitivity: clamp((sum(campaignTransactions.map((transaction) => transaction.amount)) / totalExpense) * 100 + 18),
     savingDiscipline,
     categories: categoryRisks,
-    patterns: [
-      "Maaş sonrası ilk 72 saatte teknoloji ve giyim harcaması artıyor.",
-      "Kampanya etiketli işlemler ayın en yüksek riskli harcama kümesini oluşturuyor.",
-      "Gece yapılan küçük yemek harcamaları bütçe sapmasını görünmez büyütüyor."
-    ]
+    patterns: patterns.length ? patterns : ["Harcama dağılımı şu an belirgin bir risk deseni göstermiyor."]
   };
 }
 
@@ -148,9 +188,13 @@ export function calculateDashboardSummary(
   const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
   const accountBalance = sum(sourceAccounts.map((account) => account.balance));
   const savingsRate = summary.income > 0 ? ((summary.income - summary.expenses) / summary.income) * 100 : 0;
-  const financialHealthScore = clamp(62 + savingsRate * 0.35 - dna.overallRisk * 0.25 + (accountBalance > 0 ? 8 : -12));
+  const hasFinancialActivity = sourceTransactions.length > 0 || accountBalance !== 0 || sourceGoals.length > 0 || sourceActions.length > 0;
+  const financialHealthScore = hasFinancialActivity ? clamp(62 + savingsRate * 0.35 - dna.overallRisk * 0.25 + (accountBalance > 0 ? 8 : -12)) : 0;
+  const topRiskCategory = dna.categories.find((category) => category.riskScore >= 65);
 
   return {
+    period: summary.month,
+    periodLabel: monthLabelFromKey(summary.month),
     income: summary.income,
     expenses: summary.expenses,
     balance: accountBalance,
@@ -159,32 +203,46 @@ export function calculateDashboardSummary(
     categoryBreakdown,
     upcomingActions: sourceActions.filter((action) => action.status === "pending"),
     goals: sourceGoals,
-    riskAlerts: [
-      {
-        title: "Teknoloji kampanya riski",
-        description: "Teknoloji kategorisi aylık limitin üzerinde ve kampanya etiketli işlem içeriyor.",
-        level: "high"
-      },
-      {
-        title: "Abonelik sızıntısı",
-        description: "CloudBox ve CloudBox Pro aynı ihtiyaca benzer iki abonelik gibi görünüyor.",
-        level: "medium"
-      }
-    ]
+    riskAlerts: topRiskCategory
+      ? [
+          {
+            title: `${topRiskCategory.categoryName} bütçe riski`,
+            description: `${topRiskCategory.categoryName} kategorisi bu ay ${topRiskCategory.monthlySpend.toLocaleString("tr-TR")} TL seviyesinde.`,
+            level: topRiskCategory.riskLevel
+          }
+        ]
+      : []
   };
 }
 
 export function calculateCampaignReadiness(sourceTransactions: Transaction[] = transactions, sourceBudgets: Budget[] = budgets) {
+  const expenseTransactions = sourceTransactions.filter((transaction) => transaction.type === "expense");
+  if (expenseTransactions.length === 0) {
+    return {
+      score: 0,
+      riskLevel: "low" as RiskLevel,
+      safeLimit: 0,
+      notes: ["Kampanya hazırlık skoru için önce gelir, gider veya bütçe verisi eklenmeli."]
+    };
+  }
+
   const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
-  const techRisk = dna.categories.find((category) => category.categoryId === "cat-tech")?.riskScore ?? 0;
-  const score = clamp(100 - dna.campaignSensitivity * 0.45 - techRisk * 0.3 + dna.savingDiscipline * 0.25);
+  const highestCategoryRisk = dna.categories[0]?.riskScore ?? 0;
+  const score = clamp(100 - dna.campaignSensitivity * 0.45 - highestCategoryRisk * 0.3 + dna.savingDiscipline * 0.25);
+  const summary = summarizeMonth(sourceTransactions);
+  const totalExpense = sum(expenseTransactions.map((transaction) => transaction.amount));
+  const budgetTotal = sum(sourceBudgets.map((budget) => budget.monthlyLimit));
+  const limitBase = summary.income > 0 ? summary.income : Math.max(budgetTotal, totalExpense);
+  const riskCategory = dna.categories.find((category) => category.riskScore >= 65) ?? dna.categories.find((category) => category.monthlySpend > 0);
   return {
     score,
     riskLevel: riskFromScore(100 - score),
-    safeLimit: Math.max(1000, Math.round((48500 * (score / 100) * 0.12) / 100) * 100),
+    safeLimit: Math.max(500, Math.round((limitBase * (score / 100) * 0.12) / 100) * 100),
     notes: [
-      "Kampanya döneminde kredi kartı borcu ve tasarruf hedefi birlikte izlenmeli.",
-      "Teknoloji kategorisinde satın alma öncesi Emotional Delay önerilir."
+      "Kampanya döneminde kayıtlı gelir, gider ve bütçe limitleri birlikte izlenmeli.",
+      riskCategory && riskCategory.riskScore >= 65
+        ? `${riskCategory.categoryName} kategorisinde satın alma öncesi Emotional Delay önerilir.`
+        : "Belirgin kategori riski oluşana kadar güvenli limit kontrollü tutulur."
     ]
   };
 }
@@ -197,21 +255,39 @@ type PersonalFinanceData = {
   transactions?: Transaction[];
 };
 
-export function buildWhatIfScenarios(input: WhatIfRequest, source: PersonalFinanceData = {}): WhatIfResponse {
+export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: PersonalFinanceData = {}): WhatIfResponse {
   const sourceAccounts = source.accounts ?? accounts;
   const sourceActions = source.actions ?? actions;
   const sourceBudgets = source.budgets ?? budgets;
   const sourceGoals = source.goals ?? goals;
   const sourceTransactions = source.transactions ?? transactions;
   const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets);
-  const selectedBudget = sourceBudgets.find((budget) => budget.categoryId === input.categoryId);
   const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
-  const categoryRisk = dna.categories.find((category) => category.categoryId === input.categoryId)?.riskScore ?? dna.overallRisk;
-  const safeLimit = Math.max(500, Math.round(((selectedBudget?.monthlyLimit ?? input.amount) * 0.55) / 100) * 100);
+  const hasFinancialActivity = sourceTransactions.length > 0 || dashboard.balance !== 0 || sourceBudgets.length > 0 || sourceGoals.length > 0 || sourceActions.length > 0;
+  const requestedAmount = positiveAmount(input.amount);
+  if (!hasFinancialActivity && !requestedAmount && !input.categoryId) {
+    return {
+      question: "What-if senaryosu için önce gelir, gider, bütçe veya hedef verisi eklenmeli.",
+      safeLimit: 0,
+      emotionalDelayMinutes: 0,
+      cards: [],
+      assumptions: ["Simülasyon boş finansal veriyle otomatik varsayım üretmez."]
+    };
+  }
+
+  const defaultCategory = dna.categories.find((category) => category.monthlySpend > 0 || category.riskScore > 0);
+  const resolvedCategoryId = input.categoryId ?? defaultCategory?.categoryId ?? sourceBudgets[0]?.categoryId ?? "cat-other";
+  const selectedBudget = sourceBudgets.find((budget) => budget.categoryId === resolvedCategoryId);
+  const categorySpend = sum(sourceTransactions.filter((transaction) => transaction.type === "expense" && transaction.categoryId === resolvedCategoryId).map((transaction) => transaction.amount));
+  const defaultAmountBase = Math.max(selectedBudget?.monthlyLimit ?? 0, categorySpend, dashboard.expenses, 1000);
+  const amount = requestedAmount ?? Math.max(500, Math.round((defaultAmountBase * 0.35) / 100) * 100);
+  const categoryRisk = dna.categories.find((category) => category.categoryId === resolvedCategoryId)?.riskScore ?? dna.overallRisk;
+  const safeLimitBase = selectedBudget?.monthlyLimit ?? defaultAmountBase;
+  const safeLimit = Math.max(0, Math.round((safeLimitBase * 0.55) / 100) * 100);
   const currentSavingsGap = sum(sourceGoals.map((goal) => Math.max(goal.targetAmount - goal.currentAmount, 0)));
 
   const makeCard = (id: ScenarioCard["id"], multiplier: number, label: string, recommendation: string): ScenarioCard => {
-    const spendAmount = Math.round(input.amount * multiplier);
+    const spendAmount = Math.round(amount * multiplier);
     const debtImpact = spendAmount;
     const monthEndBalance = dashboard.balance - spendAmount;
     const savingsImpactPercent = currentSavingsGap > 0 ? Math.round((spendAmount / currentSavingsGap) * 100) : 0;
@@ -219,11 +295,11 @@ export function buildWhatIfScenarios(input: WhatIfRequest, source: PersonalFinan
   };
 
   return {
-    question: input.description ?? `${getCategoryName(input.categoryId)} kategorisinde ${input.amount} TL harcarsam ne olur?`,
+    question: input.description ?? `${getCategoryName(resolvedCategoryId)} kategorisinde ${amount.toLocaleString("tr-TR")} TL harcarsam ne olur?`,
     safeLimit,
-    emotionalDelayMinutes: categoryRisk >= 65 || input.amount > safeLimit ? 10 : 0,
+    emotionalDelayMinutes: categoryRisk >= 65 || amount > safeLimit ? 10 : 0,
     cards: [
-      makeCard("safe", Math.min(safeLimit / Math.max(input.amount, 1), 1), "Güvenli senaryo", "Güvenli limitte kal, hedefleri bozma."),
+      makeCard("safe", Math.min(safeLimit / Math.max(amount, 1), 1), "Güvenli senaryo", "Güvenli limitte kal, hedefleri bozma."),
       makeCard("balanced", 0.7, "Dengeli senaryo", "Harcamayı kıs ve kalanını hedefe aktar."),
       makeCard("risky", 1, "Riskli senaryo", "Satın almadan önce 10 dakika bekleme ve alternatif fiyat kontrolü önerilir.")
     ],
@@ -235,10 +311,12 @@ export function buildWhatIfScenarios(input: WhatIfRequest, source: PersonalFinan
   };
 }
 
-export function detectSubscriptionLeakage(sourceSubscriptions: Subscription[] = subscriptions): SubscriptionLeak[] {
+export function detectSubscriptionLeakage(sourceSubscriptions: Subscription[] = subscriptions, referenceDate = new Date()): SubscriptionLeak[] {
+  const unusedBefore = new Date(referenceDate);
+  unusedBefore.setUTCDate(unusedBefore.getUTCDate() - 60);
   return sourceSubscriptions.flatMap((subscription) => {
     const leaks: SubscriptionLeak[] = [];
-    if (subscription.lastUsedAt && new Date(subscription.lastUsedAt) < new Date("2026-03-01")) {
+    if (subscription.lastUsedAt && new Date(subscription.lastUsedAt) < unusedBefore) {
       leaks.push({
         subscriptionId: subscription.id,
         merchant: subscription.merchant,
@@ -269,8 +347,8 @@ export function buildAgentEvidence(source: PersonalFinanceData = {}): AgentEvide
   const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets);
   const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
   return [
-    { label: "Mayıs gelir", value: `${dashboard.income.toLocaleString("tr-TR")} TL`, source: "transaction" },
-    { label: "Mayıs gider", value: `${dashboard.expenses.toLocaleString("tr-TR")} TL`, source: "transaction" },
+    { label: `${dashboard.periodLabel} gelir`, value: `${dashboard.income.toLocaleString("tr-TR")} TL`, source: "transaction" },
+    { label: `${dashboard.periodLabel} gider`, value: `${dashboard.expenses.toLocaleString("tr-TR")} TL`, source: "transaction" },
     { label: "En yüksek risk", value: `${dna.categories[0]?.categoryName ?? "Kategori"} ${dna.categories[0]?.riskScore ?? 0}/100`, source: "budget" },
     { label: "Kampanya hassasiyeti", value: `${dna.campaignSensitivity}/100`, source: "simulation" }
   ];
@@ -347,16 +425,30 @@ export function simulateAiCfo(
 }
 
 function detectDuplicateSubscriptions(sourceSubscriptions: Subscription[]): SubscriptionLeak[] {
-  const cloudBox = sourceSubscriptions.filter((subscription) => /cloudbox/i.test(subscription.merchant));
-  if (cloudBox.length < 2) return [];
-  const monthlyImpact = Math.min(...cloudBox.map((subscription) => subscription.amount));
-  return [
-    {
-      subscriptionId: cloudBox.map((subscription) => subscription.id).join("/"),
-      merchant: cloudBox.map((subscription) => subscription.merchant).join(" / "),
-      issue: "duplicate",
-      monthlyImpact,
-      recommendation: "Aynı bulut depolama ihtiyacı için tek pakete düş."
-    }
-  ];
+  const groups = new Map<string, Subscription[]>();
+  for (const subscription of sourceSubscriptions) {
+    const key = `${subscription.categoryId}:${merchantFamily(subscription.merchant)}`;
+    groups.set(key, [...(groups.get(key) ?? []), subscription]);
+  }
+
+  return [...groups.values()]
+    .filter((group) => group.length > 1)
+    .map((group) => ({
+      subscriptionId: group.map((subscription) => subscription.id).join("/"),
+      merchant: group.map((subscription) => subscription.merchant).join(" / "),
+      issue: "duplicate" as const,
+      monthlyImpact: Math.min(...group.map((subscription) => subscription.amount)),
+      recommendation: "Aynı kategori ve satıcı ailesinde görünen abonelikleri tek plana düşürmeyi değerlendir."
+    }));
+}
+
+function merchantFamily(merchant: string) {
+  const ignoredTokens = new Set(["app", "basic", "max", "mini", "plus", "premium", "pro", "standard", "standart", "tr", "trial"]);
+  const tokens = merchant
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[^a-z0-9ğüşöçıİ ]/gi, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token && !ignoredTokens.has(token));
+  return tokens[0] ?? merchant.toLocaleLowerCase("tr-TR").trim();
 }

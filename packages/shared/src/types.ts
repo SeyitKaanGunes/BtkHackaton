@@ -295,8 +295,8 @@ export interface ScenarioCard {
 }
 
 export interface WhatIfRequest {
-  amount: number;
-  categoryId: string;
+  amount?: number;
+  categoryId?: string;
   decisionDate?: string;
   description?: string;
 }
@@ -310,6 +310,8 @@ export interface WhatIfResponse {
 }
 
 export interface DashboardSummary {
+  period: string;
+  periodLabel: string;
   income: number;
   expenses: number;
   balance: number;

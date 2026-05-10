@@ -19,7 +19,9 @@ import type {
   WhatIfResponse
 } from "@fintwin/shared";
 
-const apiUrl = requiredPublicEnv("NEXT_PUBLIC_API_URL").replace(/\/$/, "");
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+if (!rawApiUrl) throw new Error("NEXT_PUBLIC_API_URL is required.");
+const apiUrl = rawApiUrl.replace(/\/$/, "");
 
 export interface AuthResponse {
   token: string;
@@ -163,7 +165,7 @@ export function getWhatIf(options?: AuthOptions) {
     "/simulations/what-if",
     {
       method: "POST",
-      body: JSON.stringify({ amount: 10000, categoryId: "cat-tech", description: "Kampanya doneminde 10.000 TL harcarsam ne olur?" })
+      body: JSON.stringify({})
     },
     options
   );
@@ -326,10 +328,4 @@ function apiMessage(body: unknown) {
 
 function apiCode(body: unknown) {
   return body && typeof body === "object" && typeof (body as Record<string, unknown>).code === "string" ? String((body as Record<string, unknown>).code) : undefined;
-}
-
-function requiredPublicEnv(key: string) {
-  const value = process.env[key]?.trim();
-  if (!value) throw new Error(`${key} is required.`);
-  return value;
 }
