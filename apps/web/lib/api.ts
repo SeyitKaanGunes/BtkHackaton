@@ -1,7 +1,11 @@
 import type {
   AgentResponse,
   Business,
+  BusinessCashEvent,
+  BusinessCashEventCreateRequest,
+  BusinessCreateRequest,
   BusinessCustomer,
+  BusinessCustomerCreateRequest,
   BusinessDashboard,
   CollectionScore,
   DashboardSummary,
@@ -204,12 +208,45 @@ export function getBusinesses(options?: AuthOptions) {
   return request<Business[]>("/business", undefined, options);
 }
 
+export function createBusiness(input: BusinessCreateRequest, options?: AuthOptions) {
+  return request<Business>(
+    "/business",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
 export function getBusinessDashboard(id: string, options?: AuthOptions) {
   return request<BusinessDashboard>(`/business/${id}/dashboard`, undefined, options);
 }
 
 export function getBusinessCustomers(id: string, options?: AuthOptions) {
   return request<BusinessCustomer[]>(`/business/${id}/customers`, undefined, options);
+}
+
+export function createBusinessCustomer(id: string, input: BusinessCustomerCreateRequest, options?: AuthOptions) {
+  return request<BusinessCustomer>(
+    `/business/${id}/customers`,
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
+export function createBusinessCashEvent(id: string, input: BusinessCashEventCreateRequest, options?: AuthOptions) {
+  return request<BusinessCashEvent>(
+    `/business/${id}/cash-events`,
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
 }
 
 export function getCollectionScore(businessId: string, customerId: string, options?: AuthOptions) {

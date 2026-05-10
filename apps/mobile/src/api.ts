@@ -1,5 +1,6 @@
 import type {
   AgentResponse,
+  AiCfoSimulation,
   Business,
   BusinessCustomer,
   BusinessDashboard,
@@ -196,7 +197,7 @@ export function createSubscriptionReminder(input: { merchant: string; amount?: n
   return request<SubscriptionReminderResult>("/actions/subscription-reminder", { method: "POST", body: JSON.stringify(input) });
 }
 
-export async function loadBusiness(): Promise<{ business: Business; dashboard: BusinessDashboard; scores: CollectionScore[] }> {
+export async function loadBusiness(): Promise<{ business: Business; dashboard: BusinessDashboard; customers: BusinessCustomer[]; scores: CollectionScore[] }> {
   const [business] = await request<Business[]>("/business");
   if (!business) throw new Error("KOBI profili bulunamadi.");
 
@@ -204,8 +205,15 @@ export async function loadBusiness(): Promise<{ business: Business; dashboard: B
     request<BusinessDashboard>(`/business/${business.id}/dashboard`),
     request<BusinessCustomer[]>(`/business/${business.id}/customers`)
   ]);
-  const scores = await Promise.all(customers.slice(0, 2).map((customer) => request<CollectionScore>(`/business/${business.id}/customers/${customer.id}/collection-score`)));
-  return { business, dashboard, scores };
+  const scores = await Promise.all(customers.map((customer) => request<CollectionScore>(`/business/${business.id}/customers/${customer.id}/collection-score`)));
+  return { business, dashboard, customers, scores };
+}
+
+export function simulateBusinessDecision(businessId: string, input: { amount: number; decision?: string }): Promise<AiCfoSimulation> {
+  return request<AiCfoSimulation>(`/business/${businessId}/ai-cfo/simulate`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
 }
 
 async function throwApiError(path: string, response: Response, isStatementEndpoint: boolean): Promise<never> {

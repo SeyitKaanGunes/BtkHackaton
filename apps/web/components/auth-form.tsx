@@ -57,7 +57,7 @@ export function AuthForm() {
         <span>E-posta</span>
         <div className="auth-input">
           <Mail size={18} />
-          <input value={email} onChange={(event) => setEmail(event.target.value)} required type="email" autoComplete="email" />
+          <input value={email} onChange={(event) => setEmail(event.target.value)} required type={mode === "login" ? "text" : "email"} autoComplete="email" />
         </div>
       </label>
 
@@ -65,7 +65,7 @@ export function AuthForm() {
         <span>Şifre</span>
         <div className="auth-input">
           <LockKeyhole size={18} />
-          <input value={password} onChange={(event) => setPassword(event.target.value)} required minLength={6} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} />
+          <input value={password} onChange={(event) => setPassword(event.target.value)} required minLength={mode === "login" ? 1 : 6} type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} />
         </div>
       </label>
 

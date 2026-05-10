@@ -730,6 +730,35 @@ h1 {
   width: 100%;
 }
 
+.business-form-panel {
+  max-width: 720px;
+}
+
+.business-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.business-form.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.business-form .secondary-button {
+  min-height: 42px;
+}
+
+.positive-text {
+  color: var(--success);
+}
+
+.negative-text {
+  color: var(--danger);
+}
+
 .market-note {
   margin: 0;
 }
@@ -1169,6 +1198,8 @@ h1 {
   .chart-grid,
   .portfolio-grid,
   .split-layout,
+  .business-form,
+  .business-form.compact,
   .risk-alert-grid,
   .subscription-row {
     grid-template-columns: 1fr;
@@ -1200,6 +1231,8 @@ h1 {
   .portfolio-summary,
   .allocation-strip,
   .form-grid,
+  .business-form,
+  .business-form.compact,
   .scenario-list,
   .facts,
   .statement-summary {

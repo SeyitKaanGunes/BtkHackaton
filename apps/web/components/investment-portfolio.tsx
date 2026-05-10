@@ -53,9 +53,8 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
   }, [isCash, query]);
 
   const sourceLabel = useMemo(() => {
-    const hasFallback = portfolio.positions.some((item) => item.quote.source === "fallback");
-    return hasFallback ? "Twelve Data + fallback" : "Twelve Data";
-  }, [portfolio.positions]);
+    return portfolio.hasMarketDataGap ? "Piyasa verisi eksik" : "Twelve Data";
+  }, [portfolio.hasMarketDataGap]);
 
   async function submit() {
     const symbol = isCash ? undefined : selected?.symbol ?? query.trim().toUpperCase();
@@ -116,7 +115,7 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
             <strong>{formatTry(portfolio.totalCostTry)}</strong>
           </div>
           <div>
-            <span>Kar / zarar</span>
+            <span>{portfolio.hasMarketDataGap ? "Kar / zarar (fiyatli)" : "Kar / zarar"}</span>
             <strong className={portfolio.totalProfitLossTry >= 0 ? "positive" : "negative"}>
               {portfolio.totalProfitLossTry >= 0 ? "+" : ""}
               {formatTry(portfolio.totalProfitLossTry)} ({portfolio.totalProfitLossPercent.toLocaleString("tr-TR")}%)
@@ -135,16 +134,19 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
             <strong>{sourceLabel}</strong>
           </div>
         </div>
+        {portfolio.warning ? <p className="form-message">{portfolio.warning}</p> : null}
 
-        <div className="allocation-strip">
-          {portfolio.allocation.map((item) => (
-            <div key={item.assetType}>
-              <span>{item.label}</span>
-              <strong>{item.weight.toLocaleString("tr-TR")}%</strong>
-              <small>{formatTry(item.valueTry)}</small>
-            </div>
-          ))}
-        </div>
+        {portfolio.allocation.length > 0 ? (
+          <div className="allocation-strip">
+            {portfolio.allocation.map((item) => (
+              <div key={item.assetType}>
+                <span>{item.label}</span>
+                <strong>{item.weight.toLocaleString("tr-TR")}%</strong>
+                <small>{formatTry(item.valueTry)}</small>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <div className="position-list">
           {portfolio.positions.map((position) => {
@@ -162,20 +164,18 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
                 <div>
                   <span>Son fiyat</span>
                   <strong>
-                    {formatNumber(position.quote.price)} {position.quote.currency}
+                    {position.isPriced ? `${formatNumber(position.quote.price)} ${position.quote.currency}` : "Alinamadi"}
                   </strong>
                 </div>
                 <div>
                   <span>Deger</span>
-                  <strong>{formatTry(position.marketValueTry)}</strong>
+                  <strong>{position.isPriced ? formatTry(position.marketValueTry) : "-"}</strong>
                   {position.dailyInterestTry > 0 ? <small>+{formatTry(position.dailyInterestTry)} gunluk faiz</small> : null}
+                  {!position.isPriced && position.marketDataMessage ? <small>{position.marketDataMessage}</small> : null}
                 </div>
-                <div className={isUp ? "positive" : "negative"}>
-                  {isUp ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                  <strong>
-                    {isUp ? "+" : ""}
-                    {formatTry(position.profitLossTry)}
-                  </strong>
+                <div className={position.isPriced ? (isUp ? "positive" : "negative") : undefined}>
+                  {position.isPriced ? (isUp ? <TrendingUp size={16} /> : <TrendingDown size={16} />) : null}
+                  <strong>{position.isPriced ? `${isUp ? "+" : ""}${formatTry(position.profitLossTry)}` : "Hesaplanamadi"}</strong>
                 </div>
                 <button className="ghost-icon" type="button" onClick={() => void remove(position.id)} disabled={isBusy} aria-label={`${position.symbol} sil`}>
                   <Trash2 size={16} />

@@ -15,12 +15,15 @@ import {
   subscriptions,
   transactions,
   type ActionItem,
+  type BusinessCashEvent,
+  type BusinessCustomer,
   type InvestmentHolding,
   type Transaction
 } from "@fintwin/shared";
 import { AgentService } from "../src/agent/agent.service.js";
 import { QwenService } from "../src/ai/qwen.service.js";
 import { ActionsController } from "../src/actions/actions.controller.js";
+import { BusinessController } from "../src/business/business.controller.js";
 import { DataStoreService } from "../src/data/data-store.service.js";
 import { DocumentsService } from "../src/documents/documents.service.js";
 import { PdfExtractorService } from "../src/documents/pdf-extractor.service.js";
@@ -104,7 +107,7 @@ describe("API feature services", () => {
     expect(store.actions[0]?.id).toBe(result.action.id);
   });
 
-  it("builds an investment portfolio with fallback market data", async () => {
+  it("builds an investment portfolio with explicit market-data gaps", async () => {
     const previousKey = process.env.TWELVE_DATA_API_KEY;
     delete process.env.TWELVE_DATA_API_KEY;
 
@@ -142,7 +145,10 @@ describe("API feature services", () => {
       });
 
       expect(portfolio.positions.length).toBeGreaterThan(0);
+      expect(portfolio.hasMarketDataGap).toBe(true);
+      expect(portfolio.positions.some((position) => position.assetType !== "cash" && !position.isPriced)).toBe(true);
       expect(next.positions.some((position) => position.symbol === "USD/TRY")).toBe(true);
+      expect(next.positions.find((position) => position.symbol === "USD/TRY")?.isPriced).toBe(false);
       expect((await controller.symbols("akbank")).some((symbol) => symbol.symbol === "AKBNK")).toBe(true);
     } finally {
       if (previousKey === undefined) {
@@ -151,6 +157,34 @@ describe("API feature services", () => {
         process.env.TWELVE_DATA_API_KEY = previousKey;
       }
     }
+  });
+
+  it("creates KOBI business, customers, and cash events without seed mocks", async () => {
+    const store = createTestStore();
+    const controller = new BusinessController(store);
+    const createdBusiness = await controller.create(authUser, {
+      name: "Admin Studio",
+      sector: "Danismanlik",
+      cashBalance: 125000
+    });
+    const createdCustomer = await controller.createCustomer(authUser, createdBusiness.id, {
+      name: "Yeni Musteri",
+      averageDelayDays: 6,
+      invoicesPaid: 3,
+      invoicesLate: 1,
+      outstandingAmount: 24000
+    });
+    const createdCashEvent = await controller.createCashEvent(authUser, createdBusiness.id, {
+      title: "Yeni tahsilat",
+      amount: 24000,
+      type: "inflow",
+      dueAt: "2026-05-20"
+    });
+
+    expect(createdBusiness.ownerUserId).toBe(authUser.id);
+    expect(createdCustomer.businessId).toBe(createdBusiness.id);
+    expect(createdCashEvent.businessId).toBe(createdBusiness.id);
+    expect(controller.dashboard(authUser, createdBusiness.id).expectedCollections).toHaveLength(1);
   });
 });
 
@@ -161,6 +195,7 @@ function createTestStore(): DataStoreService {
     goals: [...goals],
     subscriptions: [...subscriptions],
     business,
+    businesses: [business],
     businessCustomers: [...businessCustomers],
     businessCashEvents: [...businessCashEvents],
     accounts: [...accounts],
@@ -171,6 +206,47 @@ function createTestStore(): DataStoreService {
     users: [{ ...demoUser, passwordHash: "$2b$10$XUWXgP2dSqJbe1dTT4rC9O71yPUb4B3bVAeMzb7XHSc6uWXr6KI0m" }],
     getDemoUser() {
       return this.users[0]!;
+    },
+    getBusinessesForUser(userId: string) {
+      return this.businesses.filter((item) => item.ownerUserId === userId);
+    },
+    getBusinessForUser(userId: string, businessId: string) {
+      return this.businesses.find((item) => item.id === businessId && item.ownerUserId === userId);
+    },
+    getBusinessCustomers(businessId: string) {
+      return this.businessCustomers.filter((customer) => customer.businessId === businessId);
+    },
+    getBusinessCashEvents(businessId: string) {
+      return this.businessCashEvents.filter((event) => event.businessId === businessId);
+    },
+    async createBusiness(userId: string, input: { name: string; sector: string; cashBalance?: number }) {
+      const created = {
+        id: `business-${this.businesses.length + 1}`,
+        ownerUserId: userId,
+        name: input.name,
+        sector: input.sector,
+        cashBalance: input.cashBalance ?? 0
+      };
+      this.businesses.push(created);
+      return created;
+    },
+    async addBusinessCustomer(businessId: string, input: Omit<BusinessCustomer, "id" | "businessId">) {
+      const created = {
+        id: `cus-${this.businessCustomers.length + 1}`,
+        businessId,
+        ...input
+      };
+      this.businessCustomers.push(created);
+      return created;
+    },
+    async addBusinessCashEvent(businessId: string, input: Omit<BusinessCashEvent, "id" | "businessId">) {
+      const created = {
+        id: `be-${this.businessCashEvents.length + 1}`,
+        businessId,
+        ...input
+      };
+      this.businessCashEvents.push(created);
+      return created;
     },
     getPersonalData(userId: string) {
       return {

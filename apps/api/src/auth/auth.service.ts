@@ -30,7 +30,7 @@ export class AuthService {
   }
 
   async login(input: { email: string; password: string }) {
-    const user = await this.store.findUserByEmail(input.email);
+    const user = await this.store.findUserByEmail(this.normalizeLoginIdentifier(input.email));
     if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
       throw new UnauthorizedException("E-posta veya şifre hatalı.");
     }
@@ -87,5 +87,9 @@ export class AuthService {
         googleReady: Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET)
       }
     };
+  }
+
+  private normalizeLoginIdentifier(identifier: string) {
+    return identifier.trim().toLocaleLowerCase("tr-TR") === "admin" ? "admin@local.dev" : identifier;
   }
 }

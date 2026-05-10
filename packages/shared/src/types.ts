@@ -2,7 +2,9 @@ export type Currency = "TRY" | "USD" | "EUR";
 
 export type InvestmentAssetType = "stock" | "forex" | "gold" | "commodity" | "crypto" | "fund" | "cash" | "other";
 
-export type MarketDataSource = "twelve_data" | "fallback";
+export type MarketDataSource = "twelve_data" | "user" | "unavailable";
+
+export type MarketSymbolSource = "twelve_data" | "local";
 
 export type TransactionType = "income" | "expense";
 
@@ -46,7 +48,7 @@ export interface MarketSymbolResult {
   exchange?: string;
   micCode?: string;
   country?: string;
-  source: MarketDataSource;
+  source: MarketSymbolSource;
 }
 
 export interface InvestmentHoldingCreateRequest {
@@ -96,6 +98,8 @@ export interface InvestmentQuote {
 
 export interface InvestmentPosition extends InvestmentHolding {
   quote: InvestmentQuote;
+  isPriced: boolean;
+  marketDataMessage?: string;
   marketValue: number;
   marketValueTry: number;
   costBasis: number;
@@ -114,6 +118,11 @@ export interface InvestmentPortfolioSummary {
   totalProfitLossPercent: number;
   totalDailyInterestTry: number;
   projectedEndOfDayValueTry: number;
+  pricedPositionCount: number;
+  unpricedPositionCount: number;
+  unpricedCostTry: number;
+  hasMarketDataGap: boolean;
+  marketDataMessages: string[];
   allocation: Array<{ assetType: InvestmentAssetType; label: string; valueTry: number; weight: number }>;
   provider: "Twelve Data";
   refreshedAt: string;
@@ -354,6 +363,12 @@ export interface Business {
   cashBalance: number;
 }
 
+export interface BusinessCreateRequest {
+  name: string;
+  sector: string;
+  cashBalance?: number;
+}
+
 export interface BusinessCustomer {
   id: string;
   businessId: string;
@@ -364,9 +379,24 @@ export interface BusinessCustomer {
   outstandingAmount: number;
 }
 
+export interface BusinessCustomerCreateRequest {
+  name: string;
+  averageDelayDays?: number;
+  invoicesPaid?: number;
+  invoicesLate?: number;
+  outstandingAmount?: number;
+}
+
 export interface BusinessCashEvent {
   id: string;
   businessId: string;
+  title: string;
+  amount: number;
+  type: "inflow" | "outflow";
+  dueAt: string;
+}
+
+export interface BusinessCashEventCreateRequest {
   title: string;
   amount: number;
   type: "inflow" | "outflow";

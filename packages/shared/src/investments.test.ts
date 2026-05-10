@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { calculateInvestmentPortfolio, createInvestmentHolding, fallbackQuotes, suggestInvestmentSymbols } from "./investments.js";
+import { calculateInvestmentPortfolio, createInvestmentHolding, suggestInvestmentSymbols } from "./investments.js";
+import type { InvestmentQuote } from "./types.js";
+
+const marketQuotes: InvestmentQuote[] = [
+  liveQuote("XAG/USD", 28.4, "USD", "Silver Spot / US Dollar"),
+  liveQuote("USD/TRY", 32.4, "TRY", "US Dollar / Turkish Lira")
+];
 
 describe("investment portfolio engine", () => {
   it("values holdings and calculates profit/loss in TRY", () => {
@@ -12,8 +18,9 @@ describe("investment portfolio engine", () => {
       costCurrency: "USD",
       marketCurrency: "USD"
     });
-    const portfolio = calculateInvestmentPortfolio([holding], fallbackQuotes);
+    const portfolio = calculateInvestmentPortfolio([holding], marketQuotes);
 
+    expect(portfolio.positions[0]?.isPriced).toBe(true);
     expect(portfolio.positions[0]?.marketValueTry).toBeGreaterThan(0);
     expect(portfolio.totalMarketValueTry).toBeGreaterThan(portfolio.totalCostTry);
     expect(portfolio.allocation[0]?.assetType).toBe("commodity");
@@ -34,11 +41,44 @@ describe("investment portfolio engine", () => {
       annualInterestRate: 10
     });
 
-    const portfolio = calculateInvestmentPortfolio([holding], fallbackQuotes);
+    const portfolio = calculateInvestmentPortfolio([holding], []);
 
     expect(holding.symbol).toBe("CASH_TRY");
+    expect(portfolio.positions[0]?.isPriced).toBe(true);
     expect(portfolio.totalDailyInterestTry).toBe(10);
     expect(portfolio.projectedEndOfDayValueTry).toBe(36510);
     expect(portfolio.positions[0]?.assetType).toBe("cash");
   });
+
+  it("does not calculate market value or profit/loss from missing prices", () => {
+    const holding = createInvestmentHolding({
+      symbol: "THYAO",
+      name: "Turk Hava Yollari",
+      assetType: "stock",
+      quantity: 10,
+      averageCost: 100,
+      costCurrency: "TRY",
+      marketCurrency: "TRY"
+    });
+
+    const portfolio = calculateInvestmentPortfolio([holding], []);
+
+    expect(portfolio.positions[0]?.isPriced).toBe(false);
+    expect(portfolio.totalMarketValueTry).toBe(0);
+    expect(portfolio.totalProfitLossTry).toBe(0);
+    expect(portfolio.hasMarketDataGap).toBe(true);
+    expect(portfolio.warning).toContain("piyasa verisi alinamadi");
+  });
 });
+
+function liveQuote(symbol: string, price: number, currency: string, name: string): InvestmentQuote {
+  return {
+    symbol,
+    name,
+    price,
+    currency,
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    source: "twelve_data",
+    isStale: false
+  };
+}

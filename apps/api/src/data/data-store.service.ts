@@ -6,7 +6,10 @@ import type {
   Budget,
   Business,
   BusinessCashEvent,
+  BusinessCashEventCreateRequest,
+  BusinessCreateRequest,
   BusinessCustomer,
+  BusinessCustomerCreateRequest,
   Category,
   Currency,
   Goal,
@@ -87,6 +90,55 @@ export class DataStoreService implements OnModuleInit {
   getBusinessCashEvents(businessId: string) {
     this.assertReady();
     return this.businessCashEvents.filter((event) => event.businessId === businessId);
+  }
+
+  async createBusiness(userId: string, input: BusinessCreateRequest) {
+    this.assertReady();
+    const created = await this.prisma.business.create({
+      data: {
+        ownerId: userId,
+        name: input.name,
+        sector: input.sector,
+        cashBalance: input.cashBalance ?? 0
+      }
+    });
+    const mapped = this.mapBusiness(created);
+    this.businesses.push(mapped);
+    return mapped;
+  }
+
+  async addBusinessCustomer(businessId: string, input: BusinessCustomerCreateRequest) {
+    this.assertReady();
+    const created = await this.prisma.businessCustomer.create({
+      data: {
+        businessId,
+        name: input.name,
+        averageDelayDays: input.averageDelayDays ?? 0,
+        invoicesPaid: input.invoicesPaid ?? 0,
+        invoicesLate: input.invoicesLate ?? 0,
+        outstandingAmount: input.outstandingAmount ?? 0
+      }
+    });
+    const mapped = this.mapBusinessCustomer(created);
+    this.businessCustomers.push(mapped);
+    return mapped;
+  }
+
+  async addBusinessCashEvent(businessId: string, input: BusinessCashEventCreateRequest) {
+    this.assertReady();
+    const created = await this.prisma.businessCashEvent.create({
+      data: {
+        businessId,
+        title: input.title,
+        amount: input.amount,
+        type: input.type,
+        dueAt: new Date(input.dueAt)
+      }
+    });
+    const mapped = this.mapBusinessCashEvent(created);
+    this.businessCashEvents.push(mapped);
+    this.businessCashEvents.sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+    return mapped;
   }
 
   defaultAccountIdFor(userId: string, paymentMethod: Transaction["paymentMethod"]) {
@@ -375,30 +427,9 @@ export class DataStoreService implements OnModuleInit {
     this.transactions = storedTransactions.map((transaction) => this.mapTransaction(transaction));
     this.actions = storedActions.map((action) => this.mapAction(action));
     this.investmentHoldings = holdings.map((holding) => this.mapInvestmentHolding(holding));
-    this.businesses = businesses.map((business) => ({
-      id: business.id,
-      ownerUserId: business.ownerId,
-      name: business.name,
-      sector: business.sector,
-      cashBalance: Number(business.cashBalance)
-    }));
-    this.businessCustomers = customers.map((customer) => ({
-      id: customer.id,
-      businessId: customer.businessId,
-      name: customer.name,
-      averageDelayDays: customer.averageDelayDays,
-      invoicesPaid: customer.invoicesPaid,
-      invoicesLate: customer.invoicesLate,
-      outstandingAmount: Number(customer.outstandingAmount)
-    }));
-    this.businessCashEvents = cashEvents.map((event) => ({
-      id: event.id,
-      businessId: event.businessId,
-      title: event.title,
-      amount: Number(event.amount),
-      type: event.type as BusinessCashEvent["type"],
-      dueAt: this.dateOnly(event.dueAt)
-    }));
+    this.businesses = businesses.map((business) => this.mapBusiness(business));
+    this.businessCustomers = customers.map((customer) => this.mapBusinessCustomer(customer));
+    this.businessCashEvents = cashEvents.map((event) => this.mapBusinessCashEvent(event));
     this.fcmTokens = fcmTokens.map((token) => ({
       userId: token.userId,
       token: token.token,
@@ -511,6 +542,54 @@ export class DataStoreService implements OnModuleInit {
       annualInterestRate: holding.annualInterestRate === null ? undefined : Number(holding.annualInterestRate),
       createdAt: holding.createdAt.toISOString(),
       updatedAt: holding.updatedAt.toISOString()
+    };
+  }
+
+  private mapBusiness(business: { id: string; ownerId: string; name: string; sector: string; cashBalance: unknown }): Business {
+    return {
+      id: business.id,
+      ownerUserId: business.ownerId,
+      name: business.name,
+      sector: business.sector,
+      cashBalance: Number(business.cashBalance)
+    };
+  }
+
+  private mapBusinessCustomer(customer: {
+    id: string;
+    businessId: string;
+    name: string;
+    averageDelayDays: number;
+    invoicesPaid: number;
+    invoicesLate: number;
+    outstandingAmount: unknown;
+  }): BusinessCustomer {
+    return {
+      id: customer.id,
+      businessId: customer.businessId,
+      name: customer.name,
+      averageDelayDays: customer.averageDelayDays,
+      invoicesPaid: customer.invoicesPaid,
+      invoicesLate: customer.invoicesLate,
+      outstandingAmount: Number(customer.outstandingAmount)
+    };
+  }
+
+  private mapBusinessCashEvent(event: {
+    id: string;
+    businessId: string;
+    title: string;
+    amount: unknown;
+    type: string;
+    dueAt: Date;
+  }): BusinessCashEvent {
+    return {
+      id: event.id,
+      businessId: event.businessId,
+      title: event.title,
+      amount: Number(event.amount),
+      type: event.type as BusinessCashEvent["type"],
+      dueAt: this.dateOnly(event.dueAt)
     };
   }
 

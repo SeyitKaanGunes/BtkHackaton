@@ -25,55 +25,55 @@ export const assetTypeLabels: Record<InvestmentAssetType, string> = {
 };
 
 export const investmentSymbolPresets: MarketSymbolResult[] = [
-  { symbol: "THYAO", name: "Turk Hava Yollari", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "ASELS", name: "Aselsan", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "GARAN", name: "Garanti BBVA", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "BIMAS", name: "BIM Magazalar", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "KCHOL", name: "Koc Holding", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "AKBNK", name: "Akbank", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "YKBNK", name: "Yapi ve Kredi Bankasi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "ISCTR", name: "Turkiye Is Bankasi C", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "SAHOL", name: "Sabanci Holding", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "TUPRS", name: "Tupras", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "FROTO", name: "Ford Otosan", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "TOASO", name: "Tofas Oto Fabrika", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "EREGL", name: "Eregli Demir Celik", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "SISE", name: "Turkiye Sise ve Cam Fabrikalari", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "KOZAL", name: "Koza Altin", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "PETKM", name: "Petkim", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "PGSUS", name: "Pegasus Hava Tasimaciligi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "TCELL", name: "Turkcell", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "TTKOM", name: "Turk Telekom", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "ENKAI", name: "Enka Insaat", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "ARCLK", name: "Arcelik", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "VESTL", name: "Vestel", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "MGROS", name: "Migros Ticaret", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "ULKER", name: "Ulker Biskuvi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "SASA", name: "Sasa Polyester", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "HEKTS", name: "Hektas", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "GUBRF", name: "Gubre Fabrikalari", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "ASTOR", name: "Astor Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "CWENE", name: "CW Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "MIATK", name: "Mia Teknoloji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "TAVHL", name: "TAV Havalimanlari", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "DOAS", name: "Dogus Otomotiv", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "CCOLA", name: "Coca Cola Icecek", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "AEFES", name: "Anadolu Efes", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "OYAKC", name: "Oyak Cimento", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "KONTR", name: "Kontrolmatik Teknoloji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "SMRTG", name: "Smart Gunes Enerjisi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "EKGYO", name: "Emlak Konut GYO", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "ENJSA", name: "Enerjisa Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "AKSEN", name: "Aksa Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "fallback" },
-  { symbol: "USD/TRY", name: "US Dollar / Turkish Lira", assetType: "forex", currency: "TRY", source: "fallback" },
-  { symbol: "EUR/TRY", name: "Euro / Turkish Lira", assetType: "forex", currency: "TRY", source: "fallback" },
-  { symbol: "XAU_GRAM_TRY", name: "Gram Gold / Turkish Lira", assetType: "gold", currency: "TRY", source: "fallback" },
-  { symbol: "XAU/USD", name: "Gold Spot / US Dollar", assetType: "gold", currency: "USD", source: "fallback" },
-  { symbol: "XAG/USD", name: "Silver Spot / US Dollar", assetType: "commodity", currency: "USD", source: "fallback" },
-  { symbol: "BTC/USD", name: "Bitcoin / US Dollar", assetType: "crypto", currency: "USD", source: "fallback" },
-  { symbol: "CASH_TRY", name: "Nakit / Mevduat TRY", assetType: "cash", currency: "TRY", source: "fallback" },
-  { symbol: "CASH_USD", name: "Nakit / Mevduat USD", assetType: "cash", currency: "USD", source: "fallback" },
-  { symbol: "CASH_EUR", name: "Nakit / Mevduat EUR", assetType: "cash", currency: "EUR", source: "fallback" }
+  { symbol: "THYAO", name: "Turk Hava Yollari", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "ASELS", name: "Aselsan", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "GARAN", name: "Garanti BBVA", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "BIMAS", name: "BIM Magazalar", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "KCHOL", name: "Koc Holding", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "AKBNK", name: "Akbank", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "YKBNK", name: "Yapi ve Kredi Bankasi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "ISCTR", name: "Turkiye Is Bankasi C", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "SAHOL", name: "Sabanci Holding", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "TUPRS", name: "Tupras", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "FROTO", name: "Ford Otosan", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "TOASO", name: "Tofas Oto Fabrika", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "EREGL", name: "Eregli Demir Celik", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "SISE", name: "Turkiye Sise ve Cam Fabrikalari", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "KOZAL", name: "Koza Altin", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "PETKM", name: "Petkim", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "PGSUS", name: "Pegasus Hava Tasimaciligi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "TCELL", name: "Turkcell", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "TTKOM", name: "Turk Telekom", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "ENKAI", name: "Enka Insaat", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "ARCLK", name: "Arcelik", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "VESTL", name: "Vestel", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "MGROS", name: "Migros Ticaret", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "ULKER", name: "Ulker Biskuvi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "SASA", name: "Sasa Polyester", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "HEKTS", name: "Hektas", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "GUBRF", name: "Gubre Fabrikalari", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "ASTOR", name: "Astor Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "CWENE", name: "CW Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "MIATK", name: "Mia Teknoloji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "TAVHL", name: "TAV Havalimanlari", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "DOAS", name: "Dogus Otomotiv", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "CCOLA", name: "Coca Cola Icecek", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "AEFES", name: "Anadolu Efes", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "OYAKC", name: "Oyak Cimento", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "KONTR", name: "Kontrolmatik Teknoloji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "SMRTG", name: "Smart Gunes Enerjisi", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "EKGYO", name: "Emlak Konut GYO", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "ENJSA", name: "Enerjisa Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "AKSEN", name: "Aksa Enerji", assetType: "stock", currency: "TRY", exchange: "BIST", micCode: "XIST", country: "Turkey", source: "local" },
+  { symbol: "USD/TRY", name: "US Dollar / Turkish Lira", assetType: "forex", currency: "TRY", source: "local" },
+  { symbol: "EUR/TRY", name: "Euro / Turkish Lira", assetType: "forex", currency: "TRY", source: "local" },
+  { symbol: "XAU_GRAM_TRY", name: "Gram Gold / Turkish Lira", assetType: "gold", currency: "TRY", source: "local" },
+  { symbol: "XAU/USD", name: "Gold Spot / US Dollar", assetType: "gold", currency: "USD", source: "local" },
+  { symbol: "XAG/USD", name: "Silver Spot / US Dollar", assetType: "commodity", currency: "USD", source: "local" },
+  { symbol: "BTC/USD", name: "Bitcoin / US Dollar", assetType: "crypto", currency: "USD", source: "local" },
+  { symbol: "CASH_TRY", name: "Nakit / Mevduat TRY", assetType: "cash", currency: "TRY", source: "local" },
+  { symbol: "CASH_USD", name: "Nakit / Mevduat USD", assetType: "cash", currency: "USD", source: "local" },
+  { symbol: "CASH_EUR", name: "Nakit / Mevduat EUR", assetType: "cash", currency: "EUR", source: "local" }
 ];
 
 export const demoInvestmentHoldings: InvestmentHolding[] = [
@@ -107,23 +107,6 @@ export const demoInvestmentHoldings: InvestmentHolding[] = [
     marketCurrency: "TRY",
     annualInterestRate: 42
   })
-];
-
-export const fallbackQuotes: InvestmentQuote[] = [
-  quote("THYAO", 318.75, "TRY", 1.9, "Turk Hava Yollari"),
-  quote("ASELS", 164.3, "TRY", -0.4, "Aselsan"),
-  quote("GARAN", 91.85, "TRY", 0.8, "Garanti BBVA"),
-  quote("BIMAS", 526.5, "TRY", 0.35, "BIM Magazalar"),
-  quote("KCHOL", 196.2, "TRY", -0.25, "Koc Holding"),
-  quote("USD/TRY", 32.4, "TRY", 0.1, "US Dollar / Turkish Lira"),
-  quote("EUR/TRY", 34.9, "TRY", 0.15, "Euro / Turkish Lira"),
-  quote("XAU_GRAM_TRY", 2465, "TRY", 0.55, "Gram Gold / Turkish Lira"),
-  quote("XAU/USD", 2365, "USD", 0.35, "Gold Spot / US Dollar"),
-  quote("XAG/USD", 28.4, "USD", 0.45, "Silver Spot / US Dollar"),
-  quote("BTC/USD", 64200, "USD", 1.2, "Bitcoin / US Dollar"),
-  quote("CASH_TRY", 1, "TRY", 0, "Nakit / Mevduat TRY"),
-  quote("CASH_USD", 1, "USD", 0, "Nakit / Mevduat USD"),
-  quote("CASH_EUR", 1, "EUR", 0, "Nakit / Mevduat EUR")
 ];
 
 export function createInvestmentHolding(input: InvestmentHoldingCreateRequest, now = new Date().toISOString()): InvestmentHolding {
@@ -187,28 +170,37 @@ export function calculateInvestmentPortfolio(
   refreshedAt = new Date().toISOString()
 ): InvestmentPortfolioSummary {
   const quoteMap = new Map(quotes.map((item) => [item.symbol.toUpperCase(), item]));
-  const usdTry = quoteMap.get("USD/TRY")?.price ?? 32.4;
-  const eurTry = quoteMap.get("EUR/TRY")?.price ?? 34.9;
-  const convertToTry = (amount: number, currency?: string) => {
+  const fxRateToTry = (currency?: string) => {
     const normalized = normalizeCurrency(currency) ?? "TRY";
-    if (normalized === "USD") return amount * usdTry;
-    if (normalized === "EUR") return amount * eurTry;
-    return amount;
+    if (normalized === "TRY") return 1;
+    const quote = quoteMap.get(`${normalized}/TRY`);
+    if (!quote || !hasTrustedPrice(quote) || quote.price <= 0) return undefined;
+    return quote.price;
+  };
+  const convertToTry = (amount: number, currency?: string) => {
+    const rate = fxRateToTry(currency);
+    return rate === undefined ? undefined : amount * rate;
   };
 
   const positions = holdings.map((holding) => {
-    const quote = quoteMap.get(holding.symbol.toUpperCase()) ?? fallbackQuoteFor(holding);
+    const quote = quoteMap.get(holding.symbol.toUpperCase()) ?? (isCashSymbol(holding.symbol) ? cashQuoteFor(holding) : unavailableQuoteFor(holding));
     const marketValue = holding.quantity * quote.price;
     const costBasis = holding.quantity * holding.averageCost;
-    const marketValueTry = convertToTry(marketValue, quote.currency);
-    const costBasisTry = convertToTry(costBasis, holding.costCurrency);
-    const profitLossTry = marketValueTry - costBasisTry;
-    const profitLossPercent = costBasisTry > 0 ? (profitLossTry / costBasisTry) * 100 : 0;
-    const dailyInterestTry = roundMoney((marketValueTry * (holding.annualInterestRate ?? 0)) / 100 / 365);
+    const marketValueTryValue = hasTrustedPrice(quote) ? convertToTry(marketValue, quote.currency) : undefined;
+    const costBasisTryValue = convertToTry(costBasis, holding.costCurrency);
+    const marketDataMessage = marketDataGapMessage(holding, quote, marketValueTryValue, costBasisTryValue);
+    const isPriced = marketDataMessage === undefined;
+    const marketValueTry = isPriced ? roundMoney(marketValueTryValue ?? 0) : 0;
+    const costBasisTry = roundMoney(costBasisTryValue ?? 0);
+    const profitLossTry = isPriced ? roundMoney(marketValueTry - costBasisTry) : 0;
+    const profitLossPercent = isPriced && costBasisTry > 0 ? roundPercent((profitLossTry / costBasisTry) * 100) : 0;
+    const dailyInterestTry = isPriced ? roundMoney((marketValueTry * (holding.annualInterestRate ?? 0)) / 100 / 365) : 0;
     const projectedEndOfDayValueTry = roundMoney(marketValueTry + dailyInterestTry);
     return {
       ...holding,
       quote,
+      isPriced,
+      marketDataMessage,
       marketValue,
       marketValueTry,
       costBasis,
@@ -222,13 +214,18 @@ export function calculateInvestmentPortfolio(
 
   const totalMarketValueTry = roundMoney(positions.reduce((total, item) => total + item.marketValueTry, 0));
   const totalCostTry = roundMoney(positions.reduce((total, item) => total + item.costBasisTry, 0));
-  const totalProfitLossTry = roundMoney(totalMarketValueTry - totalCostTry);
-  const totalProfitLossPercent = totalCostTry > 0 ? roundPercent((totalProfitLossTry / totalCostTry) * 100) : 0;
+  const pricedPositions = positions.filter((item) => item.isPriced);
+  const pricedCostTry = roundMoney(pricedPositions.reduce((total, item) => total + item.costBasisTry, 0));
+  const totalProfitLossTry = roundMoney(pricedPositions.reduce((total, item) => total + item.profitLossTry, 0));
+  const totalProfitLossPercent = pricedCostTry > 0 ? roundPercent((totalProfitLossTry / pricedCostTry) * 100) : 0;
   const totalDailyInterestTry = roundMoney(positions.reduce((total, item) => total + item.dailyInterestTry, 0));
   const projectedEndOfDayValueTry = roundMoney(totalMarketValueTry + totalDailyInterestTry);
+  const unpricedPositionCount = positions.length - pricedPositions.length;
+  const unpricedCostTry = roundMoney(positions.filter((item) => !item.isPriced).reduce((total, item) => total + item.costBasisTry, 0));
+  const marketDataMessages = positions.filter((item) => !item.isPriced).map((item) => `${item.symbol}: ${item.marketDataMessage ?? "Piyasa verisi alinamadi."}`);
   const allocation = Object.entries(assetTypeLabels)
     .map(([assetType, label]) => {
-      const valueTry = roundMoney(positions.filter((item) => item.assetType === assetType).reduce((total, item) => total + item.marketValueTry, 0));
+      const valueTry = roundMoney(pricedPositions.filter((item) => item.assetType === assetType).reduce((total, item) => total + item.marketValueTry, 0));
       return {
         assetType: assetType as InvestmentAssetType,
         label,
@@ -246,23 +243,52 @@ export function calculateInvestmentPortfolio(
     totalProfitLossPercent,
     totalDailyInterestTry,
     projectedEndOfDayValueTry,
+    pricedPositionCount: pricedPositions.length,
+    unpricedPositionCount,
+    unpricedCostTry,
+    hasMarketDataGap: unpricedPositionCount > 0,
+    marketDataMessages,
     allocation,
     provider: "Twelve Data",
     refreshedAt,
     cacheTtlHours: INVESTMENT_CACHE_TTL_HOURS,
-    warning: quotes.some((item) => item.source === "fallback") ? "Bazi fiyatlar demo/fallback veriyle hesaplandi." : undefined
+    warning:
+      unpricedPositionCount > 0
+        ? `${unpricedPositionCount} pozisyon icin piyasa verisi alinamadi; toplam deger ve kar/zarar sadece fiyatlanan pozisyonlari icerir.`
+        : undefined
   };
 }
 
-export function demoInvestmentPortfolio(): InvestmentPortfolioSummary {
-  return calculateInvestmentPortfolio(demoInvestmentHoldings, fallbackQuotes);
+export function cashQuoteFor(holding: Pick<InvestmentHolding, "symbol" | "name" | "marketCurrency">): InvestmentQuote {
+  return {
+    symbol: holding.symbol.toUpperCase(),
+    name: holding.name,
+    price: 1,
+    currency: normalizeCurrency(holding.marketCurrency) ?? cashCurrencyFromSymbol(holding.symbol) ?? "TRY",
+    change: 0,
+    percentChange: 0,
+    previousClose: 1,
+    updatedAt: new Date().toISOString(),
+    source: "user",
+    isStale: false,
+    message: "User-entered cash balance"
+  };
 }
 
-export function fallbackQuoteFor(holding: Pick<InvestmentHolding, "symbol" | "name" | "marketCurrency">): InvestmentQuote {
-  if (isCashSymbol(holding.symbol)) {
-    return quote(holding.symbol, 1, normalizeCurrency(holding.marketCurrency) ?? cashCurrencyFromSymbol(holding.symbol) ?? "TRY", 0, holding.name);
-  }
-  return fallbackQuotes.find((item) => item.symbol.toUpperCase() === holding.symbol.toUpperCase()) ?? quote(holding.symbol, 0, holding.marketCurrency ?? "TRY", 0, holding.name);
+export function unavailableQuoteFor(
+  holding: Pick<InvestmentHolding, "symbol" | "name" | "marketCurrency">,
+  message = "Piyasa verisi alinamadi."
+): InvestmentQuote {
+  return {
+    symbol: holding.symbol.toUpperCase(),
+    name: holding.name,
+    price: 0,
+    currency: normalizeCurrency(holding.marketCurrency) ?? "TRY",
+    updatedAt: new Date().toISOString(),
+    source: "unavailable",
+    isStale: true,
+    message
+  };
 }
 
 export function isCashSymbol(symbol?: string): boolean {
@@ -292,22 +318,20 @@ function sanitizeAnnualInterestRate(value?: number): number | undefined {
   return roundPercent(rate);
 }
 
-function quote(symbol: string, price: number, currency: string, percentChange: number, name: string): InvestmentQuote {
-  const now = new Date().toISOString();
-  const previousClose = price / (1 + percentChange / 100);
-  return {
-    symbol,
-    name,
-    price,
-    currency,
-    change: roundMoney(price - previousClose),
-    percentChange,
-    previousClose: roundMoney(previousClose),
-    updatedAt: now,
-    source: "fallback",
-    isStale: true,
-    message: "Fallback price"
-  };
+function hasTrustedPrice(quote: InvestmentQuote): boolean {
+  return (quote.source === "twelve_data" || quote.source === "user") && quote.price > 0;
+}
+
+function marketDataGapMessage(
+  holding: InvestmentHolding,
+  quote: InvestmentQuote,
+  marketValueTry: number | undefined,
+  costBasisTry: number | undefined
+): string | undefined {
+  if (!hasTrustedPrice(quote)) return quote.message ?? "Piyasa verisi alinamadi.";
+  if (marketValueTry === undefined) return `${quote.currency} kuru alinamadi.`;
+  if (costBasisTry === undefined) return `${holding.costCurrency} maliyet kuru alinamadi.`;
+  return undefined;
 }
 
 export function deriveGramGoldTry(ounceGoldUsd: number, usdTry: number): number {

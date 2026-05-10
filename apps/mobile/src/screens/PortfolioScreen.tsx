@@ -51,7 +51,7 @@ export function PortfolioScreen() {
 
   const sourceLabel = useMemo(() => {
     if (!portfolio) return "Twelve Data";
-    return portfolio.positions.some((item) => item.quote.source === "fallback") ? "Twelve Data + fallback" : "Twelve Data";
+    return portfolio.hasMarketDataGap ? "Piyasa verisi eksik" : "Twelve Data";
   }, [portfolio]);
 
   async function addHolding() {
@@ -120,12 +120,13 @@ export function PortfolioScreen() {
         </View>
         <KV k="Maliyet" v={formatTry(portfolio.totalCostTry)} />
         <KV
-          k="Kar / zarar"
+          k={portfolio.hasMarketDataGap ? "Kar / zarar (fiyatli)" : "Kar / zarar"}
           v={`${portfolio.totalProfitLossTry >= 0 ? "+" : ""}${formatTry(portfolio.totalProfitLossTry)} (%${formatNumber(portfolio.totalProfitLossPercent)})`}
           vTone={portfolio.totalProfitLossTry >= 0 ? "accent" : "danger"}
         />
         <KV k="Gunluk faiz" v={formatTry(portfolio.totalDailyInterestTry)} vTone={portfolio.totalDailyInterestTry > 0 ? "accent" : undefined} />
         <KV k="Gun sonu toplam" v={formatTry(portfolio.projectedEndOfDayValueTry)} />
+        {portfolio.warning ? <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>{portfolio.warning}</Text> : null}
         <Muted>Piyasa fiyatlari backend cache ile gunde bir yenilenir. Nakit ve mevduat pozisyonlari gunluk faiz projeksiyonuna dahil edilir.</Muted>
       </Card>
 
@@ -287,15 +288,25 @@ export function PortfolioScreen() {
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
                 <MiniStat label="Adet" value={formatNumber(position.quantity)} />
-                <MiniStat label="Son" value={`${formatNumber(position.quote.price)} ${position.quote.currency}`} />
-                <MiniStat label="Deger" value={formatTry(position.marketValueTry)} />
+                <MiniStat label="Son" value={position.isPriced ? `${formatNumber(position.quote.price)} ${position.quote.currency}` : "Alinamadi"} />
+                <MiniStat label="Deger" value={position.isPriced ? formatTry(position.marketValueTry) : "-"} />
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                {position.dailyInterestTry > 0 ? <TrendingUp color={p.accent} size={16} /> : isUp ? <TrendingUp color={p.accent} size={16} /> : <TrendingDown color={p.danger} size={16} />}
-                <Text style={{ color: isUp ? p.accent : p.danger, fontWeight: "900", fontSize: 13 }}>
-                  {position.dailyInterestTry > 0
-                    ? `+${formatTry(position.dailyInterestTry)} gunluk faiz`
-                    : `${isUp ? "+" : ""}${formatTry(position.profitLossTry)} (%${formatNumber(position.profitLossPercent)})`}
+                {position.isPriced ? (
+                  position.dailyInterestTry > 0 ? (
+                    <TrendingUp color={p.accent} size={16} />
+                  ) : isUp ? (
+                    <TrendingUp color={p.accent} size={16} />
+                  ) : (
+                    <TrendingDown color={p.danger} size={16} />
+                  )
+                ) : null}
+                <Text style={{ color: position.isPriced ? (isUp ? p.accent : p.danger) : p.muted, fontWeight: "900", fontSize: 13, flex: 1 }}>
+                  {position.isPriced
+                    ? position.dailyInterestTry > 0
+                      ? `+${formatTry(position.dailyInterestTry)} gunluk faiz`
+                      : `${isUp ? "+" : ""}${formatTry(position.profitLossTry)} (%${formatNumber(position.profitLossPercent)})`
+                    : position.marketDataMessage ?? "Piyasa verisi alinamadi."}
                 </Text>
               </View>
             </View>

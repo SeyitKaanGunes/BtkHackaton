@@ -27,6 +27,9 @@ import {
 import type {
   ActionItem,
   AgentResponse,
+  AiCfoSimulation,
+  Business,
+  BusinessCustomer,
   BusinessDashboard,
   CollectionScore,
   DashboardSummary,
@@ -36,7 +39,7 @@ import type {
   SubscriptionLeak,
   WhatIfResponse
 } from "@fintwin/shared";
-import { hasAuthToken, loadBusiness, loadMobileHome, login, register, sendAgentMessage, setAuthToken, type AuthUserProfile } from "./src/api";
+import { hasAuthToken, loadBusiness, loadMobileHome, login, register, sendAgentMessage, setAuthToken, simulateBusinessDecision, type AuthUserProfile } from "./src/api";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
 import { ScanScreen } from "./src/screens/ScanScreen";
 import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles } from "./src/ui";
@@ -761,13 +764,15 @@ function AgentResult({ response }: { response: AgentResponse }) {
   );
 }
 
-function BusinessScreen({ dashboard, scores }: { dashboard: BusinessDashboard; scores: CollectionScore[] }) {
+function BusinessScreen({ business, dashboard, customers, scores }: BusinessData) {
+  const net30Days = dashboard.projected30Days - dashboard.cashBalance;
+  const projectionBars = projectionBarHeights(dashboard);
   return (
     <>
       <ScreenHeader
-        eyebrow="KOBİ · İşletme ikizi"
-        title="AI CFO Lite"
-        subtitle="Nakit akışı, projeksiyon ve tahsilat skorları eğitim amaçlıdır."
+        eyebrow={`KOBİ · ${business.sector}`}
+        title={business.name}
+        subtitle="Nakit akışı, projeksiyon ve tahsilat skorları oturum kullanıcısının işletme kayıtlarından okunur."
         right={<Building2 size={28} color={palette.primary} />}
       />
       <Panel style={localStyles.cfoHero}>
@@ -775,19 +780,19 @@ function BusinessScreen({ dashboard, scores }: { dashboard: BusinessDashboard; s
           <View>
             <Text style={localStyles.balanceLabel}>Kasa</Text>
             <Mono style={localStyles.cfoCash}>{money(dashboard.cashBalance)}</Mono>
-            <Text style={localStyles.cfoDelta}>12.400 ₺ · son 7 gün</Text>
+            <Text style={localStyles.cfoDelta}>{signedMoney(net30Days)} · 30 gün net etki</Text>
           </View>
           <Badge label={`Likidite: ${riskLabel(dashboard.liquidityRisk)}`} tone={dashboard.liquidityRisk === "low" ? "teal" : "warn"} />
         </View>
         <View style={localStyles.sparkline}>
-          {[34, 48, 42, 64, 54, 71, 58].map((height, index) => (
+          {projectionBars.map((height, index) => (
             <View key={index} style={[localStyles.sparkBar, { height }]} />
           ))}
         </View>
         <View style={styles.rowBetween}>
-          {["Mar", "Nis", "May", "Haz", "Tem"].map((month) => (
-            <Text style={localStyles.sparkLabel} key={month}>
-              {month}
+          {["Bugün", "30g", "60g", "90g"].map((label) => (
+            <Text style={localStyles.sparkLabel} key={label}>
+              {label}
             </Text>
           ))}
         </View>
@@ -804,8 +809,8 @@ function BusinessScreen({ dashboard, scores }: { dashboard: BusinessDashboard; s
       </Panel>
 
       <CashEvents dashboard={dashboard} />
-      <CollectionScores scores={scores} />
-      <AiCfoSimulation dashboard={dashboard} />
+      <CollectionScores customers={customers} scores={scores} />
+      <AiCfoSimulationPanel business={business} dashboard={dashboard} />
     </>
   );
 }
@@ -825,11 +830,11 @@ function CashEvents({ dashboard }: { dashboard: BusinessDashboard }) {
       ))}
       <View style={styles.divider} />
       <SectionTitle title="Beklenen tahsilatlar" />
-      {dashboard.expectedCollections.map((event, index) => (
+      {dashboard.expectedCollections.map((event) => (
         <View style={localStyles.cashRow} key={event.id}>
           <View style={localStyles.alertCopy}>
-            <Text style={localStyles.cardTitle}>{index === 0 ? "Northwind Inc." : "Atlas Perakende"}</Text>
-            <Text style={styles.bodyMuted}>{event.dueAt} · ödeme skoru {index === 0 ? "78" : "32"}/100</Text>
+            <Text style={localStyles.cardTitle}>{event.title}</Text>
+            <Text style={styles.bodyMuted}>{event.dueAt}</Text>
           </View>
           <Mono style={localStyles.positiveValue}>+ {money(event.amount)}</Mono>
         </View>
@@ -838,19 +843,20 @@ function CashEvents({ dashboard }: { dashboard: BusinessDashboard }) {
   );
 }
 
-function CollectionScores({ scores }: { scores: CollectionScore[] }) {
+function CollectionScores({ customers, scores }: { customers: BusinessCustomer[]; scores: CollectionScore[] }) {
   return (
     <Panel>
       <SectionTitle title="Tahsilat skorları" meta="müşteri ödeme davranışı" />
       {scores.map((score) => {
-        const name = score.customerId === "cus-2" ? "Atlas Perakende" : "Mavi Lojistik";
+        const customer = customers.find((item) => item.id === score.customerId);
+        const name = customer?.name ?? score.customerId;
         return (
           <View style={localStyles.collectionCard} key={score.customerId}>
             <View style={styles.rowBetween}>
               <View style={localStyles.alertCopy}>
                 <Text style={localStyles.cardTitle}>{name}</Text>
                 <Text style={styles.bodyMuted}>
-                  {riskLabel(score.riskLevel)} · {score.riskLevel === "critical" ? "37" : "12"} gün gecikme
+                  {riskLabel(score.riskLevel)} · {customer?.averageDelayDays ?? 0} gün ortalama gecikme
                 </Text>
               </View>
               <Mono style={[localStyles.collectionScore, { color: score.riskLevel === "critical" ? palette.danger : palette.warn }]}>
@@ -870,22 +876,43 @@ function CollectionScores({ scores }: { scores: CollectionScore[] }) {
   );
 }
 
-function AiCfoSimulation({ dashboard }: { dashboard: BusinessDashboard }) {
+function AiCfoSimulationPanel({ business, dashboard }: { business: Business; dashboard: BusinessDashboard }) {
+  const [amount, setAmount] = useState("75000");
+  const [result, setResult] = useState<AiCfoSimulation | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const parsedAmount = parseMoneyInput(amount);
+
+  async function runSimulation() {
+    if (parsedAmount <= 0) {
+      setError("Simülasyon için pozitif bir tutar gir.");
+      return;
+    }
+    setPending(true);
+    setError(null);
+    try {
+      setResult(await simulateBusinessDecision(business.id, { amount: parsedAmount, decision: "Mobil CFO simülasyonu" }));
+    } catch (simulateError) {
+      setError(simulateError instanceof Error ? simulateError.message : "Simülasyon çalıştırılamadı.");
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <Panel>
       <SectionTitle title="Kararı simüle et" meta="ikiz CFO önerisi" />
       <View style={localStyles.simInput}>
         <Text style={styles.bodyMuted}>Yeni yatırım tutarı:</Text>
-        <Mono style={localStyles.simAmount}>75.000 ₺</Mono>
+        <TextInput value={amount} onChangeText={setAmount} keyboardType="numeric" style={localStyles.simAmountInput} />
       </View>
       <View style={styles.metricGrid}>
-        <MiniFact label="30 gün sonrası" value={money(dashboard.projected30Days - 75000)} />
-        <MiniFact label="Likidite" value={riskLabel(dashboard.liquidityRisk)} />
+        <MiniFact label="30 gün sonrası" value={money(dashboard.projected30Days - parsedAmount)} />
+        <MiniFact label="Likidite" value={result ? riskLabel(result.riskLevel) : riskLabel(dashboard.liquidityRisk)} />
       </View>
-      <Text style={styles.body}>
-        İkiz CFO: Bu tutar, 30 gün projeksiyonunu sağlıklı şekilde karşılar. Onaylanabilir taslak hazırlayayım mı?
-      </Text>
-      <Button label="Aksiyon taslağı oluştur" icon={<FileScan size={15} color={palette.surface} />} />
+      {result ? <Text style={styles.body}>İkiz CFO: {result.summary} {result.recommendedPlan}</Text> : null}
+      {error ? <Text style={localStyles.authError}>{error}</Text> : null}
+      <Button label={pending ? "Hesaplanıyor" : "Simülasyonu çalıştır"} icon={<FileScan size={15} color={palette.surface} />} onPress={() => void runSimulation()} disabled={pending} />
     </Panel>
   );
 }
@@ -920,6 +947,23 @@ function LoadError({ message }: { message: string }) {
 
 function money(value: number) {
   return `${Math.round(value).toLocaleString("tr-TR")} ₺`;
+}
+
+function signedMoney(value: number) {
+  return `${value >= 0 ? "+" : "−"} ${money(Math.abs(value))}`;
+}
+
+function parseMoneyInput(value: string) {
+  const parsed = Number(value.replace(/\D/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function projectionBarHeights(dashboard: BusinessDashboard) {
+  const values = [dashboard.cashBalance, dashboard.projected30Days, dashboard.projected60Days, dashboard.projected90Days];
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const spread = Math.max(max - min, 1);
+  return values.map((value) => 28 + Math.round(((value - min) / spread) * 52));
 }
 
 function formatShortDate(value: string) {
@@ -1449,10 +1493,11 @@ const localStyles = StyleSheet.create({
     gap: 6,
     backgroundColor: "#FBFCFA"
   },
-  simAmount: {
+  simAmountInput: {
     color: palette.ink,
     fontSize: 22,
-    fontWeight: "900"
+    fontWeight: "900",
+    paddingVertical: 0
   },
   loading: {
     minHeight: 360,

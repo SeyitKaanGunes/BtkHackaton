@@ -18,7 +18,7 @@ class RegisterDto {
 }
 
 class LoginDto {
-  @IsEmail()
+  @IsString()
   email!: string;
 
   @IsString()

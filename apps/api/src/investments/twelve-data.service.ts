@@ -2,8 +2,8 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
   calculateInvestmentPortfolio,
+  cashQuoteFor,
   deriveGramGoldTry,
-  fallbackQuoteFor,
   inferAssetType,
   INVESTMENT_CACHE_TTL_HOURS,
   normalizeSearchText,
@@ -12,6 +12,7 @@ import {
   scoreSymbolMatch,
   suggestInvestmentSymbols,
   symbolSearchText,
+  unavailableQuoteFor,
   type InvestmentHolding,
   type InvestmentPortfolioSummary,
   type InvestmentQuote,
@@ -74,13 +75,13 @@ export class TwelveDataService {
 
   async getQuote(holding: Pick<InvestmentHolding, "symbol" | "name" | "exchange" | "micCode" | "marketCurrency">): Promise<InvestmentQuote> {
     const symbol = holding.symbol.toUpperCase();
-    if (symbol.startsWith("CASH_")) return fallbackQuoteFor(holding);
+    if (symbol.startsWith("CASH_")) return cashQuoteFor(holding);
     const cacheKey = `${symbol}:${holding.exchange ?? ""}:${holding.micCode ?? ""}`;
     const cached = this.getCached(this.quoteCache, cacheKey);
     if (cached) return cached;
 
     const quote = symbol === "XAU_GRAM_TRY" ? await this.getGramGoldTryQuote() : await this.fetchQuote(holding);
-    this.setCached(this.quoteCache, cacheKey, quote);
+    if (quote.source !== "unavailable") this.setCached(this.quoteCache, cacheKey, quote);
     return quote;
   }
 
@@ -89,10 +90,10 @@ export class TwelveDataService {
     const needsUsd = baseQuotes.some((quote) => normalizeCurrency(quote.currency) === "USD") || holdings.some((holding) => holding.costCurrency === "USD");
     const needsEur = baseQuotes.some((quote) => normalizeCurrency(quote.currency) === "EUR") || holdings.some((holding) => holding.costCurrency === "EUR");
     const fxQuotes: InvestmentQuote[] = [];
-    if (needsUsd || !baseQuotes.some((quote) => quote.symbol === "USD/TRY")) {
+    if (needsUsd && !baseQuotes.some((quote) => quote.symbol === "USD/TRY")) {
       fxQuotes.push(await this.getQuote({ symbol: "USD/TRY", name: "US Dollar / Turkish Lira", marketCurrency: "TRY" }));
     }
-    if (needsEur) {
+    if (needsEur && !baseQuotes.some((quote) => quote.symbol === "EUR/TRY")) {
       fxQuotes.push(await this.getQuote({ symbol: "EUR/TRY", name: "Euro / Turkish Lira", marketCurrency: "TRY" }));
     }
     return this.mergeQuotes([...baseQuotes, ...fxQuotes]);
@@ -103,6 +104,13 @@ export class TwelveDataService {
       this.getQuote({ symbol: "XAU/USD", name: "Gold Spot / US Dollar", marketCurrency: "USD" }),
       this.getQuote({ symbol: "USD/TRY", name: "US Dollar / Turkish Lira", marketCurrency: "TRY" })
     ]);
+    if (gold.source !== "twelve_data" || usdTry.source !== "twelve_data" || gold.price <= 0 || usdTry.price <= 0) {
+      const reasons = [gold.message, usdTry.message].filter(Boolean).join(" ");
+      return unavailableQuoteFor(
+        { symbol: "XAU_GRAM_TRY", name: "Gram Gold / Turkish Lira", marketCurrency: "TRY" },
+        reasons || "XAU/USD ve USD/TRY fiyatlari alinamadigi icin gram altin hesaplanamadi."
+      );
+    }
     const price = deriveGramGoldTry(gold.price, usdTry.price);
     const percentChange = roundMoney(((gold.percentChange ?? 0) + (usdTry.percentChange ?? 0)) / 2);
     return {
@@ -114,7 +122,7 @@ export class TwelveDataService {
       percentChange,
       previousClose: percentChange ? roundMoney(price / (1 + percentChange / 100)) : undefined,
       updatedAt: new Date().toISOString(),
-      source: gold.source === "twelve_data" || usdTry.source === "twelve_data" ? "twelve_data" : "fallback",
+      source: "twelve_data",
       isStale: gold.isStale || usdTry.isStale,
       message: "Derived from XAU/USD and USD/TRY"
     };
@@ -122,8 +130,7 @@ export class TwelveDataService {
 
   private async fetchQuote(holding: Pick<InvestmentHolding, "symbol" | "name" | "exchange" | "micCode" | "marketCurrency">): Promise<InvestmentQuote> {
     const key = this.apiKey();
-    const fallback = fallbackQuoteFor(holding);
-    if (!key) return { ...fallback, message: "TWELVE_DATA_API_KEY is not configured" };
+    if (!key) return unavailableQuoteFor(holding, "TWELVE_DATA_API_KEY is not configured");
 
     const remote = await this.fetchJson(
       this.url("/quote", {
@@ -135,19 +142,19 @@ export class TwelveDataService {
     );
 
     if (!remote || this.hasError(remote)) {
-      return { ...fallback, message: this.errorMessage(remote) ?? "Twelve Data quote unavailable" };
+      return unavailableQuoteFor(holding, this.errorMessage(remote) ?? "Twelve Data quote unavailable");
     }
 
     const record = remote as Record<string, unknown>;
     const price = this.numberValue(record.close) ?? this.numberValue(record.price) ?? this.numberValue(record.previous_close);
-    if (!price) return { ...fallback, message: "Twelve Data quote did not include a price" };
+    if (!price) return unavailableQuoteFor(holding, "Twelve Data quote did not include a price");
 
-    const currency = String(record.currency ?? holding.marketCurrency ?? this.currencyFromSymbol(holding.symbol) ?? fallback.currency);
+    const currency = String(record.currency ?? holding.marketCurrency ?? this.currencyFromSymbol(holding.symbol) ?? "TRY");
     const updatedAt = typeof record.datetime === "string" ? this.toIsoDate(record.datetime) : new Date().toISOString();
     const percentChange = this.numberValue(record.percent_change);
     return {
       symbol: holding.symbol.toUpperCase(),
-      name: String(record.name ?? holding.name ?? fallback.name ?? holding.symbol),
+      name: String(record.name ?? holding.name ?? holding.symbol),
       price,
       currency,
       change: this.numberValue(record.change),
@@ -199,8 +206,8 @@ export class TwelveDataService {
     const data = this.arrayFromResponse<TwelveDataSymbol>(remote)
       .map((item) => this.mapSymbol(item))
       .filter((item): item is MarketSymbolResult => Boolean(item && item.assetType === "stock" && item.exchange === "BIST"));
-    const fallback = suggestInvestmentSymbols("", 60).filter((item) => item.exchange === "BIST");
-    const catalog = this.mergeSymbols([...data, ...fallback]);
+    const localCatalog = suggestInvestmentSymbols("", 60).filter((item) => item.exchange === "BIST");
+    const catalog = this.mergeSymbols([...data, ...localCatalog]);
     this.setCached(this.catalogCache, "bist", catalog);
     return catalog;
   }

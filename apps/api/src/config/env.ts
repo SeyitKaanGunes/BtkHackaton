@@ -3,6 +3,7 @@ import type { ConfigService } from "@nestjs/config";
 const localCorsOrigins = [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/];
 const localJwtSecret = "fintwin-local-dev-secret";
 const jwtPlaceholderValues = new Set(["replace-with-a-local-development-secret", "replace-with-a-production-secret"]);
+const twelveDataPlaceholderValues = new Set(["your-twelve-data-api-key", "replace-with-a-twelve-data-api-key", "replace-with-production-twelve-data-api-key"]);
 
 type EnvRecord = Record<string, unknown>;
 
@@ -18,7 +19,9 @@ export function validateApiEnvironment(config: EnvRecord) {
     requireEnv(env, "API_CORS_ORIGINS");
     requireEnv(env, "JWT_SECRET");
     requireEnv(env, "QWEN_API_KEY");
+    requireEnv(env, "TWELVE_DATA_API_KEY");
     validateProductionJwtSecret(env.JWT_SECRET);
+    validateProductionTwelveDataKey(env.TWELVE_DATA_API_KEY);
   }
 
   return config;
@@ -98,5 +101,13 @@ function validateProductionJwtSecret(secret: string | undefined) {
   if (!secret?.trim()) throw new Error("JWT_SECRET is required when NODE_ENV=production.");
   if (jwtPlaceholderValues.has(secret) || secret === localJwtSecret || secret.length < 32) {
     throw new Error("JWT_SECRET must be a non-placeholder value with at least 32 characters in production.");
+  }
+}
+
+function validateProductionTwelveDataKey(key: string | undefined) {
+  const value = key?.trim().toLowerCase();
+  if (!value) throw new Error("TWELVE_DATA_API_KEY is required when NODE_ENV=production.");
+  if (twelveDataPlaceholderValues.has(value)) {
+    throw new Error("TWELVE_DATA_API_KEY must be a real Twelve Data API key in production.");
   }
 }
