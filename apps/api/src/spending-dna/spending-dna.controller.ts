@@ -1,5 +1,5 @@
-import { Controller, Get, Inject, UseGuards } from "@nestjs/common";
-import { calculateSpendingDna } from "@fintwin/shared";
+import { Controller, Get, Inject, Query, UseGuards } from "@nestjs/common";
+import { calculateSpendingDna, type DashboardPeriodOptions } from "@fintwin/shared";
 import type { AuthUser } from "../auth/auth-user.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
@@ -11,8 +11,8 @@ export class SpendingDnaController {
   constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
 
   @Get()
-  get(@CurrentUser() user: AuthUser) {
+  get(@CurrentUser() user: AuthUser, @Query() query: DashboardPeriodOptions) {
     const data = this.store.getPersonalData(user.id);
-    return { ...calculateSpendingDna(data.transactions, data.budgets), userId: user.id };
+    return { ...calculateSpendingDna(data.transactions, data.budgets, query), userId: user.id };
   }
 }

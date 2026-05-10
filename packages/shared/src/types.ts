@@ -10,6 +10,13 @@ export type TransactionType = "income" | "expense";
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 
+export type DashboardPeriod = "daily" | "weekly" | "monthly" | "yearly";
+
+export interface DashboardPeriodOptions {
+  period?: DashboardPeriod | string;
+  referenceDate?: string;
+}
+
 export type ActionStatus = "pending" | "approved" | "dismissed";
 
 export type ActionType =
@@ -319,8 +326,10 @@ export interface WhatIfResponse {
 }
 
 export interface DashboardSummary {
-  period: string;
+  period: DashboardPeriod;
   periodLabel: string;
+  periodStart: string;
+  periodEnd: string;
   income: number;
   expenses: number;
   balance: number;

@@ -32,6 +32,7 @@ import type {
   BusinessCustomer,
   BusinessDashboard,
   CollectionScore,
+  DashboardPeriod,
   DashboardSummary,
   Goal,
   ScenarioCard,
@@ -49,6 +50,18 @@ type HomeData = Awaited<ReturnType<typeof loadMobileHome>>;
 type BusinessData = Awaited<ReturnType<typeof loadBusiness>>;
 
 const defaultQuestion = "Bugün 10.000 ₺ teknoloji harcaması yaparsam ne olur?";
+const dashboardPeriods: Array<{ value: DashboardPeriod; label: string }> = [
+  { value: "daily", label: "Günlük" },
+  { value: "weekly", label: "Haftalık" },
+  { value: "monthly", label: "Aylık" },
+  { value: "yearly", label: "Yıllık" }
+];
+const periodNetCaptions: Record<DashboardPeriod, string> = {
+  daily: "günlük net durum",
+  weekly: "haftalık net durum",
+  monthly: "aylık net durum",
+  yearly: "yıllık net durum"
+};
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(() => hasAuthToken());
@@ -58,13 +71,18 @@ export default function App() {
   const [agentOpen, setAgentOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [period, setPeriod] = useState<DashboardPeriod>("monthly");
 
   useEffect(() => {
     if (!authenticated) return;
     setLoadError(null);
-    void loadMobileHome().then(setHome).catch((error) => setLoadError(error instanceof Error ? error.message : "Veri yüklenemedi."));
-    void loadBusiness().then(setBusiness).catch((error) => setLoadError(error instanceof Error ? error.message : "Veri yüklenemedi."));
-  }, [authenticated, refreshTick]);
+    void loadMobileHome({ period })
+      .then((data) => {
+        setHome(data);
+        setBusiness(data.businessOverview);
+      })
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Veri yüklenemedi."));
+  }, [authenticated, period, refreshTick]);
 
   if (!authenticated) {
     return <AuthScreen onAuthenticated={() => setAuthenticated(true)} />;
@@ -74,7 +92,21 @@ export default function App() {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={palette.bg} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {tab === "home" && (home ? <HomeScreen {...home} onImported={() => setRefreshTick((value) => value + 1)} /> : loadError ? <LoadError message={loadError} /> : <Loading />)}
+        {tab === "home" &&
+          (home ? (
+            <HomeScreen
+              {...home}
+              activePeriod={period}
+              onPeriodChange={setPeriod}
+              onOpenPortfolio={() => setTab("portfolio")}
+              onOpenBusiness={() => setTab("business")}
+              onImported={() => setRefreshTick((value) => value + 1)}
+            />
+          ) : loadError ? (
+            <LoadError message={loadError} />
+          ) : (
+            <Loading />
+          ))}
         {tab === "portfolio" && <PortfolioScreen />}
         {tab === "business" && (business ? <BusinessScreen {...business} /> : loadError ? <LoadError message={loadError} /> : <Loading />)}
       </ScrollView>
@@ -266,6 +298,12 @@ function HomeScreen({
   campaign,
   leaks,
   simulation,
+  investmentPortfolio,
+  businessOverview,
+  activePeriod,
+  onPeriodChange,
+  onOpenPortfolio,
+  onOpenBusiness,
   onImported
 }: {
   user: AuthUserProfile;
@@ -274,6 +312,12 @@ function HomeScreen({
   campaign: HomeData["campaign"];
   leaks: SubscriptionLeak[];
   simulation: WhatIfResponse;
+  investmentPortfolio: HomeData["investmentPortfolio"];
+  businessOverview: HomeData["businessOverview"];
+  activePeriod: DashboardPeriod;
+  onPeriodChange: (period: DashboardPeriod) => void;
+  onOpenPortfolio: () => void;
+  onOpenBusiness: () => void;
   onImported: () => void;
 }) {
   const monthlyLeak = leaks.reduce((total, leak) => total + leak.monthlyImpact, 0);
@@ -290,6 +334,7 @@ function HomeScreen({
   return (
     <>
       <FinancialHero user={user} dashboard={dashboard} simulation={simulation} hasFinancialData={hasFinancialData} />
+      <PeriodSwitcher activePeriod={activePeriod} periodLabel={dashboard.periodLabel} onChange={onPeriodChange} />
 
       <View style={styles.metricGrid}>
         <MetricCard
@@ -303,27 +348,33 @@ function HomeScreen({
           icon={<ReceiptText size={18} color={palette.warn} />}
           label="Gider"
           value={money(dashboard.expenses)}
-          caption="sabit + kart"
+          caption={dashboard.periodLabel}
           tone="warn"
         />
         <MetricCard
           icon={<Target size={18} color={palette.teal} />}
-          label="Tasarruf"
-          value={`%${dashboard.savingsRate}`}
-          caption={`hedef %35 · kampanya skoru ${campaign.score}`}
+          label="Bakiye"
+          value={money(dashboard.balance)}
+          caption={periodNetCaptions[dashboard.period]}
           tone="teal"
         />
         <MetricCard
           icon={<ShieldAlert size={18} color={palette.danger} />}
           label="Güvenli limit"
-          value={hasFinancialData ? money(simulation.safeLimit) : "Beklemede"}
-          caption={primaryRiskCategory?.categoryName ?? "veri bekleniyor"}
+          value={hasFinancialData ? money(campaign.safeLimit) : "Beklemede"}
+          caption={hasFinancialData ? `kampanya skoru ${campaign.score}` : primaryRiskCategory?.categoryName ?? "veri bekleniyor"}
           tone="danger"
         />
       </View>
 
+      <ModuleOverviewCards
+        investmentPortfolio={investmentPortfolio}
+        businessOverview={businessOverview}
+        onOpenPortfolio={onOpenPortfolio}
+        onOpenBusiness={onOpenBusiness}
+      />
       <RiskAlerts alerts={dashboard.riskAlerts} monthlyLeak={monthlyLeak} leaks={leaks} />
-      <SpendingDnaCard dna={dna} />
+      <SpendingDnaCard dna={dna} periodLabel={dashboard.periodLabel} />
       <CategoryRiskList dna={dna} periodLabel={dashboard.periodLabel} />
       <GoalsSection goals={dashboard.goals} />
       <ActionCenter actions={dashboard.upcomingActions} />
@@ -331,6 +382,40 @@ function HomeScreen({
       <WhatIfPreview simulation={simulation} />
       <SubscriptionHunter leaks={leaks} />
     </>
+  );
+}
+
+function PeriodSwitcher({
+  activePeriod,
+  periodLabel,
+  onChange
+}: {
+  activePeriod: DashboardPeriod;
+  periodLabel: string;
+  onChange: (period: DashboardPeriod) => void;
+}) {
+  return (
+    <Panel style={localStyles.periodPanel}>
+      <View style={localStyles.periodHeader}>
+        <SectionTitle title="Dönem" meta={periodLabel} />
+      </View>
+      <View style={localStyles.periodControl}>
+        {dashboardPeriods.map((option) => {
+          const active = option.value === activePeriod;
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              style={[localStyles.periodButton, active && localStyles.periodButtonActive]}
+              onPress={() => onChange(option.value)}
+            >
+              <Text style={[localStyles.periodButtonText, active && localStyles.periodButtonTextActive]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </Panel>
   );
 }
 
@@ -372,6 +457,53 @@ function FinancialHero({
           <Mono style={localStyles.balanceValue}>{money(monthEnd)}</Mono>
         </View>
       </View>
+    </Panel>
+  );
+}
+
+function ModuleOverviewCards({
+  investmentPortfolio,
+  businessOverview,
+  onOpenPortfolio,
+  onOpenBusiness
+}: {
+  investmentPortfolio: HomeData["investmentPortfolio"];
+  businessOverview: HomeData["businessOverview"];
+  onOpenPortfolio: () => void;
+  onOpenBusiness: () => void;
+}) {
+  const profitTone = investmentPortfolio.totalProfitLossTry >= 0 ? palette.success : palette.danger;
+
+  return (
+    <Panel>
+      <SectionTitle title="Modüller" meta="kalıcı kayıtlar" />
+      <Pressable accessibilityRole="button" style={localStyles.moduleCard} onPress={onOpenPortfolio}>
+        <View style={localStyles.moduleIcon}>
+          <Landmark size={20} color={palette.primary} />
+        </View>
+        <View style={localStyles.alertCopy}>
+          <Text style={localStyles.cardTitle}>Yatırım Portföyü</Text>
+          <Mono style={localStyles.moduleValue}>{money(investmentPortfolio.totalMarketValueTry)}</Mono>
+          <Text style={styles.bodyMuted}>
+            {investmentPortfolio.positions.length} varlık · <Text style={{ color: profitTone }}>%{Math.round(investmentPortfolio.totalProfitLossPercent)}</Text>
+          </Text>
+        </View>
+        <ChevronRight size={18} color={palette.ink} />
+      </Pressable>
+
+      <Pressable accessibilityRole="button" style={localStyles.moduleCard} onPress={onOpenBusiness}>
+        <View style={localStyles.moduleIcon}>
+          <BriefcaseBusiness size={20} color={palette.primary} />
+        </View>
+        <View style={localStyles.alertCopy}>
+          <Text style={localStyles.cardTitle}>{businessOverview.business.name}</Text>
+          <Mono style={localStyles.moduleValue}>{money(businessOverview.dashboard.cashBalance)}</Mono>
+          <Text style={styles.bodyMuted}>
+            {businessOverview.business.sector} · {riskLabel(businessOverview.dashboard.liquidityRisk)}
+          </Text>
+        </View>
+        <ChevronRight size={18} color={palette.ink} />
+      </Pressable>
     </Panel>
   );
 }
@@ -440,11 +572,11 @@ function AlertCard({
   );
 }
 
-function SpendingDnaCard({ dna }: { dna: SpendingDna }) {
+function SpendingDnaCard({ dna, periodLabel }: { dna: SpendingDna; periodLabel: string }) {
   const hasSignals = dna.categories.some((category) => category.monthlySpend > 0 || category.riskScore > 0);
   return (
     <Panel>
-      <SectionTitle title="Spending DNA" meta="ikiz davranış profili" />
+      <SectionTitle title="Spending DNA" meta={periodLabel} />
       {hasSignals ? (
         <>
           <View style={localStyles.dnaGrid}>
@@ -1194,6 +1326,64 @@ const localStyles = StyleSheet.create({
     width: 1,
     alignSelf: "stretch",
     backgroundColor: "#263346"
+  },
+  periodPanel: {
+    gap: 12
+  },
+  periodHeader: {
+    marginBottom: -4
+  },
+  periodControl: {
+    flexDirection: "row",
+    gap: 6,
+    backgroundColor: palette.surface2,
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 4
+  },
+  periodButton: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 6
+  },
+  periodButtonActive: {
+    backgroundColor: palette.secondary
+  },
+  periodButtonText: {
+    color: palette.muted,
+    fontSize: 12.5,
+    fontWeight: "800"
+  },
+  periodButtonTextActive: {
+    color: palette.surface
+  },
+  moduleCard: {
+    minHeight: 86,
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FBFCFA"
+  },
+  moduleIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: palette.primarySoft
+  },
+  moduleValue: {
+    color: palette.ink,
+    fontSize: 18,
+    lineHeight: 23,
+    fontWeight: "900"
   },
   alertCard: {
     borderColor: palette.line,

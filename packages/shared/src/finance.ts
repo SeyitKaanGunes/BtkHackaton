@@ -23,6 +23,8 @@ import type {
   BusinessCashEvent,
   BusinessCustomer,
   CollectionScore,
+  DashboardPeriod,
+  DashboardPeriodOptions,
   DashboardSummary,
   Goal,
   RiskLevel,
@@ -37,6 +39,7 @@ import type {
 
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, Math.round(value)));
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
+const validDashboardPeriods = new Set<DashboardPeriod>(["daily", "weekly", "monthly", "yearly"]);
 
 const riskFromScore = (score: number): RiskLevel => {
   if (score >= 85) return "critical";
@@ -59,6 +62,71 @@ function monthLabelFromKey(key: string) {
   const [year, month] = key.split("-").map(Number);
   if (!year || !month) return key;
   return new Intl.DateTimeFormat("tr-TR", { month: "long", year: "numeric" }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
+function parseUtcDate(iso: string) {
+  const date = new Date(iso);
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function dateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addUtcDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function resolveReferenceDate(sourceTransactions: Transaction[], requested?: string) {
+  if (requested) {
+    const date = new Date(`${requested.slice(0, 10)}T00:00:00.000Z`);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  const latest = sourceTransactions.reduce((current, transaction) => (transaction.occurredAt > current ? transaction.occurredAt : current), "");
+  return latest ? parseUtcDate(latest) : parseUtcDate(new Date().toISOString());
+}
+
+function formatPeriodLabel(period: DashboardPeriod, startDate: Date, endExclusive: Date) {
+  const dateFormatter = new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "long", year: "numeric" });
+  if (period === "daily") return dateFormatter.format(startDate);
+  if (period === "weekly") {
+    const endDate = addUtcDays(endExclusive, -1);
+    return `${new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short" }).format(startDate)} - ${dateFormatter.format(endDate)}`;
+  }
+  if (period === "yearly") return new Intl.DateTimeFormat("tr-TR", { year: "numeric" }).format(startDate);
+  return monthLabelFromKey(dateKey(startDate).slice(0, 7));
+}
+
+function getPeriodRange(period: DashboardPeriod, referenceDate: Date) {
+  const startDate = new Date(Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth(), referenceDate.getUTCDate()));
+  if (period === "daily") return { startDate, endExclusive: addUtcDays(startDate, 1) };
+  if (period === "weekly") {
+    const day = startDate.getUTCDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const weekStart = addUtcDays(startDate, mondayOffset);
+    return { startDate: weekStart, endExclusive: addUtcDays(weekStart, 7) };
+  }
+  if (period === "yearly") {
+    const yearStart = new Date(Date.UTC(startDate.getUTCFullYear(), 0, 1));
+    return { startDate: yearStart, endExclusive: new Date(Date.UTC(startDate.getUTCFullYear() + 1, 0, 1)) };
+  }
+  const monthStart = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), 1));
+  return { startDate: monthStart, endExclusive: new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + 1, 1)) };
+}
+
+function periodBudgetMultiplier(period: DashboardPeriod) {
+  return {
+    daily: 1 / 30,
+    weekly: 7 / 30,
+    monthly: 1,
+    yearly: 12
+  }[period];
+}
+
+export function normalizeDashboardPeriod(period?: DashboardPeriodOptions["period"]): DashboardPeriod {
+  return typeof period === "string" && validDashboardPeriods.has(period as DashboardPeriod) ? (period as DashboardPeriod) : "monthly";
 }
 
 function positiveAmount(value: unknown) {
@@ -94,11 +162,40 @@ export function summarizeMonth(
   return { month: selectedMonth, monthTransactions, income, expenses, net: income - expenses };
 }
 
+export function summarizePeriod(
+  sourceTransactions: Transaction[] = transactions,
+  options: DashboardPeriodOptions = {}
+) {
+  const period = normalizeDashboardPeriod(options.period);
+  const referenceDate = resolveReferenceDate(sourceTransactions, options.referenceDate);
+  const { startDate, endExclusive } = getPeriodRange(period, referenceDate);
+  const periodTransactions = sourceTransactions.filter((transaction) => {
+    const transactionDate = parseUtcDate(transaction.occurredAt);
+    return transactionDate >= startDate && transactionDate < endExclusive;
+  });
+  const income = sum(periodTransactions.filter((transaction) => transaction.type === "income").map((transaction) => transaction.amount));
+  const expenses = sum(periodTransactions.filter((transaction) => transaction.type === "expense").map((transaction) => transaction.amount));
+  return {
+    period,
+    periodLabel: formatPeriodLabel(period, startDate, endExclusive),
+    periodStart: dateKey(startDate),
+    periodEnd: dateKey(addUtcDays(endExclusive, -1)),
+    periodTransactions,
+    income,
+    expenses,
+    net: income - expenses
+  };
+}
+
 export function calculateSpendingDna(
   sourceTransactions: Transaction[] = transactions,
-  sourceBudgets: Budget[] = budgets
+  sourceBudgets: Budget[] = budgets,
+  options: DashboardPeriodOptions = {}
 ): SpendingDna {
-  const expenseTransactions = sourceTransactions.filter((transaction) => transaction.type === "expense");
+  const period = normalizeDashboardPeriod(options.period);
+  const summary = summarizePeriod(sourceTransactions, { ...options, period });
+  const budgetMultiplier = periodBudgetMultiplier(period);
+  const expenseTransactions = summary.periodTransactions.filter((transaction) => transaction.type === "expense");
   if (expenseTransactions.length === 0) {
     return {
       userId: DEMO_USER_ID,
@@ -117,7 +214,8 @@ export function calculateSpendingDna(
     .map((category) => {
       const categorySpend = sum(expenseTransactions.filter((transaction) => transaction.categoryId === category.id).map((transaction) => transaction.amount));
       const budget = sourceBudgets.find((item) => item.categoryId === category.id);
-      const budgetPressure = budget ? (categorySpend / budget.monthlyLimit) * 100 : categorySpend / 100;
+      const periodLimit = budget ? budget.monthlyLimit * budgetMultiplier : undefined;
+      const budgetPressure = periodLimit ? (categorySpend / periodLimit) * 100 : categorySpend / 100;
       const campaignBoost = expenseTransactions.some((transaction) => transaction.categoryId === category.id && transaction.tags?.includes("campaign")) ? 18 : 0;
       const riskScore = clamp(budgetPressure + campaignBoost, 0, 100);
       return {
@@ -126,7 +224,7 @@ export function calculateSpendingDna(
         riskScore,
         riskLevel: riskFromScore(riskScore),
         monthlySpend: categorySpend,
-        budgetLimit: budget?.monthlyLimit
+        budgetLimit: periodLimit ? Math.round(periodLimit) : undefined
       };
     })
     .sort((a, b) => b.riskScore - a.riskScore);
@@ -140,7 +238,7 @@ export function calculateSpendingDna(
   const paydayTransactions = expenseTransactions.filter((transaction) => new Date(transaction.occurredAt).getUTCDate() >= 5 && new Date(transaction.occurredAt).getUTCDate() <= 8);
   const campaignTransactions = expenseTransactions.filter((transaction) => transaction.tags?.includes("campaign"));
   const totalExpense = Math.max(sum(expenseTransactions.map((transaction) => transaction.amount)), 1);
-  const incomeBase = Math.max(sum(sourceTransactions.filter((transaction) => transaction.type === "income").map((transaction) => transaction.amount)), totalExpense, 1);
+  const incomeBase = Math.max(summary.income, totalExpense, 1);
   const savingDiscipline = clamp(100 - (totalExpense / incomeBase) * 100 + 28);
   const topCategory = categoryRisks.find((category) => category.monthlySpend > 0);
   const paydayRatio = sum(paydayTransactions.map((transaction) => transaction.amount)) / totalExpense;
@@ -172,10 +270,11 @@ export function calculateDashboardSummary(
   sourceTransactions: Transaction[] = transactions,
   sourceGoals: Goal[] = goals,
   sourceActions: ActionItem[] = actions,
-  sourceBudgets: Budget[] = budgets
+  sourceBudgets: Budget[] = budgets,
+  options: DashboardPeriodOptions = {}
 ): DashboardSummary {
-  const summary = summarizeMonth(sourceTransactions);
-  const expenseTransactions = summary.monthTransactions.filter((transaction) => transaction.type === "expense");
+  const summary = summarizePeriod(sourceTransactions, options);
+  const expenseTransactions = summary.periodTransactions.filter((transaction) => transaction.type === "expense");
   const categoryBreakdown = categories
     .filter((category) => category.kind === "expense")
     .map((category) => ({
@@ -185,7 +284,7 @@ export function calculateDashboardSummary(
       color: category.color
     }))
     .filter((item) => item.value > 0);
-  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, options);
   const accountBalance = sum(sourceAccounts.map((account) => account.balance));
   const savingsRate = summary.income > 0 ? ((summary.income - summary.expenses) / summary.income) * 100 : 0;
   const hasFinancialActivity = sourceTransactions.length > 0 || accountBalance !== 0 || sourceGoals.length > 0 || sourceActions.length > 0;
@@ -193,8 +292,10 @@ export function calculateDashboardSummary(
   const topRiskCategory = dna.categories.find((category) => category.riskScore >= 65);
 
   return {
-    period: summary.month,
-    periodLabel: monthLabelFromKey(summary.month),
+    period: summary.period,
+    periodLabel: summary.periodLabel,
+    periodStart: summary.periodStart,
+    periodEnd: summary.periodEnd,
     income: summary.income,
     expenses: summary.expenses,
     balance: accountBalance,
@@ -207,7 +308,7 @@ export function calculateDashboardSummary(
       ? [
           {
             title: `${topRiskCategory.categoryName} bütçe riski`,
-            description: `${topRiskCategory.categoryName} kategorisi bu ay ${topRiskCategory.monthlySpend.toLocaleString("tr-TR")} TL seviyesinde.`,
+            description: `${topRiskCategory.categoryName} kategorisi seçili dönemde ${topRiskCategory.monthlySpend.toLocaleString("tr-TR")} TL seviyesinde.`,
             level: topRiskCategory.riskLevel
           }
         ]
@@ -215,8 +316,14 @@ export function calculateDashboardSummary(
   };
 }
 
-export function calculateCampaignReadiness(sourceTransactions: Transaction[] = transactions, sourceBudgets: Budget[] = budgets) {
-  const expenseTransactions = sourceTransactions.filter((transaction) => transaction.type === "expense");
+export function calculateCampaignReadiness(
+  sourceTransactions: Transaction[] = transactions,
+  sourceBudgets: Budget[] = budgets,
+  options: DashboardPeriodOptions = {}
+) {
+  const period = normalizeDashboardPeriod(options.period);
+  const summary = summarizePeriod(sourceTransactions, { ...options, period });
+  const expenseTransactions = summary.periodTransactions.filter((transaction) => transaction.type === "expense");
   if (expenseTransactions.length === 0) {
     return {
       score: 0,
@@ -226,12 +333,11 @@ export function calculateCampaignReadiness(sourceTransactions: Transaction[] = t
     };
   }
 
-  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, { ...options, period });
   const highestCategoryRisk = dna.categories[0]?.riskScore ?? 0;
   const score = clamp(100 - dna.campaignSensitivity * 0.45 - highestCategoryRisk * 0.3 + dna.savingDiscipline * 0.25);
-  const summary = summarizeMonth(sourceTransactions);
   const totalExpense = sum(expenseTransactions.map((transaction) => transaction.amount));
-  const budgetTotal = sum(sourceBudgets.map((budget) => budget.monthlyLimit));
+  const budgetTotal = sum(sourceBudgets.map((budget) => budget.monthlyLimit * periodBudgetMultiplier(period)));
   const limitBase = summary.income > 0 ? summary.income : Math.max(budgetTotal, totalExpense);
   const riskCategory = dna.categories.find((category) => category.riskScore >= 65) ?? dna.categories.find((category) => category.monthlySpend > 0);
   return {

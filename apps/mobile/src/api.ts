@@ -5,6 +5,7 @@ import type {
   BusinessCustomer,
   BusinessDashboard,
   CollectionScore,
+  DashboardPeriod,
   DashboardSummary,
   InvestmentHoldingCreateRequest,
   InvestmentPortfolioSummary,
@@ -47,6 +48,19 @@ export interface CampaignReadiness {
   riskLevel: RiskLevel;
   safeLimit: number;
   notes: string[];
+}
+
+type MobileHomeOptions = {
+  period?: DashboardPeriod;
+  referenceDate?: string;
+};
+
+export interface BusinessOverview {
+  business: Business;
+  dashboard: BusinessDashboard;
+  customers: BusinessCustomer[];
+  scores: CollectionScore[];
+  collectionScores: Array<CollectionScore & { customerName: string; outstandingAmount: number }>;
 }
 
 export class ApiRequestError extends Error {
@@ -130,26 +144,39 @@ export function getCurrentUser() {
   return request<AuthUserProfile>("/auth/me");
 }
 
-export async function loadMobileHome(): Promise<{
+function periodQuery(options: MobileHomeOptions = {}) {
+  const params = new URLSearchParams();
+  if (options.period) params.set("period", options.period);
+  if (options.referenceDate) params.set("referenceDate", options.referenceDate);
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+export async function loadMobileHome(options: MobileHomeOptions = {}): Promise<{
   user: AuthUserProfile;
   dashboard: DashboardSummary;
   dna: SpendingDna;
   campaign: CampaignReadiness;
   leaks: SubscriptionLeak[];
   simulation: WhatIfResponse;
+  investmentPortfolio: InvestmentPortfolioSummary;
+  businessOverview: BusinessOverview;
 }> {
-  const [user, dashboard, dna, campaign, leaks, simulation] = await Promise.all([
+  const query = periodQuery(options);
+  const [user, dashboard, dna, campaign, leaks, simulation, investmentPortfolio, businessOverview] = await Promise.all([
     getCurrentUser(),
-    request<DashboardSummary>("/dashboard/personal"),
-    request<SpendingDna>("/spending-dna"),
-    request<CampaignReadiness>("/campaigns/readiness"),
+    request<DashboardSummary>(`/dashboard/personal${query}`),
+    request<SpendingDna>(`/spending-dna${query}`),
+    request<CampaignReadiness>(`/campaigns/readiness${query}`),
     request<SubscriptionLeak[]>("/subscriptions/leakage"),
     request<WhatIfResponse>("/simulations/what-if", {
       method: "POST",
       body: JSON.stringify({})
-    })
+    }),
+    loadInvestmentPortfolio(),
+    loadBusinessOverview()
   ]);
-  return { user, dashboard, dna, campaign, leaks, simulation };
+  return { user, dashboard, dna, campaign, leaks, simulation, investmentPortfolio, businessOverview };
 }
 
 export function loadInvestmentPortfolio(): Promise<InvestmentPortfolioSummary> {
@@ -197,16 +224,12 @@ export function createSubscriptionReminder(input: { merchant: string; amount?: n
   return request<SubscriptionReminderResult>("/actions/subscription-reminder", { method: "POST", body: JSON.stringify(input) });
 }
 
-export async function loadBusiness(): Promise<{ business: Business; dashboard: BusinessDashboard; customers: BusinessCustomer[]; scores: CollectionScore[] }> {
-  const [business] = await request<Business[]>("/business");
-  if (!business) throw new Error("KOBI profili bulunamadi.");
+export function loadBusinessOverview(): Promise<BusinessOverview> {
+  return request<BusinessOverview>("/business/primary/overview");
+}
 
-  const [dashboard, customers] = await Promise.all([
-    request<BusinessDashboard>(`/business/${business.id}/dashboard`),
-    request<BusinessCustomer[]>(`/business/${business.id}/customers`)
-  ]);
-  const scores = await Promise.all(customers.map((customer) => request<CollectionScore>(`/business/${business.id}/customers/${customer.id}/collection-score`)));
-  return { business, dashboard, customers, scores };
+export function loadBusiness(): Promise<BusinessOverview> {
+  return loadBusinessOverview();
 }
 
 export function simulateBusinessDecision(businessId: string, input: { amount: number; decision?: string }): Promise<AiCfoSimulation> {

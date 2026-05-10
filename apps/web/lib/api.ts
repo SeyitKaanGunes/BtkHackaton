@@ -8,6 +8,7 @@ import type {
   BusinessCustomerCreateRequest,
   BusinessDashboard,
   CollectionScore,
+  DashboardPeriod,
   DashboardSummary,
   InvestmentHoldingCreateRequest,
   InvestmentPortfolioSummary,
@@ -54,6 +55,19 @@ export interface CampaignReadiness {
 
 export interface AuthOptions {
   token?: string;
+}
+
+export interface DashboardRequestOptions extends AuthOptions {
+  period?: DashboardPeriod;
+  referenceDate?: string;
+}
+
+export interface BusinessOverview {
+  business: Business;
+  dashboard: BusinessDashboard;
+  customers: BusinessCustomer[];
+  scores: CollectionScore[];
+  collectionScores: Array<CollectionScore & { customerName: string; outstandingAmount: number }>;
 }
 
 export class ApiRequestError extends Error {
@@ -130,6 +144,14 @@ async function request<T>(path: string, init?: RequestInit, options?: AuthOption
   }
 }
 
+function periodPath(path: string, options?: DashboardRequestOptions) {
+  const params = new URLSearchParams();
+  if (options?.period) params.set("period", options.period);
+  if (options?.referenceDate) params.set("referenceDate", options.referenceDate);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
 export function register(input: { name: string; email: string; password: string }) {
   return request<AuthResponse>("/auth/register", {
     method: "POST",
@@ -148,16 +170,16 @@ export function getCurrentUser(options?: AuthOptions) {
   return request<AuthUserProfile>("/auth/me", undefined, options);
 }
 
-export function getPersonalDashboard(options?: AuthOptions) {
-  return request<DashboardSummary>("/dashboard/personal", undefined, options);
+export function getPersonalDashboard(options?: DashboardRequestOptions) {
+  return request<DashboardSummary>(periodPath("/dashboard/personal", options), undefined, options);
 }
 
-export function getSpendingDna(options?: AuthOptions) {
-  return request<SpendingDna>("/spending-dna", undefined, options);
+export function getSpendingDna(options?: DashboardRequestOptions) {
+  return request<SpendingDna>(periodPath("/spending-dna", options), undefined, options);
 }
 
-export function getCampaignReadiness(options?: AuthOptions) {
-  return request<CampaignReadiness>("/campaigns/readiness", undefined, options);
+export function getCampaignReadiness(options?: DashboardRequestOptions) {
+  return request<CampaignReadiness>(periodPath("/campaigns/readiness", options), undefined, options);
 }
 
 export function getSubscriptionLeaks(options?: AuthOptions) {
@@ -206,6 +228,10 @@ export function deleteInvestmentHolding(id: string, options?: AuthOptions) {
 
 export function getBusinesses(options?: AuthOptions) {
   return request<Business[]>("/business", undefined, options);
+}
+
+export function getBusinessOverview(options?: AuthOptions) {
+  return request<BusinessOverview>("/business/primary/overview", undefined, options);
 }
 
 export function createBusiness(input: BusinessCreateRequest, options?: AuthOptions) {

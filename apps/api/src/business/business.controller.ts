@@ -32,6 +32,28 @@ export class BusinessController {
     });
   }
 
+  @Get("primary/overview")
+  primaryOverview(@CurrentUser() user: AuthUser) {
+    const business = this.primaryBusinessFor(user.id);
+    const customers = this.store.getBusinessCustomers(business.id);
+    const scores = customers.map((customer) => calculateCollectionScore(customer.id, customers));
+    const collectionScores = scores.map((score) => {
+      const customer = customers.find((item) => item.id === score.customerId);
+      return {
+        ...score,
+        customerName: customer?.name ?? score.customerId,
+        outstandingAmount: customer?.outstandingAmount ?? 0
+      };
+    });
+    return {
+      business,
+      dashboard: calculateBusinessDashboard(business.id, business, this.store.getBusinessCashEvents(business.id)),
+      customers,
+      scores,
+      collectionScores
+    };
+  }
+
   @Get(":id/dashboard")
   dashboard(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     const business = this.businessFor(user.id, id);
@@ -87,6 +109,12 @@ export class BusinessController {
 
   private businessFor(userId: string, businessId: string): Business {
     const business = this.store.getBusinessForUser(userId, businessId);
+    if (!business) throw new NotFoundException("Business not found.");
+    return business;
+  }
+
+  private primaryBusinessFor(userId: string): Business {
+    const business = this.store.getBusinessesForUser(userId)[0];
     if (!business) throw new NotFoundException("Business not found.");
     return business;
   }

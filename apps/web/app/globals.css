@@ -400,6 +400,100 @@ h1 {
   font-size: 12px;
 }
 
+.period-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.period-tabs a {
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.period-tabs a:hover {
+  transform: translateY(-1px);
+  color: var(--ink);
+}
+
+.period-tabs a.active {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.module-card {
+  min-height: 104px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition:
+    border-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.module-card:hover {
+  border-color: rgba(17, 24, 39, 0.22);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+}
+
+.module-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.module-card span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.module-card small,
+.module-card em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.module-card strong {
+  color: var(--ink);
+  font-size: 21px;
+  line-height: 1.12;
+}
+
 .chart-grid,
 .split-layout {
   display: grid;
@@ -1196,6 +1290,7 @@ h1 {
   .workspace-header,
   .auth-panel,
   .chart-grid,
+  .module-grid,
   .portfolio-grid,
   .split-layout,
   .business-form,
@@ -1228,7 +1323,9 @@ h1 {
   }
 
   .metric-grid,
+  .period-tabs,
   .portfolio-summary,
+  .module-grid,
   .allocation-strip,
   .form-grid,
   .business-form,

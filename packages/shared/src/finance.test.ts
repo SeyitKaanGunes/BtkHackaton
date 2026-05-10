@@ -27,6 +27,15 @@ describe("Fintwin finance engines", () => {
     expect(dna.patterns[0]).toContain("Harcama verisi");
   });
 
+  it("filters dashboard summaries by selected period", () => {
+    const daily = calculateDashboardSummary(undefined, undefined, undefined, undefined, undefined, { period: "daily", referenceDate: "2026-05-08" });
+    const monthly = calculateDashboardSummary(undefined, undefined, undefined, undefined, undefined, { period: "monthly", referenceDate: "2026-05-08" });
+    expect(daily.period).toBe("daily");
+    expect(daily.periodStart).toBe("2026-05-08");
+    expect(monthly.period).toBe("monthly");
+    expect(monthly.expenses).toBeGreaterThanOrEqual(daily.expenses);
+  });
+
   it("builds Spending DNA category risks", () => {
     const dna = calculateSpendingDna();
     expect(dna.categories[0]?.riskScore).toBeGreaterThan(0);

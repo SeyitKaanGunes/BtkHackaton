@@ -1,21 +1,45 @@
 import type { CSSProperties } from "react";
-import { AlertTriangle, Bell, Brain, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
+import type { DashboardPeriod } from "@fintwin/shared";
+import { AlertTriangle, Bell, Brain, BriefcaseBusiness, Landmark, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
 import { AppShell } from "../components/app-shell";
 import { SpendingCharts } from "../components/dashboard-charts";
-import { getCampaignReadiness, getPersonalDashboard, getSpendingDna, getSubscriptionLeaks, getWhatIf } from "../lib/api";
+import { getBusinessOverview, getCampaignReadiness, getInvestmentPortfolio, getPersonalDashboard, getSpendingDna, getSubscriptionLeaks, getWhatIf } from "../lib/api";
 import { requireAuthSession } from "../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams?: Promise<{ period?: string }>;
+};
+
+const dashboardPeriodOptions: Array<{ value: DashboardPeriod; label: string }> = [
+  { value: "daily", label: "Günlük" },
+  { value: "weekly", label: "Haftalık" },
+  { value: "monthly", label: "Aylık" },
+  { value: "yearly", label: "Yıllık" }
+];
+
+const periodNetCaptions: Record<DashboardPeriod, string> = {
+  daily: "günlük net",
+  weekly: "haftalık net",
+  monthly: "aylık net",
+  yearly: "yıllık net"
+};
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const { token, user } = await requireAuthSession();
+  const params = await searchParams;
+  const period = parseDashboardPeriod(params?.period);
+  const dataOptions = { token, period };
   const todayLabel = new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "2-digit", month: "long" }).format(new Date());
-  const [dashboard, dna, campaign, leaks, whatIf] = await Promise.all([
-    getPersonalDashboard({ token }),
-    getSpendingDna({ token }),
-    getCampaignReadiness({ token }),
+  const [dashboard, dna, campaign, leaks, whatIf, portfolio, businessOverview] = await Promise.all([
+    getPersonalDashboard(dataOptions),
+    getSpendingDna(dataOptions),
+    getCampaignReadiness(dataOptions),
     getSubscriptionLeaks({ token }),
-    getWhatIf({ token })
+    getWhatIf({ token }),
+    getInvestmentPortfolio({ token }).catch(() => null),
+    getBusinessOverview({ token }).catch(() => null)
   ]);
   const hasFinancialData =
     dashboard.income > 0 ||
@@ -28,7 +52,7 @@ export default async function DashboardPage() {
   const hasActionData = dashboard.upcomingActions.length > 0;
   const hasRiskData = dashboard.riskAlerts.length > 0 || leaks.length > 0;
   const healthTitle = hasFinancialData ? healthLabel(dashboard.financialHealthScore) : "Veri bekleniyor";
-  const monthLabel = dashboard.periodLabel;
+  const periodLabel = dashboard.periodLabel;
 
   return (
     <AppShell active="/">
@@ -43,6 +67,8 @@ export default async function DashboardPage() {
           </p>
         </div>
       </header>
+
+      <PeriodTabs active={period} />
 
       <section className="health-card panel">
         <ScoreRing score={dashboard.financialHealthScore} />
@@ -62,15 +88,32 @@ export default async function DashboardPage() {
       </section>
 
       <section className="metric-grid">
-        <Metric icon={<WalletCards size={18} />} label="Gelir" value={`${dashboard.income.toLocaleString("tr-TR")} TL`} caption={monthLabel} tone="accent" />
-        <Metric icon={<ReceiptText size={18} />} label="Gider" value={`${dashboard.expenses.toLocaleString("tr-TR")} TL`} caption="sabit + kart" tone="warn" />
-        <Metric icon={<PiggyBank size={18} />} label="Bakiye" value={`${(dashboard.income - dashboard.expenses).toLocaleString("tr-TR")} TL`} caption="aylık net" tone="success" />
+        <Metric icon={<WalletCards size={18} />} label="Gelir" value={`${dashboard.income.toLocaleString("tr-TR")} TL`} caption={periodLabel} tone="accent" />
+        <Metric icon={<ReceiptText size={18} />} label="Gider" value={`${dashboard.expenses.toLocaleString("tr-TR")} TL`} caption={periodLabel} tone="warn" />
+        <Metric icon={<PiggyBank size={18} />} label="Bakiye" value={`${dashboard.balance.toLocaleString("tr-TR")} TL`} caption={periodNetCaptions[dashboard.period]} tone="success" />
         <Metric
           icon={<ShieldAlert size={18} />}
           label="Güvenli limit"
-          value={hasFinancialData ? `${whatIf.safeLimit.toLocaleString("tr-TR")} TL` : "Beklemede"}
+          value={hasFinancialData ? `${campaign.safeLimit.toLocaleString("tr-TR")} TL` : "Beklemede"}
           caption={hasFinancialData ? `kampanya skoru ${campaign.score}` : "veri bekleniyor"}
           tone="danger"
+        />
+      </section>
+
+      <section className="module-grid">
+        <ModuleCard
+          href="/portfolio"
+          icon={<Landmark size={20} />}
+          label="Yatırım Portföyü"
+          value={portfolio ? `${portfolio.totalMarketValueTry.toLocaleString("tr-TR")} TL` : "Bağlantı bekleniyor"}
+          caption={portfolio ? `${portfolio.positions.length} varlık · %${Math.round(portfolio.totalProfitLossPercent)}` : "Portföy ekranına git"}
+        />
+        <ModuleCard
+          href="/business"
+          icon={<BriefcaseBusiness size={20} />}
+          label={businessOverview?.business.name ?? "KOBİ Modülü"}
+          value={businessOverview ? `${businessOverview.dashboard.cashBalance.toLocaleString("tr-TR")} TL` : "İşletme bekleniyor"}
+          caption={businessOverview ? `${businessOverview.business.sector} · ${riskTitle(businessOverview.dashboard.liquidityRisk)}` : "KOBİ ekranına git"}
         />
       </section>
 
@@ -185,6 +228,35 @@ function healthLabel(score: number) {
   if (score >= 60) return "Dengeli seviye";
   if (score >= 40) return "İzleme gerekli";
   return "Riskli seviye";
+}
+
+function parseDashboardPeriod(value: string | undefined): DashboardPeriod {
+  return dashboardPeriodOptions.some((option) => option.value === value) ? (value as DashboardPeriod) : "monthly";
+}
+
+function PeriodTabs({ active }: { active: DashboardPeriod }) {
+  return (
+    <nav className="period-tabs" aria-label="Dashboard dönemi">
+      {dashboardPeriodOptions.map((option) => (
+        <a className={option.value === active ? "active" : ""} href={`/?period=${option.value}`} key={option.value}>
+          {option.label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+function ModuleCard({ href, icon, label, value, caption }: { href: string; icon: React.ReactNode; label: string; value: string; caption: string }) {
+  return (
+    <a className="module-card" href={href}>
+      <span className="module-icon">{icon}</span>
+      <span>
+        <small>{label}</small>
+        <strong>{value}</strong>
+        <em>{caption}</em>
+      </span>
+    </a>
+  );
 }
 
 function alertTone(level: string) {
