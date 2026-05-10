@@ -13,17 +13,18 @@ export function AppShell({ children, active = "/" }: { children: React.ReactNode
     <div className="app-shell">
       <aside className="sidebar">
         <Link className="brand" href="/">
-          <span className="brand-mark">FS</span>
+          <span className="brand-mark">FT</span>
           <span>
             <strong>Fintwin</strong>
-            <small>AI Financial Twin</small>
+            <small>Decision cockpit</small>
           </span>
         </Link>
         <nav className="nav-list" aria-label="Ana navigasyon">
           {nav.map((item) => {
             const Icon = item.icon;
+            const isActive = active === item.href;
             return (
-              <Link className={active === item.href ? "nav-item active" : "nav-item"} href={item.href} key={item.href}>
+              <Link className={isActive ? "nav-item active" : "nav-item"} href={item.href} key={item.href} aria-current={isActive ? "page" : undefined}>
                 <Icon size={18} />
                 <span>{item.label}</span>
               </Link>
@@ -32,7 +33,7 @@ export function AppShell({ children, active = "/" }: { children: React.ReactNode
         </nav>
         <div className="trust-note">
           <ShieldCheck size={18} />
-          <span>Qwen/Gemini anahtarları yalnızca backend tarafında kalır.</span>
+          <span>Model anahtarları backend tarafında kalır; kararlar kullanıcı onayıyla ilerler.</span>
         </div>
       </aside>
       <main className="workspace">{children}</main>

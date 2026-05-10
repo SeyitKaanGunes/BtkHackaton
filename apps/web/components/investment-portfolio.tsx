@@ -37,12 +37,17 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
   const isCash = form.assetType === "cash";
 
   useEffect(() => {
+    const trimmedQuery = query.trim();
     if (isCash) {
       setResults([]);
       return undefined;
     }
+    if (trimmedQuery.length < 2) {
+      setResults([]);
+      return undefined;
+    }
     const handle = setTimeout(() => {
-      void searchMarketSymbols(query).then(setResults);
+      void searchMarketSymbols(trimmedQuery).then(setResults).catch(() => setResults([]));
     }, 260);
     return () => clearTimeout(handle);
   }, [isCash, query]);
@@ -198,6 +203,14 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
             />
           </div>
         </label>
+
+        {!isCash && query.trim().length < 2 ? (
+          <div className="symbol-empty">
+            <strong>Varlık araması hazır</strong>
+            <span>En az 2 karakter yaz; hisse, altın, döviz veya kripto sembolünü seç.</span>
+            <small>Örnekler: THYAO · XAU · USD/TRY</small>
+          </div>
+        ) : null}
 
         {!isCash && results.length > 0 ? (
           <div className="symbol-results">
