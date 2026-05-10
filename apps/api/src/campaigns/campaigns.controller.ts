@@ -12,6 +12,7 @@ export class CampaignsController {
 
   @Get("readiness")
   readiness(@CurrentUser() user: AuthUser) {
-    return calculateCampaignReadiness(this.store.getPersonalData(user.id).transactions);
+    const data = this.store.getPersonalData(user.id);
+    return calculateCampaignReadiness(data.transactions, data.budgets);
   }
 }

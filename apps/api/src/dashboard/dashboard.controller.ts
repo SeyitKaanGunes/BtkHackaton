@@ -13,6 +13,6 @@ export class DashboardController {
   @Get("personal")
   personal(@CurrentUser() user: AuthUser) {
     const data = this.store.getPersonalData(user.id);
-    return calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions);
+    return calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets);
   }
 }

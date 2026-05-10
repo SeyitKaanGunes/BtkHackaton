@@ -26,10 +26,7 @@ npm run dev:mobile
 
 Never commit `.env` files. Only `.env.example` files belong in git.
 
-Demo fallbacks are opt-in. Web and mobile call the API by default and surface API errors instead of silently rendering local demo data. For an offline demo, set:
-
-- `NEXT_PUBLIC_ENABLE_DEMO_FALLBACK=true`
-- `EXPO_PUBLIC_ENABLE_DEMO_FALLBACK=true`
+Demo fallbacks are disabled. Web and mobile must call the API, and the API must connect to PostgreSQL through `DATABASE_URL`/`DIRECT_URL`; missing env values should fail startup/build instead of rendering local demo data.
 
 ## Production Env
 
@@ -75,7 +72,7 @@ Market data defaults:
 - Provider: Twelve Data
 - Key env name: `TWELVE_DATA_API_KEY`
 - Portfolio API: `GET /investments/portfolio`, `GET /investments/symbols?query=THYAO`, `POST /investments/holdings`
-- Quote cache: 24 hours, with fallback demo prices when the provider is unavailable
+- Quote cache: 24 hours, with static fallback quotes when the provider is unavailable
 
 ## Product Focus
 

@@ -3,12 +3,13 @@ import { AlertTriangle, Bell, Brain, PiggyBank, ReceiptText, ShieldAlert, Wallet
 import { AppShell } from "../components/app-shell";
 import { SpendingCharts } from "../components/dashboard-charts";
 import { getCampaignReadiness, getPersonalDashboard, getSpendingDna, getSubscriptionLeaks, getWhatIf } from "../lib/api";
-import { requireAuthToken } from "../lib/server-auth";
+import { requireAuthSession } from "../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const token = await requireAuthToken();
+  const { token, user } = await requireAuthSession();
+  const todayLabel = new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "2-digit", month: "long" }).format(new Date());
   const [dashboard, dna, campaign, leaks, whatIf] = await Promise.all([
     getPersonalDashboard({ token }),
     getSpendingDna({ token }),
@@ -21,8 +22,8 @@ export default async function DashboardPage() {
     <AppShell active="/">
       <header className="workspace-header">
         <div>
-          <p className="eyebrow">Pazartesi · 09 Mayıs</p>
-          <h1>Merhaba Seyit.</h1>
+          <p className="eyebrow">{todayLabel}</p>
+          <h1>Merhaba {firstName(user.name)}.</h1>
           <p className="header-subtitle">Teknoloji harcamaların bu ay güvenli limiti aştı. Sakin bir aksiyon planı hazır.</p>
         </div>
       </header>
@@ -130,6 +131,10 @@ export default async function DashboardPage() {
       </section>
     </AppShell>
   );
+}
+
+function firstName(name: string) {
+  return name.trim().split(/\s+/)[0] || "Fintwin";
 }
 
 function ScoreRing({ score }: { score: number }) {

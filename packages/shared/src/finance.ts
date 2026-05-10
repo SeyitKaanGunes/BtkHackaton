@@ -131,7 +131,8 @@ export function calculateDashboardSummary(
   sourceAccounts: Account[] = accounts,
   sourceTransactions: Transaction[] = transactions,
   sourceGoals: Goal[] = goals,
-  sourceActions: ActionItem[] = actions
+  sourceActions: ActionItem[] = actions,
+  sourceBudgets: Budget[] = budgets
 ): DashboardSummary {
   const summary = summarizeMonth(sourceTransactions);
   const expenseTransactions = summary.monthTransactions.filter((transaction) => transaction.type === "expense");
@@ -144,7 +145,7 @@ export function calculateDashboardSummary(
       color: category.color
     }))
     .filter((item) => item.value > 0);
-  const dna = calculateSpendingDna(sourceTransactions);
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
   const accountBalance = sum(sourceAccounts.map((account) => account.balance));
   const savingsRate = summary.income > 0 ? ((summary.income - summary.expenses) / summary.income) * 100 : 0;
   const financialHealthScore = clamp(62 + savingsRate * 0.35 - dna.overallRisk * 0.25 + (accountBalance > 0 ? 8 : -12));
@@ -173,8 +174,8 @@ export function calculateDashboardSummary(
   };
 }
 
-export function calculateCampaignReadiness(sourceTransactions: Transaction[] = transactions) {
-  const dna = calculateSpendingDna(sourceTransactions);
+export function calculateCampaignReadiness(sourceTransactions: Transaction[] = transactions, sourceBudgets: Budget[] = budgets) {
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
   const techRisk = dna.categories.find((category) => category.categoryId === "cat-tech")?.riskScore ?? 0;
   const score = clamp(100 - dna.campaignSensitivity * 0.45 - techRisk * 0.3 + dna.savingDiscipline * 0.25);
   return {
@@ -202,7 +203,7 @@ export function buildWhatIfScenarios(input: WhatIfRequest, source: PersonalFinan
   const sourceBudgets = source.budgets ?? budgets;
   const sourceGoals = source.goals ?? goals;
   const sourceTransactions = source.transactions ?? transactions;
-  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions);
+  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets);
   const selectedBudget = sourceBudgets.find((budget) => budget.categoryId === input.categoryId);
   const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
   const categoryRisk = dna.categories.find((category) => category.categoryId === input.categoryId)?.riskScore ?? dna.overallRisk;
@@ -227,7 +228,7 @@ export function buildWhatIfScenarios(input: WhatIfRequest, source: PersonalFinan
       makeCard("risky", 1, "Riskli senaryo", "Satın almadan önce 10 dakika bekleme ve alternatif fiyat kontrolü önerilir.")
     ],
     assumptions: [
-      "Aylık gelir ve sabit giderler Mayıs 2026 demo verisine göre hesaplandı.",
+      "Aylık gelir ve sabit giderler kayıtlı finans verilerine göre hesaplandı.",
       "Kart borcu etkisi işlem tutarı kadar kabul edildi.",
       "Tasarruf etkisi aktif hedeflerin kalan tutarına oranla hesaplandı."
     ]
@@ -265,7 +266,7 @@ export function buildAgentEvidence(source: PersonalFinanceData = {}): AgentEvide
   const sourceBudgets = source.budgets ?? budgets;
   const sourceGoals = source.goals ?? goals;
   const sourceTransactions = source.transactions ?? transactions;
-  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions);
+  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets);
   const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
   return [
     { label: "Mayıs gelir", value: `${dashboard.income.toLocaleString("tr-TR")} TL`, source: "transaction" },

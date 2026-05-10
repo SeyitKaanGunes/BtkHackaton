@@ -1,32 +1,25 @@
-import {
-  buildWhatIfScenarios,
-  calculateBusinessDashboard,
-  calculateCampaignReadiness,
-  calculateCollectionScore,
-  calculateDashboardSummary,
-  calculateSpendingDna,
-  demoInvestmentPortfolio,
-  detectSubscriptionLeakage,
-  suggestInvestmentSymbols,
-  type AgentResponse,
-  type BusinessDashboard,
-  type CollectionScore,
-  type DashboardSummary,
-  type InvestmentHoldingCreateRequest,
-  type InvestmentPortfolioSummary,
-  type MarketSymbolResult,
-  type ReceiptExpenseImportResult,
-  type ReceiptScanResult,
-  type SpendingDna,
-  type StatementConfirmResult,
-  type StatementPreviewResult,
-  type SubscriptionReminderResult,
-  type SubscriptionLeak,
-  type WhatIfResponse
+import type {
+  AgentResponse,
+  Business,
+  BusinessCustomer,
+  BusinessDashboard,
+  CollectionScore,
+  DashboardSummary,
+  InvestmentHoldingCreateRequest,
+  InvestmentPortfolioSummary,
+  MarketSymbolResult,
+  ReceiptExpenseImportResult,
+  ReceiptScanResult,
+  RiskLevel,
+  SpendingDna,
+  StatementConfirmResult,
+  StatementPreviewResult,
+  SubscriptionLeak,
+  SubscriptionReminderResult,
+  WhatIfResponse
 } from "@fintwin/shared";
 
-const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
-const demoFallbackEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_FALLBACK === "true";
+const apiUrl = requiredPublicEnv("NEXT_PUBLIC_API_URL").replace(/\/$/, "");
 
 export interface AuthResponse {
   token: string;
@@ -44,8 +37,36 @@ export interface AuthResponse {
   };
 }
 
+export type AuthUserProfile = AuthResponse["user"];
+
+export interface CampaignReadiness {
+  score: number;
+  riskLevel: RiskLevel;
+  safeLimit: number;
+  notes: string[];
+}
+
 export interface AuthOptions {
   token?: string;
+}
+
+export class ApiRequestError extends Error {
+  constructor(
+    public readonly path: string,
+    public readonly status: number,
+    message: string,
+    public readonly code?: string
+  ) {
+    super(`API ${status}: ${message}`);
+    this.name = "ApiRequestError";
+  }
+}
+
+export class StatementApiError extends Error {
+  constructor(message: string, public readonly code?: string) {
+    super(message);
+    this.name = "StatementApiError";
+  }
 }
 
 function browserAuthToken() {
@@ -68,23 +89,7 @@ function withAuthHeaders(init?: RequestInit, options?: AuthOptions): RequestInit
   };
 }
 
-async function fetchJson<T>(path: string, init?: RequestInit, options?: AuthOptions): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, {
-    ...withAuthHeaders(init, options),
-    cache: "no-store"
-  });
-  if (!response.ok) throw new Error(`API ${response.status}`);
-  return (await response.json()) as T;
-}
-
-export class StatementApiError extends Error {
-  constructor(message: string, public readonly code?: string) {
-    super(message);
-    this.name = "StatementApiError";
-  }
-}
-
-async function request<T>(path: string, fallback: () => T, init?: RequestInit, options?: AuthOptions): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, options?: AuthOptions): Promise<T> {
   const isStatementEndpoint = path.startsWith("/documents/statement-agent/");
   try {
     const response = await fetch(`${apiUrl}${path}`, {
@@ -92,228 +97,221 @@ async function request<T>(path: string, fallback: () => T, init?: RequestInit, o
       cache: "no-store"
     });
     if (!response.ok) {
-      let body: unknown;
-      try {
-        body = await response.json();
-      } catch {
-        body = undefined;
-      }
-      const record = body && typeof body === "object" ? (body as Record<string, unknown>) : undefined;
-      if (isStatementEndpoint && typeof record?.code === "string") {
-        throw new StatementApiError(typeof record.message === "string" ? record.message : `API ${response.status}`, record.code);
-      }
-      throw new Error(`API ${response.status}`);
+      await throwApiError(path, response, isStatementEndpoint);
     }
     return (await response.json()) as T;
   } catch (error) {
-    if (isStatementEndpoint && error instanceof StatementApiError) {
+    if (error instanceof ApiRequestError || error instanceof StatementApiError) {
       throw error;
-    }
-    if (demoFallbackEnabled) {
-      return fallback();
     }
     const message = error instanceof Error ? error.message : "Unknown API error";
     throw new Error(`Fintwin API request failed for ${path}: ${message}`);
   }
 }
 
-export function isDemoFallbackEnabled() {
-  return demoFallbackEnabled;
-}
-
-export function fallbackOnly<T>(fallback: () => T): T {
-  if (demoFallbackEnabled) {
-    return fallback();
-  }
-  throw new Error("Demo fallback is disabled. Set NEXT_PUBLIC_ENABLE_DEMO_FALLBACK=true to use local demo responses.");
-}
-
 export function register(input: { name: string; email: string; password: string }) {
-  return fetchJson<AuthResponse>("/auth/register", {
+  return request<AuthResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify(input)
   });
 }
 
 export function login(input: { email: string; password: string }) {
-  return fetchJson<AuthResponse>("/auth/login", {
+  return request<AuthResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify(input)
   });
 }
 
+export function getCurrentUser(options?: AuthOptions) {
+  return request<AuthUserProfile>("/auth/me", undefined, options);
+}
+
 export function getPersonalDashboard(options?: AuthOptions) {
-  return request<DashboardSummary>("/dashboard/personal", calculateDashboardSummary, undefined, options);
+  return request<DashboardSummary>("/dashboard/personal", undefined, options);
 }
 
 export function getSpendingDna(options?: AuthOptions) {
-  return request<SpendingDna>("/spending-dna", calculateSpendingDna, undefined, options);
+  return request<SpendingDna>("/spending-dna", undefined, options);
 }
 
 export function getCampaignReadiness(options?: AuthOptions) {
-  return request<ReturnType<typeof calculateCampaignReadiness>>("/campaigns/readiness", calculateCampaignReadiness, undefined, options);
+  return request<CampaignReadiness>("/campaigns/readiness", undefined, options);
 }
 
 export function getSubscriptionLeaks(options?: AuthOptions) {
-  return request<SubscriptionLeak[]>("/subscriptions/leakage", detectSubscriptionLeakage, undefined, options);
+  return request<SubscriptionLeak[]>("/subscriptions/leakage", undefined, options);
 }
 
 export function getWhatIf(options?: AuthOptions) {
-  return request<WhatIfResponse>("/simulations/what-if", () => buildWhatIfScenarios({ amount: 10000, categoryId: "cat-tech" }), {
-    method: "POST",
-    body: JSON.stringify({ amount: 10000, categoryId: "cat-tech", description: "Kampanya döneminde 10.000 TL harcarsam ne olur?" })
-  }, options);
+  return request<WhatIfResponse>(
+    "/simulations/what-if",
+    {
+      method: "POST",
+      body: JSON.stringify({ amount: 10000, categoryId: "cat-tech", description: "Kampanya doneminde 10.000 TL harcarsam ne olur?" })
+    },
+    options
+  );
 }
 
 export function getInvestmentPortfolio(options?: AuthOptions) {
-  return request<InvestmentPortfolioSummary>("/investments/portfolio", demoInvestmentPortfolio, undefined, options);
+  return request<InvestmentPortfolioSummary>("/investments/portfolio", undefined, options);
 }
 
 export function searchMarketSymbols(query: string, options?: AuthOptions) {
-  return request<MarketSymbolResult[]>(`/investments/symbols?query=${encodeURIComponent(query)}`, () => suggestInvestmentSymbols(query), undefined, options);
+  return request<MarketSymbolResult[]>(`/investments/symbols?query=${encodeURIComponent(query)}`, undefined, options);
 }
 
 export function addInvestmentHolding(input: InvestmentHoldingCreateRequest, options?: AuthOptions) {
-  return request<InvestmentPortfolioSummary>("/investments/holdings", demoInvestmentPortfolio, {
-    method: "POST",
-    body: JSON.stringify(input)
-  }, options);
+  return request<InvestmentPortfolioSummary>(
+    "/investments/holdings",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
 }
 
 export function deleteInvestmentHolding(id: string, options?: AuthOptions) {
-  return request<InvestmentPortfolioSummary>(`/investments/holdings/${encodeURIComponent(id)}`, demoInvestmentPortfolio, {
-    method: "DELETE"
-  }, options);
+  return request<InvestmentPortfolioSummary>(
+    `/investments/holdings/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE"
+    },
+    options
+  );
 }
 
-export function getBusinessDashboard(id = "business-demo", options?: AuthOptions) {
-  return request<BusinessDashboard>(`/business/${id}/dashboard`, () => calculateBusinessDashboard(id), undefined, options);
+export function getBusinesses(options?: AuthOptions) {
+  return request<Business[]>("/business", undefined, options);
 }
 
-export function getCollectionScore(customerId: string, options?: AuthOptions) {
-  return request<CollectionScore>(`/business/business-demo/customers/${customerId}/collection-score`, () => calculateCollectionScore(customerId), undefined, options);
+export function getBusinessDashboard(id: string, options?: AuthOptions) {
+  return request<BusinessDashboard>(`/business/${id}/dashboard`, undefined, options);
 }
 
-export async function postAgentMessage(message: string): Promise<AgentResponse> {
+export function getBusinessCustomers(id: string, options?: AuthOptions) {
+  return request<BusinessCustomer[]>(`/business/${id}/customers`, undefined, options);
+}
+
+export function getCollectionScore(businessId: string, customerId: string, options?: AuthOptions) {
+  return request<CollectionScore>(`/business/${businessId}/customers/${customerId}/collection-score`, undefined, options);
+}
+
+export async function postAgentMessage(message: string, options?: AuthOptions): Promise<AgentResponse> {
   return request<AgentResponse>(
     "/agent/chat",
-    () => ({
-      answer: "Demo agent yanıtı: Harcama kararı bütçe ve tasarruf hedefini etkiliyor. Güvenli senaryo için tutarı azaltmayı öneriyorum.",
-      confidence: 0.81,
-      routedAgents: ["Supervisor Agent", "Simulation Agent"],
-      evidence: [{ label: "Fallback", value: "API kapalıyken demo veri kullanıldı", source: "simulation" }],
-      assumptions: ["Yerel API çalışmıyorsa web demo verisine düşer."],
-      suggestedActions: []
-    }),
-    { method: "POST", body: JSON.stringify({ message }) }
+    {
+      method: "POST",
+      body: JSON.stringify({ message })
+    },
+    options
   );
 }
 
-export async function postReceiptScan(imageBase64?: string, mimeType?: string): Promise<ReceiptScanResult> {
+export async function postReceiptScan(imageBase64?: string, mimeType?: string, options?: AuthOptions): Promise<ReceiptScanResult> {
   return request<ReceiptScanResult>(
     "/documents/receipt-scan",
-    () => ({
-      merchant: "Demo Market",
-      totalAmount: 1249.9,
-      taxAmount: 113.63,
-      occurredAt: "2026-05-08",
-      categoryName: "Market",
-      paymentMethod: "credit_card",
-      confidence: 0.91,
-      lineItems: [
-        { name: "Temel gıda", amount: 720.4 },
-        { name: "Temizlik", amount: 529.5 }
-      ]
-    }),
-    { method: "POST", body: JSON.stringify({ imageBase64, mimeType }) }
+    {
+      method: "POST",
+      body: JSON.stringify({ imageBase64, mimeType })
+    },
+    options
   );
 }
 
-export async function postReceiptExpenseImport(imageBase64?: string, mimeType?: string, textHint?: string): Promise<ReceiptExpenseImportResult> {
+export async function postReceiptExpenseImport(imageBase64?: string, mimeType?: string, textHint?: string, options?: AuthOptions): Promise<ReceiptExpenseImportResult> {
   return request<ReceiptExpenseImportResult>(
     "/documents/receipt-agent/import",
-    () => {
-      const receipt: ReceiptScanResult = {
-        merchant: "Demo Market",
-        totalAmount: 1249.9,
-        taxAmount: 113.63,
-        occurredAt: "2026-05-08",
-        categoryName: "Market",
-        paymentMethod: "credit_card",
-        confidence: 0.91,
-        lineItems: [
-          { name: "Temel gıda", amount: 720.4 },
-          { name: "Temizlik", amount: 529.5 }
-        ]
-      };
-      return {
-        agentName: "Receipt Agent",
-        receipt,
-        addedToExpenses: true,
-        transaction: {
-          id: `tx-receipt-fallback`,
-          userId: "user-demo",
-          accountId: "acc-card",
-          categoryId: "cat-market",
-          merchant: receipt.merchant,
-          amount: receipt.totalAmount,
-          currency: "TRY",
-          type: "expense",
-          occurredAt: `${receipt.occurredAt}T12:00:00.000Z`,
-          paymentMethod: receipt.paymentMethod,
-          tags: ["receipt_agent"]
-        },
-        evidence: ["Fallback Receipt Agent sonucu"]
-      };
+    {
+      method: "POST",
+      body: JSON.stringify({ imageBase64, mimeType, textHint })
     },
-    { method: "POST", body: JSON.stringify({ imageBase64, mimeType, textHint }) }
+    options
   );
 }
 
-export async function postStatementPreview(input: {
-  fileBase64?: string;
-  mimeType?: string;
-  fileName?: string;
-}): Promise<StatementPreviewResult> {
+export async function postStatementPreview(
+  input: {
+    fileBase64?: string;
+    mimeType?: string;
+    fileName?: string;
+  },
+  options?: AuthOptions
+): Promise<StatementPreviewResult> {
   return request<StatementPreviewResult>(
     "/documents/statement-agent/preview",
-    () => {
-      throw new Error("Statement preview demo fallback yok");
+    {
+      method: "POST",
+      body: JSON.stringify(input)
     },
-    { method: "POST", body: JSON.stringify(input) }
+    options
   );
 }
 
-export async function postStatementConfirm(input: {
-  documentId: string;
-  selectedItemIndexes?: number[];
-  skipDuplicates?: boolean;
-}): Promise<StatementConfirmResult> {
+export async function postStatementConfirm(
+  input: {
+    documentId: string;
+    selectedItemIndexes?: number[];
+    skipDuplicates?: boolean;
+  },
+  options?: AuthOptions
+): Promise<StatementConfirmResult> {
   return request<StatementConfirmResult>(
     "/documents/statement-agent/confirm",
-    () => {
-      throw new Error("Statement confirm demo fallback yok");
+    {
+      method: "POST",
+      body: JSON.stringify(input)
     },
-    { method: "POST", body: JSON.stringify(input) }
+    options
   );
 }
 
-export async function postSubscriptionReminder(input: { merchant: string; amount?: number; remindAt: string; note?: string }): Promise<SubscriptionReminderResult> {
+export async function postSubscriptionReminder(input: { merchant: string; amount?: number; remindAt: string; note?: string }, options?: AuthOptions): Promise<SubscriptionReminderResult> {
   return request<SubscriptionReminderResult>(
     "/actions/subscription-reminder",
-    () => ({
-      scheduled: true,
-      action: {
-        id: `act-subscription-fallback-${input.merchant}`,
-        userId: "user-demo",
-        type: "calendar_bill",
-        title: `${input.merchant} aboneliğini hatırlat`,
-        description: `${input.merchant} aboneliği için hatırlatma oluşturuldu.`,
-        dueAt: `${input.remindAt}T09:00:00.000Z`,
-        status: "pending",
-        source: "agent"
-      }
-    }),
-    { method: "POST", body: JSON.stringify(input) }
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
   );
+}
+
+async function throwApiError(path: string, response: Response, isStatementEndpoint: boolean): Promise<never> {
+  const body = await readErrorBody(response);
+  const message = apiMessage(body) ?? (response.statusText || "API request failed");
+  const code = apiCode(body);
+  if (isStatementEndpoint && code) {
+    throw new StatementApiError(message, code);
+  }
+  throw new ApiRequestError(path, response.status, message, code);
+}
+
+async function readErrorBody(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    return undefined;
+  }
+}
+
+function apiMessage(body: unknown) {
+  if (!body || typeof body !== "object") return undefined;
+  const record = body as Record<string, unknown>;
+  if (Array.isArray(record.message)) return record.message.join(", ");
+  if (typeof record.message === "string") return record.message;
+  if (typeof record.error === "string") return record.error;
+  return undefined;
+}
+
+function apiCode(body: unknown) {
+  return body && typeof body === "object" && typeof (body as Record<string, unknown>).code === "string" ? String((body as Record<string, unknown>).code) : undefined;
+}
+
+function requiredPublicEnv(key: string) {
+  const value = process.env[key]?.trim();
+  if (!value) throw new Error(`${key} is required.`);
+  return value;
 }

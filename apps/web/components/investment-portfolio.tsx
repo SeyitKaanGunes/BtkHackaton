@@ -42,7 +42,12 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
       return undefined;
     }
     const handle = setTimeout(() => {
-      void searchMarketSymbols(query).then(setResults);
+      void searchMarketSymbols(query)
+        .then(setResults)
+        .catch((caught) => {
+          setResults([]);
+          setMessage(caught instanceof Error ? caught.message : "Sembol aramasi basarisiz.");
+        });
     }, 260);
     return () => clearTimeout(handle);
   }, [isCash, query]);
@@ -80,6 +85,8 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
       setQuery("");
       setForm((current) => ({ ...current, quantity: "1", averageCost: "", annualInterestRate: "" }));
       setMessage("Portfoye eklendi.");
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "Portfoye eklenemedi.");
     } finally {
       setIsBusy(false);
     }
@@ -89,6 +96,8 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
     setIsBusy(true);
     try {
       setPortfolio(await deleteInvestmentHolding(id));
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "Pozisyon silinemedi.");
     } finally {
       setIsBusy(false);
     }

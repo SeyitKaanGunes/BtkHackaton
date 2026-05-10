@@ -1,18 +1,5 @@
 import { BadRequestException, Inject, Injectable, OnModuleInit } from "@nestjs/common";
-import {
-  accounts,
-  actions,
-  budgets,
-  business,
-  businessCashEvents,
-  businessCustomers,
-  categories,
-  demoInvestmentHoldings,
-  demoUser,
-  goals,
-  subscriptions,
-  transactions
-} from "@fintwin/shared";
+import { categories } from "@fintwin/shared";
 import type {
   Account,
   ActionItem,
@@ -47,7 +34,7 @@ export class DataStoreService implements OnModuleInit {
   budgets: Budget[] = [];
   goals: Goal[] = [];
   subscriptions: Subscription[] = [];
-  business: Business = business;
+  businesses: Business[] = [];
   businessCustomers: BusinessCustomer[] = [];
   businessCashEvents: BusinessCashEvent[] = [];
   accounts: Account[] = [];
@@ -67,11 +54,6 @@ export class DataStoreService implements OnModuleInit {
     this.ready = true;
   }
 
-  getDemoUser() {
-    this.assertReady();
-    return this.users[0]!;
-  }
-
   getPersonalData(userId: string) {
     this.assertReady();
     return {
@@ -85,6 +67,26 @@ export class DataStoreService implements OnModuleInit {
       transactions: this.transactions.filter((transaction) => transaction.userId === userId),
       investmentHoldings: this.investmentHoldings.filter((holding) => holding.userId === userId)
     };
+  }
+
+  getBusinessesForUser(userId: string) {
+    this.assertReady();
+    return this.businesses.filter((business) => business.ownerUserId === userId);
+  }
+
+  getBusinessForUser(userId: string, businessId: string) {
+    this.assertReady();
+    return this.businesses.find((business) => business.id === businessId && business.ownerUserId === userId);
+  }
+
+  getBusinessCustomers(businessId: string) {
+    this.assertReady();
+    return this.businessCustomers.filter((customer) => customer.businessId === businessId);
+  }
+
+  getBusinessCashEvents(businessId: string) {
+    this.assertReady();
+    return this.businessCashEvents.filter((event) => event.businessId === businessId);
   }
 
   defaultAccountIdFor(userId: string, paymentMethod: Transaction["paymentMethod"]) {
@@ -251,168 +253,6 @@ export class DataStoreService implements OnModuleInit {
 
   private async ensureSeedData() {
     await this.seedCategories();
-    const userCount = await this.prisma.user.count();
-    if (userCount > 0) return;
-
-    const passwordHash = "$2b$10$XUWXgP2dSqJbe1dTT4rC9O71yPUb4B3bVAeMzb7XHSc6uWXr6KI0m";
-    await this.prisma.user.create({
-      data: {
-        id: demoUser.id,
-        name: demoUser.name,
-        email: demoUser.email,
-        passwordHash,
-        persona: demoUser.persona,
-        monthlyIncome: demoUser.monthlyIncome,
-        payday: demoUser.payday,
-        currency: demoUser.currency
-      }
-    });
-
-    for (const account of accounts) {
-      await this.prisma.account.create({
-        data: {
-          id: account.id,
-          userId: account.userId,
-          name: account.name,
-          type: account.type,
-          balance: account.balance,
-          currency: account.currency,
-          creditLimit: account.creditLimit
-        }
-      });
-    }
-
-    for (const budget of budgets) {
-      await this.prisma.budget.create({
-        data: {
-          id: budget.id,
-          userId: budget.userId,
-          categoryId: budget.categoryId,
-          monthlyLimit: budget.monthlyLimit
-        }
-      });
-    }
-
-    for (const goal of goals) {
-      await this.prisma.goal.create({
-        data: {
-          id: goal.id,
-          userId: goal.userId,
-          title: goal.title,
-          targetAmount: goal.targetAmount,
-          currentAmount: goal.currentAmount,
-          deadline: new Date(`${goal.deadline}T00:00:00.000Z`)
-        }
-      });
-    }
-
-    for (const subscription of subscriptions) {
-      await this.prisma.subscription.create({
-        data: {
-          id: subscription.id,
-          userId: subscription.userId,
-          merchant: subscription.merchant,
-          categoryId: subscription.categoryId,
-          amount: subscription.amount,
-          currency: subscription.currency,
-          cadence: subscription.cadence,
-          lastUsedAt: subscription.lastUsedAt ? new Date(`${subscription.lastUsedAt}T00:00:00.000Z`) : null,
-          previousAmount: subscription.previousAmount
-        }
-      });
-    }
-
-    for (const accountTransaction of transactions) {
-      await this.prisma.transaction.create({
-        data: {
-          id: accountTransaction.id,
-          userId: accountTransaction.userId,
-          accountId: accountTransaction.accountId,
-          categoryId: accountTransaction.categoryId,
-          merchant: accountTransaction.merchant,
-          amount: accountTransaction.amount,
-          currency: accountTransaction.currency,
-          type: accountTransaction.type,
-          occurredAt: new Date(accountTransaction.occurredAt),
-          paymentMethod: accountTransaction.paymentMethod,
-          tags: accountTransaction.tags ?? [],
-          recurring: accountTransaction.recurring ?? false
-        }
-      });
-    }
-
-    for (const action of actions) {
-      await this.prisma.actionItem.create({
-        data: {
-          id: action.id,
-          userId: action.userId,
-          type: action.type,
-          title: action.title,
-          description: action.description,
-          dueAt: action.dueAt ? new Date(action.dueAt) : null,
-          status: action.status,
-          source: action.source
-        }
-      });
-    }
-
-    await this.prisma.business.create({
-      data: {
-        id: business.id,
-        ownerId: business.ownerUserId,
-        name: business.name,
-        sector: business.sector,
-        cashBalance: business.cashBalance
-      }
-    });
-
-    for (const customer of businessCustomers) {
-      await this.prisma.businessCustomer.create({
-        data: {
-          id: customer.id,
-          businessId: customer.businessId,
-          name: customer.name,
-          averageDelayDays: customer.averageDelayDays,
-          invoicesPaid: customer.invoicesPaid,
-          invoicesLate: customer.invoicesLate,
-          outstandingAmount: customer.outstandingAmount
-        }
-      });
-    }
-
-    for (const event of businessCashEvents) {
-      await this.prisma.businessCashEvent.create({
-        data: {
-          id: event.id,
-          businessId: event.businessId,
-          title: event.title,
-          amount: event.amount,
-          type: event.type,
-          dueAt: new Date(`${event.dueAt}T00:00:00.000Z`)
-        }
-      });
-    }
-
-    for (const holding of demoInvestmentHoldings) {
-      await this.prisma.investmentHolding.create({
-        data: {
-          id: holding.id,
-          userId: holding.userId,
-          symbol: holding.symbol,
-          name: holding.name,
-          assetType: holding.assetType,
-          quantity: holding.quantity,
-          averageCost: holding.averageCost,
-          costCurrency: holding.costCurrency,
-          exchange: holding.exchange,
-          micCode: holding.micCode,
-          marketCurrency: holding.marketCurrency,
-          annualInterestRate: holding.annualInterestRate,
-          createdAt: new Date(holding.createdAt),
-          updatedAt: new Date(holding.updatedAt)
-        }
-      });
-    }
   }
 
   private async seedCategories() {
@@ -535,15 +375,13 @@ export class DataStoreService implements OnModuleInit {
     this.transactions = storedTransactions.map((transaction) => this.mapTransaction(transaction));
     this.actions = storedActions.map((action) => this.mapAction(action));
     this.investmentHoldings = holdings.map((holding) => this.mapInvestmentHolding(holding));
-    this.business = businesses[0]
-      ? {
-          id: businesses[0].id,
-          ownerUserId: businesses[0].ownerId,
-          name: businesses[0].name,
-          sector: businesses[0].sector,
-          cashBalance: Number(businesses[0].cashBalance)
-        }
-      : business;
+    this.businesses = businesses.map((business) => ({
+      id: business.id,
+      ownerUserId: business.ownerId,
+      name: business.name,
+      sector: business.sector,
+      cashBalance: Number(business.cashBalance)
+    }));
     this.businessCustomers = customers.map((customer) => ({
       id: customer.id,
       businessId: customer.businessId,

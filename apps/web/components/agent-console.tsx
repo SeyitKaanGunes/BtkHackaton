@@ -9,12 +9,19 @@ export function AgentConsole() {
   const [message, setMessage] = useState("Kampanya döneminde 10000 TL harcarsam ay sonu ne olur?");
   const [response, setResponse] = useState<AgentResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     setLoading(true);
-    const next = await postAgentMessage(message);
-    setResponse(next);
-    setLoading(false);
+    setError(null);
+    try {
+      const next = await postAgentMessage(message);
+      setResponse(next);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Agent yaniti alinamadi.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -26,6 +33,7 @@ export function AgentConsole() {
           <Send size={18} />
         </button>
       </div>
+      {error ? <p className="form-message danger">{error}</p> : null}
       {response ? (
         <div className="agent-result">
           <p>{response.answer}</p>

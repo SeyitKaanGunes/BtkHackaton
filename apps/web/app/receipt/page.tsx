@@ -1,9 +1,9 @@
 import { AppShell } from "../../components/app-shell";
 import { ReceiptScanner } from "../../components/receipt-scanner";
-import { requireAuthToken } from "../../lib/server-auth";
+import { requireAuthSession } from "../../lib/server-auth";
 
 export default async function ReceiptPage() {
-  await requireAuthToken();
+  await requireAuthSession();
   return (
     <AppShell active="/receipt">
       <header className="workspace-header">

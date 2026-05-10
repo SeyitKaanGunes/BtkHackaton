@@ -36,7 +36,7 @@ import type {
   SubscriptionLeak,
   WhatIfResponse
 } from "@fintwin/shared";
-import { hasAuthToken, isDemoFallbackEnabled, loadBusiness, loadMobileHome, login, register, sendAgentMessage, setAuthToken } from "./src/api";
+import { hasAuthToken, loadBusiness, loadMobileHome, login, register, sendAgentMessage, setAuthToken } from "./src/api";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
 import { ScanScreen } from "./src/screens/ScanScreen";
 import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles } from "./src/ui";
@@ -45,10 +45,10 @@ type Tab = "home" | "portfolio" | "business";
 type HomeData = Awaited<ReturnType<typeof loadMobileHome>>;
 type BusinessData = Awaited<ReturnType<typeof loadBusiness>>;
 
-const demoQuestion = "Bugün 10.000 ₺ teknoloji harcaması yaparsam ne olur?";
+const defaultQuestion = "Bugün 10.000 ₺ teknoloji harcaması yaparsam ne olur?";
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(() => hasAuthToken() || isDemoFallbackEnabled());
+  const [authenticated, setAuthenticated] = useState(() => hasAuthToken());
   const [tab, setTab] = useState<Tab>("home");
   const [home, setHome] = useState<HomeData | null>(null);
   const [business, setBusiness] = useState<BusinessData | null>(null);
@@ -603,7 +603,7 @@ function SubscriptionLeakCard({ leak }: { leak: SubscriptionLeak }) {
 }
 
 function AgentScreen() {
-  const [message, setMessage] = useState(demoQuestion);
+  const [message, setMessage] = useState(defaultQuestion);
   const [response, setResponse] = useState<AgentResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -865,7 +865,7 @@ function LoadError({ message }: { message: string }) {
     <Panel>
       <SectionTitle title="API bağlantısı kurulamadı" meta="demo kapalı" />
       <Text style={styles.body}>{message}</Text>
-      <Text style={styles.bodyMuted}>Backend'i çalıştır ya da offline demo için EXPO_PUBLIC_ENABLE_DEMO_FALLBACK=true ayarla.</Text>
+      <Text style={styles.bodyMuted}>Backend'i çalıştır ve EXPO_PUBLIC_API_URL değerinin çalışan API adresini gösterdiğinden emin ol.</Text>
     </Panel>
   );
 }

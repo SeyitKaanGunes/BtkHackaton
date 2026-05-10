@@ -105,8 +105,8 @@ export class AgentService {
       .compile();
 
     const result = await graph.invoke({ message });
-    const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions);
-    const readiness = calculateCampaignReadiness(data.transactions);
+    const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets);
+    const readiness = calculateCampaignReadiness(data.transactions, data.budgets);
     return {
       answer:
         result.answer ??

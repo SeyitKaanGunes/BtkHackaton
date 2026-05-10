@@ -1,12 +1,20 @@
 import { Building2, CircleDollarSign, Clock3, Landmark } from "lucide-react";
+import type { ReactNode } from "react";
+import type { Business, BusinessDashboard, CollectionScore } from "@fintwin/shared";
 import { AppShell } from "../../components/app-shell";
-import { getBusinessDashboard, getCollectionScore } from "../../lib/api";
-import { requireAuthToken } from "../../lib/server-auth";
+import { getBusinessCustomers, getBusinessDashboard, getBusinesses, getCollectionScore } from "../../lib/api";
+import { requireAuthSession } from "../../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
+type BusinessPageData = {
+  business: Business;
+  dashboard: BusinessDashboard;
+  scores: CollectionScore[];
+};
+
 export default async function BusinessPage() {
-  const token = await requireAuthToken();
+  const { token } = await requireAuthSession();
   const businessData = await loadBusinessData(token);
   if (!businessData) {
     return (
@@ -15,7 +23,7 @@ export default async function BusinessPage() {
           <div>
             <p className="eyebrow">Ayrı KOBİ Modülü</p>
             <h1>KOBİ profili henüz oluşturulmamış.</h1>
-            <p className="header-subtitle">Bu hesapta işletme kaydı olmadığı için demo işletme verisi gösterilmiyor.</p>
+            <p className="header-subtitle">Bu hesapta kayıtlı işletme verisi bulunmadığı için yalnızca DB akışı bekleniyor.</p>
           </div>
         </header>
         <section className="panel">
@@ -23,20 +31,21 @@ export default async function BusinessPage() {
             <span>Kurulum gerekli</span>
             <strong>İşletme onboarding</strong>
           </div>
-          <p className="market-note">KOBİ modülü için sonraki adım işletme oluşturma ekranı ve owner-scoped business kayıtları eklemek.</p>
+          <p className="market-note">KOBİ modülü için işletme oluşturma ekranı veya DB seed kaydı eklenmeli.</p>
         </section>
       </AppShell>
     );
   }
 
-  const [dashboard, atlas, mavi] = businessData;
+  const { business, dashboard, scores } = businessData;
 
   return (
     <AppShell active="/business">
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Ayrı KOBİ Modülü</p>
-          <h1>AI CFO Lite bireysel metriklerden ayrılmıştır.</h1>
+          <h1>{business.name}</h1>
+          <p className="header-subtitle">{business.sector} işletme metrikleri oturum kullanıcısına bağlı DB kayıtlarından okunur.</p>
         </div>
         <div className="health-score">
           <Building2 size={22} />
@@ -73,33 +82,33 @@ export default async function BusinessPage() {
             <span>Tahsilat Skorları</span>
             <strong>KOBİ riski</strong>
           </div>
-          {[atlas, mavi].map((score) => (
-            <div className="score-row" key={score.customerId}>
-              <span>{score.customerId}</span>
-              <strong>{score.score}/100</strong>
-              <small>{score.recommendation}</small>
-            </div>
-          ))}
+          {scores.length > 0 ? (
+            scores.map((score) => (
+              <div className="score-row" key={score.customerId}>
+                <span>{score.customerId}</span>
+                <strong>{score.score}/100</strong>
+                <small>{score.recommendation}</small>
+              </div>
+            ))
+          ) : (
+            <div className="empty-state">Tahsilat skoru için müşteri kaydı yok.</div>
+          )}
         </div>
       </section>
     </AppShell>
   );
 }
 
-async function loadBusinessData(token: string) {
-  try {
-    return await Promise.all([
-      getBusinessDashboard("business-demo", { token }),
-      getCollectionScore("cus-2", { token }),
-      getCollectionScore("cus-3", { token })
-    ]);
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("API 404")) return null;
-    throw error;
-  }
+async function loadBusinessData(token: string): Promise<BusinessPageData | null> {
+  const [business] = await getBusinesses({ token });
+  if (!business) return null;
+
+  const [dashboard, customers] = await Promise.all([getBusinessDashboard(business.id, { token }), getBusinessCustomers(business.id, { token })]);
+  const scores = await Promise.all(customers.slice(0, 2).map((customer) => getCollectionScore(business.id, customer.id, { token })));
+  return { business, dashboard, scores };
 }
 
-function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="metric">
       {icon}
