@@ -4,8 +4,8 @@ import DocumentPicker from "react-native-document-picker";
 import * as RNFS from "react-native-fs";
 import { launchCamera, launchImageLibrary } from "react-native-image-picker";
 import { Bell, Camera, CheckCircle2, FileText, FileUp, Image as ImageIcon, ReceiptText, ShieldCheck, X } from "lucide-react-native";
-import { statementErrorMessage, type ReceiptExpenseImportResult, type StatementConfirmResult, type StatementPreviewResult } from "@fintwin/shared";
-import { confirmStatementImport, createSubscriptionReminder, importReceiptExpense, importStatementPreview, StatementApiError } from "../api";
+import { receiptErrorMessage, statementErrorMessage, type ReceiptExpenseImportResult, type StatementConfirmResult, type StatementPreviewResult } from "@fintwin/shared";
+import { confirmStatementImport, createSubscriptionReminder, importReceiptExpense, importStatementPreview, ReceiptApiError, StatementApiError } from "../api";
 import { Btn, Card, Chip, Divider, Eyebrow, KV, ScreenHeader } from "../ui";
 import { radius, space, usePalette } from "../theme";
 
@@ -41,7 +41,7 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
         }
       }
     } catch (error) {
-      Alert.alert("Belge işlenemedi", formatStatementError(error, "Agent belgeyi analiz edemedi."));
+      Alert.alert("Belge işlenemedi", formatDocumentError(error, "Agent belgeyi analiz edemedi."));
     } finally {
       setLoading(false);
     }
@@ -468,4 +468,11 @@ function formatStatementError(error: unknown, fallback: string): string {
     return statementErrorMessage(error.code, error.message);
   }
   return error instanceof Error ? error.message : fallback;
+}
+
+function formatDocumentError(error: unknown, fallback: string): string {
+  if (error instanceof ReceiptApiError) {
+    return receiptErrorMessage(error.code, error.message);
+  }
+  return formatStatementError(error, fallback);
 }

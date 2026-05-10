@@ -1,6 +1,7 @@
 import { HttpException } from "@nestjs/common";
 
 export type StatementErrorCode =
+  | "STATEMENT_AI_NOT_CONFIGURED"
   | "STATEMENT_TEXT_EXTRACTION_FAILED"
   | "STATEMENT_OCR_FAILED"
   | "STATEMENT_JSON_PARSE_FAILED"

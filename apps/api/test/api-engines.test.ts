@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { HttpException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
   accounts,
@@ -50,6 +51,14 @@ describe("API feature services", () => {
     await expect(documents.scanReceipt({})).rejects.toThrow("imageBase64 is required");
   });
 
+  it("rejects receipt OCR with a clear error when Qwen is not configured", async () => {
+    const documents = createTestDocuments(unconfiguredQwen());
+    await expectHttpException(documents.scanReceipt({ imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" }), 503, {
+      code: "RECEIPT_AI_NOT_CONFIGURED",
+      message: "Fiş analizi için QWEN_API_KEY tanımlı değil. Demo sonuç üretilmedi."
+    });
+  });
+
   it("imports a scanned receipt as an expense transaction", async () => {
     const store = createTestStore();
     const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(qwenWith(receiptJson)), store);
@@ -74,6 +83,15 @@ describe("API feature services", () => {
     expect(result.recurringSubscriptions.length).toBeGreaterThan(0);
     expect(result.transactions.every((transaction) => transaction.type === "expense")).toBe(true);
     expect(store.transactions.length).toBe(before + result.importedCount);
+  });
+
+  it("rejects statement previews with a clear error when Qwen is not configured", async () => {
+    const statementRepository = createTestStatementRepository();
+    const statementAgent = new StatementExpenseAgentService(createTestDocuments(unconfiguredQwen()), createTestStore(), statementRepository);
+    await expectHttpException(statementAgent.previewStatement(authUser.id, { statementText: "StreamPlus 219 TL 2026-05-01" }), 503, {
+      code: "STATEMENT_AI_NOT_CONFIGURED",
+      message: "Ekstre analizi için QWEN_API_KEY tanımlı değil. Demo sonuç üretilmedi."
+    });
   });
 
   it("creates dated reminders for detected subscriptions", async () => {
@@ -201,6 +219,16 @@ function createTestStore(): DataStoreService {
   return store as unknown as DataStoreService;
 }
 
+async function expectHttpException(promise: Promise<unknown>, status: number, response: unknown) {
+  try {
+    await promise;
+    throw new Error("Expected promise to reject.");
+  } catch (error) {
+    expect((error as HttpException).getStatus()).toBe(status);
+    expect((error as HttpException).getResponse()).toEqual(response);
+  }
+}
+
 function createTestDocuments(qwen: QwenService): DocumentsService {
   const pdfExtractor = {
     extractText: vi.fn()
@@ -269,5 +297,12 @@ function qwenWith(content: string): QwenService {
   return {
     isConfigured: () => true,
     chat: vi.fn(async () => ({ content, model: "test-qwen" }))
+  } as unknown as QwenService;
+}
+
+function unconfiguredQwen(): QwenService {
+  return {
+    isConfigured: () => false,
+    chat: vi.fn()
   } as unknown as QwenService;
 }

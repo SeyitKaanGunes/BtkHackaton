@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { BadGatewayException, BadRequestException, HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
 import type { ReceiptScanResult } from "@fintwin/shared";
 import { QwenService } from "../ai/qwen.service.js";
 import { StatementExtractorService, type RawExtraction } from "./statement-extractor.service.js";
@@ -37,7 +37,13 @@ export class DocumentsService {
       throw new BadRequestException("imageBase64 is required for receipt scanning.");
     }
     if (!this.qwen.isConfigured()) {
-      throw new ServiceUnavailableException("QWEN_API_KEY is not configured for receipt scanning.");
+      throw new HttpException(
+        {
+          code: "RECEIPT_AI_NOT_CONFIGURED",
+          message: "Fiş analizi için QWEN_API_KEY tanımlı değil. Demo sonuç üretilmedi."
+        },
+        HttpStatus.SERVICE_UNAVAILABLE
+      );
     }
 
     const dataUrl = `data:${input.mimeType ?? "image/jpeg"};base64,${input.imageBase64}`;
@@ -62,7 +68,10 @@ export class DocumentsService {
 
       return JSON.parse(extractJson(response.content)) as ReceiptScanResult;
     } catch {
-      throw new BadGatewayException("Receipt OCR response could not be parsed.");
+      throw new BadGatewayException({
+        code: "RECEIPT_JSON_PARSE_FAILED",
+        message: "Receipt OCR response could not be parsed."
+      });
     }
   }
 

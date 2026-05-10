@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera } from "lucide-react";
-import type { ReceiptExpenseImportResult } from "@fintwin/shared";
-import { postReceiptExpenseImport } from "../lib/api";
+import { receiptErrorMessage, type ReceiptExpenseImportResult } from "@fintwin/shared";
+import { postReceiptExpenseImport, ReceiptApiError } from "../lib/api";
 import { StatementUploader } from "./statement-uploader";
 
 function readFileAsBase64(file: File) {
@@ -31,7 +31,7 @@ export function ReceiptScanner() {
       setReceiptResult(result);
       router.refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Fiş işlenemedi.");
+      setError(formatReceiptError(caught, "Fiş işlenemedi."));
     } finally {
       setReceiptLoading(false);
     }
@@ -75,4 +75,11 @@ export function ReceiptScanner() {
       <StatementUploader />
     </div>
   );
+}
+
+function formatReceiptError(error: unknown, fallback: string): string {
+  if (error instanceof ReceiptApiError) {
+    return receiptErrorMessage(error.code, error.message);
+  }
+  return error instanceof Error ? error.message : fallback;
 }

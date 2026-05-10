@@ -69,6 +69,13 @@ export class StatementApiError extends Error {
   }
 }
 
+export class ReceiptApiError extends Error {
+  constructor(message: string, public readonly code?: string) {
+    super(message);
+    this.name = "ReceiptApiError";
+  }
+}
+
 function browserAuthToken() {
   if (typeof window === "undefined") return undefined;
   const stored = window.localStorage.getItem("fintwin_token");
@@ -91,6 +98,8 @@ function withAuthHeaders(init?: RequestInit, options?: AuthOptions): RequestInit
 
 async function request<T>(path: string, init?: RequestInit, options?: AuthOptions): Promise<T> {
   const isStatementEndpoint = path.startsWith("/documents/statement-agent/");
+  const isReceiptEndpoint = path.startsWith("/documents/receipt");
+  const isDocumentEndpoint = isStatementEndpoint || isReceiptEndpoint;
   try {
     const response = await fetch(`${apiUrl}${path}`, {
       ...withAuthHeaders(init, options),
@@ -104,7 +113,13 @@ async function request<T>(path: string, init?: RequestInit, options?: AuthOption
     if (error instanceof ApiRequestError || error instanceof StatementApiError) {
       throw error;
     }
+    if (error instanceof ReceiptApiError) {
+      throw error;
+    }
     const message = error instanceof Error ? error.message : "Unknown API error";
+    if (isDocumentEndpoint) {
+      throw new Error(`Belge API'sine ulaşılamadı. Demo sonuç üretilmedi. API adresini ve backend'i kontrol edin: ${message}`);
+    }
     throw new Error(`Fintwin API request failed for ${path}: ${message}`);
   }
 }
@@ -285,6 +300,9 @@ async function throwApiError(path: string, response: Response, isStatementEndpoi
   const code = apiCode(body);
   if (isStatementEndpoint && code) {
     throw new StatementApiError(message, code);
+  }
+  if (path.startsWith("/documents/receipt") && code) {
+    throw new ReceiptApiError(message, code);
   }
   throw new ApiRequestError(path, response.status, message, code);
 }

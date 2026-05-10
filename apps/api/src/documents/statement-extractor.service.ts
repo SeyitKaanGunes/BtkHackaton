@@ -1,4 +1,4 @@
-import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { Inject, Injectable, HttpStatus } from "@nestjs/common";
 import type { StatementLineItem } from "@fintwin/shared";
 import { QwenService } from "../ai/qwen.service.js";
 import { isTextExtractionWeak, PdfExtractorService } from "./pdf-extractor.service.js";
@@ -146,7 +146,11 @@ export class StatementExtractorService {
 
   private ensureQwenConfigured() {
     if (!this.qwen.isConfigured()) {
-      throw new ServiceUnavailableException("QWEN_API_KEY is not configured for statement extraction.");
+      throw new StatementImportException(
+        "STATEMENT_AI_NOT_CONFIGURED",
+        "Ekstre analizi için QWEN_API_KEY tanımlı değil. Demo sonuç üretilmedi.",
+        HttpStatus.SERVICE_UNAVAILABLE
+      );
     }
   }
 }
