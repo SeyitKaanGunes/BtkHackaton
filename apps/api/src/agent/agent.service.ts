@@ -48,8 +48,10 @@ export class AgentService {
       }))
       .addNode("twin", async () => {
         const dna = calculateSpendingDna(data.transactions, data.budgets);
+        const topCategory = dna.categories[0];
+        const topReason = topCategory?.reasons?.[0] ? ` Neden: ${topCategory.reasons[0]}` : "";
         return {
-          answer: `Spending DNA profilinde en yüksek risk ${dna.categories[0]?.categoryName} kategorisinde ${dna.categories[0]?.riskScore}/100. Maaş sonrası refleks skoru ${dna.paydayReflexScore}/100.`,
+          answer: `Spending DNA profilinde en yüksek risk ${topCategory?.categoryName ?? "henüz belirlenmedi"} kategorisinde ${topCategory?.riskScore ?? 0}/100. Maaş sonrası refleks skoru ${dna.paydayReflexScore}/100. Veri güveni: ${dna.dataConfidenceLevel ?? "low"}.${topReason}`,
           confidence: 0.88,
           routedAgents: ["Twin Agent", "Risk Agent"]
         };
@@ -71,6 +73,7 @@ export class AgentService {
             actions: data.actions,
             budgets: data.budgets,
             goals: data.goals,
+            subscriptions: data.subscriptions,
             user: data.user,
             transactions: data.transactions
           }

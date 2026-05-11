@@ -1,3 +1,5 @@
+import type { DataConfidence, FinancialResultMetadata } from "./financial-metadata.js";
+
 export type Currency = "TRY" | "USD" | "EUR";
 
 export type InvestmentAssetType = "stock" | "forex" | "gold" | "commodity" | "crypto" | "fund" | "cash" | "other";
@@ -289,7 +291,25 @@ export interface SpendingDnaCategory {
   monthlySpend: number;
   budgetLimit?: number;
   dataConfidence?: number;
+  confidence?: DataConfidence;
   reasons?: string[];
+  explanation?: SpendingDnaMetric;
+}
+
+export interface SpendingDnaMetric {
+  score: number;
+  confidence: DataConfidence;
+  reasons: string[];
+}
+
+export interface SpendingDnaMetrics {
+  overallRisk: SpendingDnaMetric;
+  paydayReflexScore: SpendingDnaMetric;
+  nightSpendingScore: SpendingDnaMetric;
+  weekendSpendingScore: SpendingDnaMetric;
+  weekendNightScore: SpendingDnaMetric;
+  campaignSensitivity: SpendingDnaMetric;
+  savingDiscipline: SpendingDnaMetric;
 }
 
 export interface SpendingDna {
@@ -304,12 +324,17 @@ export interface SpendingDna {
   categories: SpendingDnaCategory[];
   patterns: string[];
   dataConfidence?: number;
+  dataConfidenceLevel?: DataConfidence;
+  missingData?: string[];
   reasons?: string[];
   timeZone?: string;
+  metrics?: SpendingDnaMetrics;
+  metadata?: FinancialResultMetadata;
 }
 
 export interface ScenarioCard {
   id: "safe" | "balanced" | "risky";
+  scenarioId?: string;
   label: string;
   spendAmount: number;
   monthEndBalance: number;
@@ -318,6 +343,7 @@ export interface ScenarioCard {
   recommendation: string;
   riskLevel?: RiskLevel;
   reasons?: string[];
+  warning?: string;
 }
 
 export interface WhatIfRequest {
@@ -329,15 +355,29 @@ export interface WhatIfRequest {
 }
 
 export interface WhatIfResponse {
+  scenarioId?: string;
   question: string;
   safeLimit: number;
   emotionalDelayMinutes: number;
   cards: ScenarioCard[];
   assumptions: string[];
   dataConfidence?: number;
+  dataConfidenceLevel?: DataConfidence;
   missingData?: string[];
   resolvedCategoryId?: string;
   resolvedCategoryName?: string;
+  metadata?: FinancialResultMetadata;
+  cashflow?: {
+    currentBalance: number;
+    expectedIncomeUntilMonthEnd: number;
+    fixedExpensesDue: number;
+    debtPaymentsDue: number;
+    plannedSavings: number;
+    emergencyBuffer: number;
+    availableCash: number;
+    categoryBudgetRemaining?: number;
+    daysUntilNextIncome?: number;
+  };
 }
 
 export interface DashboardSummary {

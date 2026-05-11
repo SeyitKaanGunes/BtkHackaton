@@ -1,5 +1,7 @@
 import { categories } from "./category-catalog.js";
-import { getLocalDateParts, isLocalNight, isLocalWeekend, isLocalWeekendNight, resolveTimeZone } from "./timezone.js";
+import { buildFinancialMetadata, type DataConfidence, type FinancialDataAvailability } from "./financial-metadata.js";
+import { calculatePaydayReflexScore, detectPayday, type PaydayTransactionInput } from "./payday-detector.js";
+import { isLocalNight, isLocalWeekend, isLocalWeekendNight, resolveTimeZone } from "./timezone.js";
 import type {
   Account,
   ActionItem,
@@ -18,6 +20,8 @@ import type {
   RiskLevel,
   ScenarioCard,
   SpendingDna,
+  SpendingDnaCategory,
+  SpendingDnaMetric,
   SubscriptionLeak,
   Subscription,
   Transaction,
@@ -29,6 +33,12 @@ import type {
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, Math.round(value)));
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
 const validDashboardPeriods = new Set<DashboardPeriod>(["daily", "weekly", "monthly", "yearly"]);
+const historicalRiskWindowMonths = 3;
+const safeCashSafetyFactor = 0.75;
+const balancedCashFactor = 0.45;
+const whatIfBalancedMultiplier = 0.7;
+const mandatoryCategoryTerms = ["kira", "fatura", "aidat", "borç", "borc", "rent_or_bills"];
+const emergencyGoalPattern = /acil|emergency/i;
 
 const riskFromScore = (score: number): RiskLevel => {
   if (score >= 85) return "critical";
@@ -36,6 +46,20 @@ const riskFromScore = (score: number): RiskLevel => {
   if (score >= 40) return "medium";
   return "low";
 };
+
+const confidenceScore = (confidence: DataConfidence) => ({ high: 0.9, medium: 0.65, low: 0.35 })[confidence];
+
+const confidenceFromRatio = (ratio: number): DataConfidence => {
+  if (ratio >= 0.75) return "high";
+  if (ratio >= 0.4) return "medium";
+  return "low";
+};
+
+const metric = (score: number, confidence: DataConfidence, reasons: string[]): SpendingDnaMetric => ({
+  score: clamp(score),
+  confidence,
+  reasons: reasons.length ? reasons : ["Bu metrik için yeterli açıklama sinyali bulunamadı."]
+});
 
 const monthKey = (iso: string) => iso.slice(0, 7);
 
@@ -126,6 +150,75 @@ export function getCategoryName(categoryId: string): string {
   return categories.find((category) => category.id === categoryId)?.name ?? "Diğer";
 }
 
+function isMandatoryCategory(categoryId?: string) {
+  const name = categoryId ? getCategoryName(categoryId) : "";
+  const text = `${categoryId ?? ""} ${name}`.toLocaleLowerCase("tr-TR");
+  return categoryId === "cat-rent" || mandatoryCategoryTerms.some((term) => text.includes(term));
+}
+
+function isDiscretionaryTransaction(transaction: Transaction) {
+  return transaction.type === "expense" && !isMandatoryCategory(transaction.categoryId);
+}
+
+function toPaydayInput(transaction: Transaction): PaydayTransactionInput {
+  return {
+    id: transaction.id,
+    amount: transaction.amount,
+    type: transaction.type,
+    categoryId: transaction.categoryId,
+    category: getCategoryName(transaction.categoryId),
+    description: transaction.merchant,
+    merchant: transaction.merchant,
+    occurredAt: transaction.occurredAt
+  };
+}
+
+function historicalMonthlyAverage(sourceTransactions: Transaction[], categoryId: string, referenceMonth: string) {
+  const grouped = new Map<string, number>();
+  for (const transaction of sourceTransactions) {
+    const key = monthKey(transaction.occurredAt);
+    if (transaction.type !== "expense" || transaction.categoryId !== categoryId || key >= referenceMonth) continue;
+    grouped.set(key, (grouped.get(key) ?? 0) + transaction.amount);
+  }
+
+  const recentValues = [...grouped.entries()]
+    .sort((left, right) => right[0].localeCompare(left[0]))
+    .slice(0, historicalRiskWindowMonths)
+    .map(([, value]) => value);
+
+  return recentValues.length ? sum(recentValues) / recentValues.length : 0;
+}
+
+function stableScenarioId(categoryId: string, amount: number, id?: ScenarioCard["id"]) {
+  return [`what-if`, categoryId, Math.round(amount), id].filter(Boolean).join("-");
+}
+
+function confidenceLabel(confidence: DataConfidence) {
+  return { high: "Yüksek", medium: "Orta", low: "Düşük" }[confidence];
+}
+
+function metadataAvailability(input: {
+  accounts?: Account[];
+  transactions: Transaction[];
+  budgets: Budget[];
+  goals?: Goal[];
+  hasFixedExpenses?: boolean;
+  hasDebtPayments?: boolean;
+}) {
+  const income = input.transactions.some((transaction) => transaction.type === "income");
+  const emergencyBuffer = input.goals?.some((goal) => emergencyGoalPattern.test(goal.title));
+  return {
+    hasBalance: input.accounts ? input.accounts.length > 0 : true,
+    hasTransactions: input.transactions.length > 0,
+    hasBudgets: input.budgets.length > 0,
+    hasIncome: income,
+    hasFixedExpenses: input.hasFixedExpenses ?? input.transactions.some((transaction) => transaction.type === "expense" && transaction.recurring === true),
+    hasDebtPayments: input.hasDebtPayments ?? false,
+    hasPlannedSavings: input.goals ? input.goals.length > 0 : false,
+    hasEmergencyBuffer: emergencyBuffer ?? false
+  } satisfies FinancialDataAvailability;
+}
+
 export function summarizeMonth(
   sourceTransactions: Transaction[],
   selectedMonth = latestMonthKey(sourceTransactions)
@@ -172,7 +265,9 @@ export function calculateSpendingDna(
   const budgetMultiplier = periodBudgetMultiplier(period);
   const expenseTransactions = summary.periodTransactions.filter((transaction) => transaction.type === "expense");
   const userId = sourceTransactions[0]?.userId ?? sourceBudgets[0]?.userId ?? "current-user";
+  const metadata = buildFinancialMetadata(metadataAvailability({ transactions: sourceTransactions, budgets: sourceBudgets }));
   if (expenseTransactions.length === 0) {
+    const emptyMetric = metric(0, "low", ["Seçili dönemde harcama işlemi bulunmadığı için metrik hesaplanmadı."]);
     return {
       userId,
       overallRisk: 0,
@@ -185,21 +280,58 @@ export function calculateSpendingDna(
       nightSpendingScore: 0,
       weekendSpendingScore: 0,
       dataConfidence: 0,
+      dataConfidenceLevel: "low",
+      missingData: metadata.missingData,
       reasons: ["Seçili dönemde harcama işlemi bulunmadığı için zaman bazlı skorlar hesaplanmadı."],
-      timeZone
+      timeZone,
+      metrics: {
+        overallRisk: emptyMetric,
+        paydayReflexScore: emptyMetric,
+        nightSpendingScore: emptyMetric,
+        weekendSpendingScore: emptyMetric,
+        weekendNightScore: emptyMetric,
+        campaignSensitivity: emptyMetric,
+        savingDiscipline: emptyMetric
+      },
+      metadata
     };
   }
 
+  const referenceMonth = summary.periodStart.slice(0, 7);
   const categoryRisks = categories
     .filter((category) => category.kind === "expense")
-    .map((category) => {
+    .map((category): SpendingDnaCategory => {
       const categorySpend = sum(expenseTransactions.filter((transaction) => transaction.categoryId === category.id).map((transaction) => transaction.amount));
       const budget = sourceBudgets.find((item) => item.categoryId === category.id);
       const periodLimit = budget ? budget.monthlyLimit * budgetMultiplier : undefined;
-      const budgetPressure = periodLimit ? (categorySpend / periodLimit) * 100 : categorySpend / 100;
-      const campaignBoost = expenseTransactions.some((transaction) => transaction.categoryId === category.id && transaction.tags?.includes("campaign")) ? 18 : 0;
-      const riskScore = clamp(budgetPressure + campaignBoost, 0, 100);
+      const mandatory = isMandatoryCategory(category.id);
       const hasBudget = periodLimit !== undefined;
+      const historicalAverage = historicalMonthlyAverage(sourceTransactions, category.id, referenceMonth);
+      let riskScore = 0;
+      let confidence: DataConfidence = "low";
+      const reasons: string[] = [];
+
+      if (periodLimit !== undefined) {
+        const usageRatio = periodLimit > 0 ? categorySpend / periodLimit : 0;
+        riskScore = clamp(usageRatio * 100);
+        confidence = "high";
+        reasons.push(`${category.name} kategorisi için bütçenin %${Math.round(usageRatio * 100)}'i kullanılmış.`);
+      } else if (historicalAverage > 0 && categorySpend > 0) {
+        const deviationRatio = categorySpend / historicalAverage;
+        riskScore = clamp(30 + (deviationRatio - 1) * 35, 0, mandatory ? 70 : 100);
+        confidence = "medium";
+        reasons.push(`Bu ay ${category.name} harcaman son ${historicalRiskWindowMonths} ay ortalamanın ${deviationRatio.toFixed(1)} katı.`);
+        reasons.push("Bu kategori için bütçe tanımlı olmadığı için güven orta seviyede tutuldu.");
+      } else if (categorySpend > 0) {
+        riskScore = mandatory ? 20 : 30;
+        confidence = "low";
+        reasons.push("Bu kategori için bütçe ve yeterli geçmiş veri bulunmadığı için güven düşük.");
+        if (mandatory) reasons.push(`${category.name} zorunlu gider olarak değerlendirildi; yüksek tutar otomatik 100 risk yapılmadı.`);
+      } else {
+        confidence = "low";
+        reasons.push(`${category.name} kategorisinde seçili dönemde harcama bulunmadı.`);
+      }
+
       return {
         categoryId: category.id,
         categoryName: category.name,
@@ -207,13 +339,10 @@ export function calculateSpendingDna(
         riskLevel: riskFromScore(riskScore),
         monthlySpend: categorySpend,
         budgetLimit: periodLimit ? Math.round(periodLimit) : undefined,
-        dataConfidence: hasBudget || categorySpend === 0 ? 0.9 : 0.55,
-        reasons: [
-          hasBudget
-            ? `${category.name} harcaması seçili dönem bütçe limitine göre ölçüldü.`
-            : `${category.name} için bütçe limiti bulunmadığından kategori riski düşük güvenle yorumlandı.`,
-          campaignBoost > 0 ? "Kampanya etiketli işlem kategori riskini artırdı." : undefined
-        ].filter((reason): reason is string => Boolean(reason))
+        dataConfidence: confidenceScore(confidence),
+        confidence,
+        reasons,
+        explanation: metric(riskScore, confidence, reasons)
       };
     })
     .sort((a, b) => b.riskScore - a.riskScore);
@@ -221,52 +350,95 @@ export function calculateSpendingDna(
   const nightTransactions = expenseTransactions.filter((transaction) => isLocalNight(transaction.occurredAt, timeZone));
   const weekendTransactions = expenseTransactions.filter((transaction) => isLocalWeekend(transaction.occurredAt, timeZone));
   const weekendNightTransactions = expenseTransactions.filter((transaction) => isLocalWeekendNight(transaction.occurredAt, timeZone));
-  const paydayTransactions = expenseTransactions.filter((transaction) => {
-    const day = getLocalDateParts(transaction.occurredAt, timeZone).day;
-    return day >= 5 && day <= 8;
-  });
-  const campaignTransactions = expenseTransactions.filter((transaction) => transaction.tags?.includes("campaign"));
+  const paydayReflex = calculatePaydayReflexScore({ transactions: sourceTransactions.map(toPaydayInput) });
+  const discretionaryTransactions = expenseTransactions.filter(isDiscretionaryTransaction);
+  const campaignTransactions = discretionaryTransactions.filter((transaction) => transaction.tags?.includes("campaign"));
   const totalExpense = Math.max(sum(expenseTransactions.map((transaction) => transaction.amount)), 1);
   const incomeBase = Math.max(summary.income, totalExpense, 1);
   const savingDiscipline = clamp(100 - (totalExpense / incomeBase) * 100 + 28);
   const topCategory = categoryRisks.find((category) => category.monthlySpend > 0);
-  const paydayRatio = sum(paydayTransactions.map((transaction) => transaction.amount)) / totalExpense;
   const nightRatio = sum(nightTransactions.map((transaction) => transaction.amount)) / totalExpense;
   const weekendRatio = sum(weekendTransactions.map((transaction) => transaction.amount)) / totalExpense;
   const weekendNightRatio = sum(weekendNightTransactions.map((transaction) => transaction.amount)) / totalExpense;
-  const campaignRatio = sum(campaignTransactions.map((transaction) => transaction.amount)) / totalExpense;
-  const budgetedSpend = sum(
-    categoryRisks.filter((category) => category.monthlySpend > 0 && category.budgetLimit !== undefined).map((category) => category.monthlySpend)
+  const discretionarySpend = Math.max(sum(discretionaryTransactions.map((transaction) => transaction.amount)), 0);
+  const campaignSpend = sum(campaignTransactions.map((transaction) => transaction.amount));
+  const campaignSpendShareScore = discretionarySpend > 0 ? (campaignSpend / discretionarySpend) * 100 : 0;
+  const campaignFrequencyScore = discretionaryTransactions.length > 0 ? (campaignTransactions.length / discretionaryTransactions.length) * 100 : 0;
+  const postCampaignBudgetBreach = campaignTransactions.some((transaction) => {
+    const budget = sourceBudgets.find((item) => item.categoryId === transaction.categoryId);
+    if (!budget) return false;
+    const spend = sum(expenseTransactions.filter((item) => item.categoryId === transaction.categoryId).map((item) => item.amount));
+    return spend > budget.monthlyLimit * budgetMultiplier;
+  });
+  const postCampaignBudgetBreachScore = postCampaignBudgetBreach ? 100 : 0;
+  const campaignSensitivity = clamp(campaignSpendShareScore * 0.4 + campaignFrequencyScore * 0.3 + postCampaignBudgetBreachScore * 0.3);
+  const categoryConfidence = confidenceFromRatio(
+    sum(categoryRisks.filter((category) => category.monthlySpend > 0).map((category) => confidenceScore(category.confidence ?? "low"))) /
+      Math.max(categoryRisks.filter((category) => category.monthlySpend > 0).length, 1)
   );
-  const dataConfidence = Math.round((budgetedSpend / totalExpense) * 100) / 100;
   const patterns = [
     topCategory
       ? `${topCategory.categoryName} kategorisi bu dönemin en belirgin harcama sinyali: ${topCategory.monthlySpend.toLocaleString("tr-TR")} TL.`
       : undefined,
-    paydayRatio >= 0.25 ? "Maaş sonrası ilk günlerde harcama yoğunluğu artıyor." : undefined,
     nightRatio >= 0.2 ? "Lokal saate göre gece harcamaları bütçe sapmasına anlamlı katkı veriyor." : undefined,
     weekendRatio >= 0.2 ? "Lokal hafta sonu harcamaları ayrıca izlenmeli." : undefined,
     weekendNightRatio >= 0.15 ? "Hafta sonu gece harcamaları belirgin bir risk sinyali oluşturuyor." : undefined,
-    campaignRatio > 0 ? "Kampanya etiketli işlemler harcama kararlarında ayrıca izlenmeli." : undefined
+    campaignTransactions.length > 0 ? "Kampanya etiketli işlemler harcama kararlarında ayrıca izlenmeli." : undefined
   ].filter((pattern): pattern is string => Boolean(pattern));
+  const overallRisk = clamp(sum(categoryRisks.slice(0, 3).map((category) => category.riskScore)) / 3);
+  const paydayScore = paydayReflex.score ?? 0;
+  const nightScore = clamp(nightRatio * 100);
+  const weekendScore = clamp(weekendRatio * 100);
+  const weekendNightScore = clamp(weekendNightRatio * 100);
+  const savingDisciplineConfidence: DataConfidence = summary.income > 0 ? "high" : "low";
+  const metrics = {
+    overallRisk: metric(overallRisk, categoryConfidence, [
+      `Genel risk en yüksek 3 kategori riskinin ortalamasıyla hesaplandı: ${overallRisk}/100.`,
+      topCategory ? `En yüksek sinyal ${topCategory.categoryName} kategorisinde.` : "Belirgin kategori riski bulunmadı."
+    ]),
+    paydayReflexScore: metric(paydayScore, paydayReflex.confidence, paydayReflex.reasons),
+    nightSpendingScore: metric(nightScore, "high", [`Gece harcamalarının toplam harcamalara oranı %${Math.round(nightRatio * 100)}.`]),
+    weekendSpendingScore: metric(weekendScore, "high", [`Hafta sonu harcamalarının toplam harcamalara oranı %${Math.round(weekendRatio * 100)}.`]),
+    weekendNightScore: metric(weekendNightScore, "high", [`Hafta sonu gece harcamalarının toplam harcamalara oranı %${Math.round(weekendNightRatio * 100)}.`]),
+    campaignSensitivity: metric(
+      campaignSensitivity,
+      campaignTransactions.length > 0 ? "high" : "low",
+      campaignTransactions.length > 0
+        ? [
+            `Kampanya etiketli harcamaların isteğe bağlı harcamalar içindeki payı %${Math.round(campaignSpendShareScore)}.`,
+            `Kampanya etiketli işlem frekansı %${Math.round(campaignFrequencyScore)}.`,
+            postCampaignBudgetBreach ? "Kampanya sonrası en az bir kategori bütçesi aşıldı." : "Kampanya sonrası bütçe aşımı sinyali görülmedi."
+          ]
+        : ["Kampanya etiketli isteğe bağlı harcama bulunmadığı için kampanya hassasiyeti düşük güvenle 0 hesaplandı."]
+    ),
+    savingDiscipline: metric(savingDiscipline, savingDisciplineConfidence, [
+      summary.income > 0
+        ? `Gelir/gider dengesi ${summary.net.toLocaleString("tr-TR")} TL olduğu için tasarruf disiplini hesaplandı.`
+        : "Gelir verisi bulunmadığı için tasarruf disiplini düşük güvenle hesaplandı."
+    ])
+  };
 
   return {
     userId,
-    overallRisk: clamp(sum(categoryRisks.slice(0, 3).map((category) => category.riskScore)) / 3),
-    paydayReflexScore: clamp((sum(paydayTransactions.map((transaction) => transaction.amount)) / totalExpense) * 100 + 24),
-    nightSpendingScore: clamp(nightRatio * 100 + 16),
-    weekendSpendingScore: clamp(weekendRatio * 100 + 16),
-    weekendNightScore: clamp((sum(weekendNightTransactions.map((transaction) => transaction.amount)) / totalExpense) * 100 + 16),
-    campaignSensitivity: clamp((sum(campaignTransactions.map((transaction) => transaction.amount)) / totalExpense) * 100 + 18),
+    overallRisk,
+    paydayReflexScore: paydayScore,
+    nightSpendingScore: nightScore,
+    weekendSpendingScore: weekendScore,
+    weekendNightScore,
+    campaignSensitivity,
     savingDiscipline,
     categories: categoryRisks,
     patterns: patterns.length ? patterns : ["Harcama dağılımı şu an belirgin bir risk deseni göstermiyor."],
-    dataConfidence,
+    dataConfidence: confidenceScore(metadata.dataConfidence),
+    dataConfidenceLevel: metadata.dataConfidence,
+    missingData: metadata.missingData,
     reasons: [
       `Zaman bazlı skorlar ${timeZone} lokal saatine göre hesaplandı.`,
-      dataConfidence < 0.75 ? "Bazı harcamaların kategori bütçesi olmadığı için genel risk güveni düşürüldü." : "Harcama riskleri çoğunlukla bütçe verisiyle destekleniyor."
+      metadata.dataConfidence !== "high" ? "Bazı finansal veri alanları eksik olduğu için genel güven düşürüldü." : "Harcama riskleri bütçe, gelir ve işlem verisiyle destekleniyor."
     ],
-    timeZone
+    timeZone,
+    metrics,
+    metadata
   };
 }
 
@@ -363,9 +535,30 @@ type PersonalFinanceData = {
   actions?: ActionItem[];
   budgets?: Budget[];
   goals?: Goal[];
+  subscriptions?: Subscription[];
   user?: Pick<UserProfile, "payday">;
   transactions?: Transaction[];
 };
+
+function amountDueBetween(transactions: Transaction[], start: Date, end: Date, predicate: (transaction: Transaction) => boolean) {
+  return sum(
+    transactions
+      .filter(predicate)
+      .filter((transaction) => {
+        const date = parseUtcDate(transaction.occurredAt);
+        return date >= start && date <= end;
+      })
+      .map((transaction) => transaction.amount)
+  );
+}
+
+function goalEmergencyBuffer(goals: Goal[]) {
+  return goals.find((goal) => emergencyGoalPattern.test(goal.title))?.currentAmount ?? 0;
+}
+
+function daysBetween(left: Date, right: Date) {
+  return Math.max(0, Math.ceil((right.getTime() - left.getTime()) / 86_400_000));
+}
 
 export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: PersonalFinanceData = {}): WhatIfResponse {
   const sourceAccounts = source.accounts ?? [];
@@ -373,11 +566,16 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
   const sourceBudgets = source.budgets ?? [];
   const sourceGoals = source.goals ?? [];
   const sourceTransactions = source.transactions ?? [];
+  const sourceSubscriptions = source.subscriptions ?? [];
   const timeZone = resolveTimeZone(input.timeZone);
-  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets, { timeZone });
-  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, { timeZone });
+  const referenceDate = resolveReferenceDate(sourceTransactions, input.decisionDate);
+  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets, { timeZone, referenceDate: dateKey(referenceDate) });
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, { timeZone, referenceDate: dateKey(referenceDate) });
   const hasFinancialActivity = sourceTransactions.length > 0 || dashboard.balance !== 0 || sourceBudgets.length > 0 || sourceGoals.length > 0 || sourceActions.length > 0;
   const requestedAmount = positiveAmount(input.amount);
+  const emptyMetadata = buildFinancialMetadata(
+    metadataAvailability({ accounts: sourceAccounts, transactions: sourceTransactions, budgets: sourceBudgets, goals: sourceGoals, hasDebtPayments: false })
+  );
   if (!hasFinancialActivity) {
     return {
       question: input.description ?? "What-if senaryosu için önce gelir, gider, bütçe veya hedef verisi eklenmeli.",
@@ -386,7 +584,9 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
       cards: [],
       assumptions: ["Simülasyon boş finansal veriyle otomatik varsayım üretmez."],
       dataConfidence: 0,
-      missingData: ["financial_activity"]
+      dataConfidenceLevel: "low",
+      missingData: ["financial_activity", ...emptyMetadata.missingData],
+      metadata: { ...emptyMetadata, dataConfidence: "low" }
     };
   }
 
@@ -397,23 +597,61 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
   const defaultAmountBase = Math.max(selectedBudget?.monthlyLimit ?? 0, categorySpend, dashboard.expenses, 1000);
   const amount = requestedAmount ?? Math.max(500, Math.round((defaultAmountBase * 0.35) / 100) * 100);
   const categoryRisk = dna.categories.find((category) => category.categoryId === resolvedCategoryId)?.riskScore ?? dna.overallRisk;
-  const safeLimitBase = selectedBudget?.monthlyLimit ?? defaultAmountBase;
-  const safeLimit = Math.max(0, Math.round((safeLimitBase * 0.55) / 100) * 100);
+  const categoryBudgetRemaining = selectedBudget ? Math.max(0, selectedBudget.monthlyLimit - categorySpend) : undefined;
+  const monthEnd = new Date(Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth() + 1, 0));
+  const currentBalance = sum(sourceAccounts.map((account) => account.balance));
+  const expectedIncomeUntilMonthEnd = amountDueBetween(
+    sourceTransactions,
+    referenceDate,
+    monthEnd,
+    (transaction) => transaction.type === "income"
+  );
+  const fixedExpensesDue = amountDueBetween(
+    sourceTransactions,
+    referenceDate,
+    monthEnd,
+    (transaction) => transaction.type === "expense" && (transaction.recurring === true || isMandatoryCategory(transaction.categoryId))
+  );
+  const debtPaymentsDue = 0;
+  const plannedSavings = 0;
+  const emergencyBuffer = goalEmergencyBuffer(sourceGoals);
+  const availableCash = currentBalance + expectedIncomeUntilMonthEnd - fixedExpensesDue - debtPaymentsDue - plannedSavings - emergencyBuffer;
+  const safeLimit = Math.max(0, Math.round(Math.min(categoryBudgetRemaining ?? Number.POSITIVE_INFINITY, Math.max(0, availableCash) * safeCashSafetyFactor) / 100) * 100);
+  const balancedAmount = Math.max(0, Math.round(Math.min(amount * whatIfBalancedMultiplier, Math.max(0, availableCash) * balancedCashFactor) / 100) * 100);
   const currentSavingsGap = sum(sourceGoals.map((goal) => Math.max(goal.targetAmount - goal.currentAmount, 0)));
+  const detection = detectPayday(sourceTransactions.map(toPaydayInput));
+  const nextIncomeDay = detection.paydayDayOfMonth
+    ? new Date(Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth() + (referenceDate.getUTCDate() > detection.paydayDayOfMonth ? 1 : 0), detection.paydayDayOfMonth))
+    : undefined;
+  const metadata = buildFinancialMetadata(
+    metadataAvailability({
+      accounts: sourceAccounts,
+      transactions: sourceTransactions,
+      budgets: sourceBudgets,
+      goals: sourceGoals,
+      hasFixedExpenses: fixedExpensesDue > 0 || sourceTransactions.some((transaction) => transaction.recurring === true),
+      hasDebtPayments: false
+    })
+  );
   const missingData = [
-    selectedBudget ? undefined : "category_budget",
-    requestedAmount ? undefined : "requested_amount"
+    ...metadata.missingData,
+    selectedBudget ? undefined : "categoryBudget",
+    requestedAmount ? undefined : "requestedAmount",
+    sourceSubscriptions.length ? undefined : "subscriptions"
   ].filter((item): item is string => Boolean(item));
-  const dataConfidence = Math.max(0.35, Math.round((0.9 - missingData.length * 0.15) * 100) / 100);
+  const dataConfidenceLevel = metadata.dataConfidence;
+  const dataConfidence = confidenceScore(dataConfidenceLevel);
+  const responseScenarioId = stableScenarioId(resolvedCategoryId, amount);
 
-  const makeCard = (id: ScenarioCard["id"], multiplier: number, label: string, recommendation: string): ScenarioCard => {
-    const spendAmount = Math.round(amount * multiplier);
+  const makeCard = (id: ScenarioCard["id"], spendAmount: number, label: string, recommendation: string): ScenarioCard => {
     const debtImpact = spendAmount;
     const monthEndBalance = dashboard.balance - spendAmount;
     const savingsImpactPercent = currentSavingsGap > 0 ? Math.round((spendAmount / currentSavingsGap) * 100) : 0;
     const riskLevel = id === "safe" ? "low" : id === "balanced" ? riskFromScore(Math.max(categoryRisk, 45)) : riskFromScore(Math.max(categoryRisk, 70));
+    const warning = spendAmount > safeLimit ? "Bu senaryo güvenli limitin üzerinde kalıyor." : undefined;
     return {
       id,
+      scenarioId: stableScenarioId(resolvedCategoryId, amount, id),
       label,
       spendAmount,
       monthEndBalance,
@@ -423,29 +661,47 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
       riskLevel,
       reasons: [
         `${getCategoryName(resolvedCategoryId)} kategorisi için güvenli limit ${safeLimit.toLocaleString("tr-TR")} TL.`,
+        `Harcanabilir nakit ${availableCash.toLocaleString("tr-TR")} TL olarak hesaplandı.`,
+        categoryBudgetRemaining !== undefined ? `Kategori bütçesinde kalan tutar ${categoryBudgetRemaining.toLocaleString("tr-TR")} TL.` : "Bu kategori için bütçe tanımlı değil.",
         currentSavingsGap > 0 ? `Aktif hedeflerin kalan tutarına etkisi yaklaşık %${savingsImpactPercent}.` : undefined
-      ].filter((reason): reason is string => Boolean(reason))
+      ].filter((reason): reason is string => Boolean(reason)),
+      warning
     };
   };
 
   return {
+    scenarioId: responseScenarioId,
     question: input.description ?? `${getCategoryName(resolvedCategoryId)} kategorisinde ${amount.toLocaleString("tr-TR")} TL harcarsam ne olur?`,
     safeLimit,
     emotionalDelayMinutes: categoryRisk >= 65 || amount > safeLimit ? 10 : 0,
     cards: [
-      makeCard("safe", Math.min(safeLimit / Math.max(amount, 1), 1), "Güvenli senaryo", "Güvenli limitte kal, hedefleri bozma."),
-      makeCard("balanced", 0.7, "Dengeli senaryo", "Harcamayı kıs ve kalanını hedefe aktar."),
-      makeCard("risky", 1, "Riskli senaryo", "Satın almadan önce 10 dakika bekleme ve alternatif fiyat kontrolü önerilir.")
+      makeCard("safe", Math.min(safeLimit, amount), "Güvenli senaryo", "Güvenli limitte kal, hedefleri bozma."),
+      makeCard("balanced", Math.min(balancedAmount, amount), "Dengeli senaryo", "Harcamayı kıs ve kalanını hedefe aktar."),
+      makeCard("risky", amount, "Riskli senaryo", "Satın almadan önce 10 dakika bekleme ve alternatif fiyat kontrolü önerilir.")
     ],
     assumptions: [
       "Aylık gelir ve sabit giderler kayıtlı finans verilerine göre hesaplandı.",
       "Kart borcu etkisi işlem tutarı kadar kabul edildi.",
-      "Tasarruf etkisi aktif hedeflerin kalan tutarına oranla hesaplandı."
+      "Tasarruf etkisi aktif hedeflerin kalan tutarına oranla hesaplandı.",
+      ...metadata.assumptions
     ],
     dataConfidence,
+    dataConfidenceLevel,
     missingData,
     resolvedCategoryId,
-    resolvedCategoryName: getCategoryName(resolvedCategoryId)
+    resolvedCategoryName: getCategoryName(resolvedCategoryId),
+    metadata: { ...metadata, missingData, assumptions: [...new Set(metadata.assumptions)] },
+    cashflow: {
+      currentBalance,
+      expectedIncomeUntilMonthEnd,
+      fixedExpensesDue,
+      debtPaymentsDue,
+      plannedSavings,
+      emergencyBuffer,
+      availableCash,
+      categoryBudgetRemaining,
+      daysUntilNextIncome: nextIncomeDay ? daysBetween(referenceDate, nextIncomeDay) : undefined
+    }
   };
 }
 

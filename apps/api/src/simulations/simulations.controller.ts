@@ -19,6 +19,7 @@ export class SimulationsController {
       actions: data.actions,
       budgets: data.budgets,
       goals: data.goals,
+      subscriptions: data.subscriptions,
       user: data.user,
       transactions: data.transactions
     });

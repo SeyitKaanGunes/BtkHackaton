@@ -30,7 +30,7 @@ export function composeSimulationAnswer({ simulation, parsedAmount, parsedCatego
     "",
     "Varsayımlar:",
     ...assumptions.map((assumption) => `- ${assumption}`),
-    `- Veri güveni: ${confidenceLabel(confidence)}.`
+    `- Veri güveni: ${simulation.dataConfidenceLevel ? confidenceLevelLabel(simulation.dataConfidenceLevel) : confidenceLabel(confidence)}.`
   ].join("\n");
 }
 
@@ -72,6 +72,10 @@ function confidenceLabel(value: number) {
   if (value >= 0.8) return `Yüksek (${Math.round(value * 100)}%)`;
   if (value >= 0.55) return `Orta (${Math.round(value * 100)}%)`;
   return `Düşük (${Math.round(value * 100)}%)`;
+}
+
+function confidenceLevelLabel(value: NonNullable<WhatIfResponse["dataConfidenceLevel"]>) {
+  return { high: "Yüksek", medium: "Orta", low: "Düşük" }[value];
 }
 
 function categoryLabelFromParsed(parsedCategory: ParsedCategory) {

@@ -92,6 +92,9 @@ describe("API feature services", () => {
 
     const result = simulationsController.whatIf(authUser, { amount: 1000, categoryId: "cat-tech", description: "Telefon alırsam ne olur?" });
     expect(result.cards.length).toBeGreaterThan(0);
+    expect(result.scenarioId).toBeTruthy();
+    expect(new Set(result.cards.map((card) => card.scenarioId)).size).toBe(3);
+    expect(result.dataConfidenceLevel).toBeTruthy();
   });
 
   it("rejects receipt OCR when no document is provided", async () => {
