@@ -67,10 +67,9 @@ import {
   type AuthUserProfile
 } from "./src/api";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
-import { ScanScreen } from "./src/screens/ScanScreen";
 import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles } from "./src/ui";
 
-type Tab = "home" | "portfolio" | "agent" | "scan" | "business";
+type Tab = "home" | "portfolio" | "agent" | "business";
 type HomeData = Awaited<ReturnType<typeof loadMobileHome>>;
 type BusinessData = NonNullable<Awaited<ReturnType<typeof loadBusiness>>>;
 
@@ -158,7 +157,6 @@ export default function App() {
           ))}
         {tab === "portfolio" && <PortfolioScreen onImported={refreshData} />}
         {tab === "agent" && <AgentScreen />}
-        {tab === "scan" && <ScanScreen onImported={refreshData} />}
         {tab === "business" &&
           (business ? (
             <BusinessScreen {...business} onChanged={refreshData} />
@@ -186,12 +184,6 @@ export default function App() {
           active={tab === "agent"}
           onPress={() => setTab("agent")}
           icon={<Bot size={20} color={tab === "agent" ? palette.secondary : palette.darkMuted} />}
-        />
-        <BottomTabButton
-          label="Belgeler"
-          active={tab === "scan"}
-          onPress={() => setTab("scan")}
-          icon={<FileScan size={20} color={tab === "scan" ? palette.secondary : palette.darkMuted} />}
         />
         <BottomTabButton
           label="KOBİ"

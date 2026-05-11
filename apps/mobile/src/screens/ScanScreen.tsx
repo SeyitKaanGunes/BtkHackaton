@@ -14,7 +14,7 @@ type StatementFlow =
   | { phase: "preview"; data: StatementPreviewResult; selected: Set<number>; skipDuplicates: boolean }
   | { phase: "confirmed"; data: StatementConfirmResult };
 
-export function ScanScreen({ onImported }: { onImported: () => void }) {
+export function ScanScreen({ onImported, embedded = false }: { onImported: () => void; embedded?: boolean }) {
   const p = usePalette();
   const [mode, setMode] = useState<"receipt" | "statement">("receipt");
   const [receiptResult, setReceiptResult] = useState<ReceiptExpenseImportResult | null>(null);
@@ -89,11 +89,25 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
 
   return (
     <View style={{ gap: space[4] }}>
-      <ScreenHeader
-        eyebrow="Belge Agent'ları"
-        title="Belgeyi agent'a okut."
-        subtitle="Fiş tek gider olarak eklenir; ekstre kalemleri önizleme sonrası seçilerek giderlere aktarılır."
-      />
+      {embedded ? (
+        <Card style={{ backgroundColor: p.surface2 }}>
+          <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+            <FileText color={p.accent} size={18} />
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={{ color: p.ink, fontWeight: "900", fontSize: 15 }}>Belge ve ekstre yükle</Text>
+              <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>
+                Fişleri giderlere, banka ekstresi kalemlerini onaydan sonra işlem geçmişine ekle.
+              </Text>
+            </View>
+          </View>
+        </Card>
+      ) : (
+        <ScreenHeader
+          eyebrow="Belge Agent'ları"
+          title="Belgeyi agent'a okut."
+          subtitle="Fiş tek gider olarak eklenir; ekstre kalemleri önizleme sonrası seçilerek giderlere aktarılır."
+        />
+      )}
 
       <View style={{ flexDirection: "row", backgroundColor: p.surface2, borderRadius: radius.md, padding: 4, gap: 4 }}>
         {([
@@ -136,7 +150,7 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
         </View>
         <View style={{ alignItems: "center", gap: 4 }}>
           <Text style={{ color: p.ink, fontSize: 16, fontWeight: "900" }}>
-            {loading ? "Belge taranıyor..." : mode === "receipt" ? "Fiş veya fatura seç" : "Ekstre dosyası yükle"}
+            {loading ? "Belge taranıyor..." : mode === "receipt" ? "Fiş veya fatura seç" : "Banka ekstresi yükle"}
           </Text>
           <Text style={{ color: p.muted, fontSize: 12, textAlign: "center", lineHeight: 17 }}>
             {loading
@@ -185,7 +199,7 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
         </View>
       </Card>
 
-      <View style={{ height: space[5] }} />
+      <View style={{ height: embedded ? 0 : space[5] }} />
     </View>
   );
 }
