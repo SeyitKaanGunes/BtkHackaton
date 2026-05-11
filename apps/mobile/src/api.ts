@@ -32,10 +32,12 @@ import type {
   TransactionType,
   WhatIfResponse
 } from "@fintwin/shared";
+import { NativeModules, Platform } from "react-native";
 import * as Keychain from "react-native-keychain";
 
 const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
-const devApiUrl = "http://localhost:4000";
+const devApiPort = "4000";
+const devApiUrl = `http://localhost:${devApiPort}`;
 const apiUrl = resolveApiUrl();
 let authToken = runtimeEnv.EXPO_PUBLIC_AUTH_TOKEN?.trim() || undefined;
 const biometricService = "fintwin.auth.biometric-token";
@@ -213,6 +215,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const message = error instanceof Error ? error.message : "Unknown API error";
     if (isDocumentEndpoint) {
       throw new Error(`Belge API'sine ulaşılamadı. Demo sonuç üretilmedi. API adresini ve backend'i kontrol edin: ${message}`);
+    }
+    if (path.startsWith("/auth/")) {
+      throw new Error(`Giriş servisine ulaşılamadı. Backend açık mı kontrol et. Denenen adres: ${apiUrl}${path}. Detay: ${message}`);
     }
     throw new Error(`Fintwin API request failed for ${path}: ${message}`);
   }
@@ -429,7 +434,30 @@ function resolveApiUrl() {
   if (envApiUrl) return envApiUrl.replace(/\/$/, "");
 
   const isDevRuntime = typeof __DEV__ === "boolean" ? __DEV__ : runtimeEnv.NODE_ENV !== "production";
-  if (isDevRuntime) return devApiUrl;
+  if (isDevRuntime) {
+    const host = inferMetroHost();
+    if (host) return `http://${host}:${devApiPort}`;
+    return devApiUrl;
+  }
 
   throw new Error("EXPO_PUBLIC_API_URL is required.");
+}
+
+function inferMetroHost() {
+  if (Platform.OS === "web") return "localhost";
+
+  const scriptURL = (NativeModules as { SourceCode?: { scriptURL?: string } }).SourceCode?.scriptURL;
+  if (!scriptURL) return undefined;
+
+  try {
+    const host = new URL(scriptURL).hostname;
+    if (!host) return undefined;
+    if (Platform.OS === "android" && (host === "localhost" || host === "127.0.0.1")) return "10.0.2.2";
+    return host;
+  } catch {
+    const host = scriptURL.match(/https?:\/\/([^/:]+)/)?.[1];
+    if (!host) return undefined;
+    if (Platform.OS === "android" && (host === "localhost" || host === "127.0.0.1")) return "10.0.2.2";
+    return host;
+  }
 }
