@@ -35,6 +35,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Fiş ve fatura çekmek için kamera erişimi gereklidir.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Finansal verilerine hızlı ve güvenli giriş yapmak için Face ID kullanılır.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Fiş, fatura veya ekstre görüntüsü seçmek için fotoğraf kütüphanesi erişimi gereklidir.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

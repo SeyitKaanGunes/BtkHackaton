@@ -29,11 +29,14 @@ import type {
   WhatIfResponse
 } from "@fintwin/shared";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Keychain from "react-native-keychain";
 
 const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 const apiUrl = requiredPublicEnv("EXPO_PUBLIC_API_URL").replace(/\/$/, "");
 let authToken = runtimeEnv.EXPO_PUBLIC_AUTH_TOKEN?.trim() || undefined;
-const authStorageKey = "fintwin_token";
+const legacyAuthStorageKey = "fintwin_token";
+const biometricService = "fintwin.auth.biometric-token";
+const biometricUsername = "fintwin-auth-token";
 
 export interface AuthResponse {
   token: string;
@@ -103,21 +106,91 @@ export function setAuthToken(token: string) {
   authToken = token;
 }
 
+async function removeLegacyAuthToken() {
+  try {
+    await AsyncStorage.removeItem(legacyAuthStorageKey);
+  } catch {
+    // Legacy cleanup must not block a normal login flow.
+  }
+}
+
+export async function getBiometricAuthLabel() {
+  try {
+    const type = await Keychain.getSupportedBiometryType();
+    if (type === Keychain.BIOMETRY_TYPE.FACE_ID) return "Face ID";
+    if (type === Keychain.BIOMETRY_TYPE.TOUCH_ID) return "Touch ID";
+    if (type === Keychain.BIOMETRY_TYPE.FINGERPRINT) return "Parmak izi";
+    if (type === Keychain.BIOMETRY_TYPE.FACE) return "Yüz tanıma";
+    if (type === Keychain.BIOMETRY_TYPE.IRIS) return "İris";
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+async function canUseBiometricAuth() {
+  try {
+    return await Keychain.canImplyAuthentication({
+      authenticationType: Keychain.AUTHENTICATION_TYPE.BIOMETRICS
+    });
+  } catch {
+    return false;
+  }
+}
+
 export async function persistAuthToken(token: string) {
   setAuthToken(token);
-  await AsyncStorage.setItem(authStorageKey, token);
+  await removeLegacyAuthToken();
+
+  if (!(await canUseBiometricAuth())) {
+    return false;
+  }
+
+  try {
+    await Keychain.setGenericPassword(biometricUsername, token, {
+      service: biometricService,
+      accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+      accessControl: Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET,
+      authenticationPrompt: {
+        title: "Fintwin girişi",
+        subtitle: "Sonraki girişlerde yüz tanımayı kullan",
+        cancel: "Şifreyle devam et"
+      }
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function loadStoredAuthToken() {
   if (authToken) return authToken;
-  const stored = await AsyncStorage.getItem(authStorageKey);
-  authToken = stored?.trim() || undefined;
+  await removeLegacyAuthToken();
+  try {
+    const credentials = await Keychain.getGenericPassword({
+      service: biometricService,
+      accessControl: Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET,
+      authenticationPrompt: {
+        title: "Fintwin'e giriş",
+        subtitle: "Kayıtlı oturumunu yüz tanıma ile aç",
+        cancel: "Şifreyle devam et"
+      }
+    });
+    authToken = credentials ? credentials.password.trim() || undefined : undefined;
+  } catch {
+    authToken = undefined;
+  }
   return authToken;
 }
 
 export async function clearAuthToken() {
   authToken = undefined;
-  await AsyncStorage.removeItem(authStorageKey);
+  await removeLegacyAuthToken();
+  try {
+    await Keychain.resetGenericPassword({ service: biometricService });
+  } catch {
+    // Clearing in-memory state is enough if the platform keychain is unavailable.
+  }
 }
 
 export function hasAuthToken() {

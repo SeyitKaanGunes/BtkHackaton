@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Dimensions, Modal, PanResponder, Platform, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import Tts from "react-native-tts";
 import {
@@ -14,6 +14,7 @@ import {
   Clock3,
   FileScan,
   FileUp,
+  Fingerprint,
   Landmark,
   LogOut,
   Mic2,
@@ -55,6 +56,7 @@ import {
   createBusinessCustomer,
   createTransaction,
   dismissAction,
+  getBiometricAuthLabel,
   hasAuthToken,
   importTransactionsCsv,
   loadBusiness,
@@ -91,7 +93,6 @@ const periodNetCaptions: Record<DashboardPeriod, string> = {
 };
 
 export default function App() {
-  const [authReady, setAuthReady] = useState(() => hasAuthToken());
   const [authenticated, setAuthenticated] = useState(() => hasAuthToken());
   const [tab, setTab] = useState<Tab>("home");
   const [home, setHome] = useState<HomeData | null>(null);
@@ -102,23 +103,7 @@ export default function App() {
   const [period, setPeriod] = useState<DashboardPeriod>("monthly");
 
   useEffect(() => {
-    if (hasAuthToken()) return;
-    let active = true;
-    void loadStoredAuthToken()
-      .then((token) => {
-        if (!active) return;
-        setAuthenticated(Boolean(token));
-      })
-      .finally(() => {
-        if (active) setAuthReady(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!authReady || !authenticated) return;
+    if (!authenticated) return;
     setLoadError(null);
     void loadMobileHome({ period })
       .then((data) => {
@@ -126,7 +111,7 @@ export default function App() {
         setBusiness(data.businessOverview);
       })
       .catch((error) => setLoadError(error instanceof Error ? error.message : "Veri yüklenemedi."));
-  }, [authReady, authenticated, period, refreshTick]);
+  }, [authenticated, period, refreshTick]);
 
   async function logout() {
     await clearAuthToken();
@@ -138,14 +123,6 @@ export default function App() {
 
   function refreshData() {
     setRefreshTick((value) => value + 1);
-  }
-
-  if (!authReady) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <Loading />
-      </SafeAreaView>
-    );
   }
 
   if (!authenticated) {
@@ -228,7 +205,41 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
+  const [biometricPending, setBiometricPending] = useState(false);
+  const [biometricChecked, setBiometricChecked] = useState(false);
+  const [biometricLabel, setBiometricLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const attemptBiometricLogin = useCallback(async () => {
+    let unlocked = false;
+    setBiometricPending(true);
+    setError(null);
+    try {
+      const label = await getBiometricAuthLabel();
+      setBiometricLabel(label ?? null);
+      const token = await loadStoredAuthToken();
+      if (token) {
+        unlocked = true;
+        onAuthenticated();
+        return;
+      }
+      if (label) {
+        setError(`${label} ile giriş tamamlanamadı. Şifreyle devam edebilirsin.`);
+      }
+    } catch (biometricError) {
+      setError(biometricError instanceof Error ? biometricError.message : "Biyometrik giriş tamamlanamadı.");
+    } finally {
+      if (!unlocked) {
+        setBiometricChecked(true);
+        setBiometricPending(false);
+      }
+    }
+  }, [onAuthenticated]);
+
+  useEffect(() => {
+    if (mode !== "login" || biometricChecked) return;
+    void attemptBiometricLogin();
+  }, [attemptBiometricLogin, biometricChecked, mode]);
 
   async function submit() {
     setPending(true);
@@ -262,13 +273,54 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
           </View>
 
           <View style={localStyles.authSwitch}>
-            <Pressable style={[localStyles.authSwitchButton, mode === "login" && localStyles.authSwitchActive]} onPress={() => setMode("login")}>
+            <Pressable
+              style={[localStyles.authSwitchButton, mode === "login" && localStyles.authSwitchActive]}
+              onPress={() => {
+                setMode("login");
+                setError(null);
+              }}
+            >
               <Text style={[localStyles.authSwitchText, mode === "login" && localStyles.authSwitchTextActive]}>Giriş</Text>
             </Pressable>
-            <Pressable style={[localStyles.authSwitchButton, mode === "register" && localStyles.authSwitchActive]} onPress={() => setMode("register")}>
+            <Pressable
+              style={[localStyles.authSwitchButton, mode === "register" && localStyles.authSwitchActive]}
+              onPress={() => {
+                setMode("register");
+                setError(null);
+              }}
+            >
               <Text style={[localStyles.authSwitchText, mode === "register" && localStyles.authSwitchTextActive]}>Kayıt</Text>
             </Pressable>
           </View>
+
+          {mode === "login" ? (
+            <View style={localStyles.biometricCard}>
+              <View style={localStyles.biometricIcon}>
+                {biometricPending ? <ActivityIndicator color={palette.primary} size="small" /> : <Fingerprint size={20} color={palette.primary} />}
+              </View>
+              <View style={localStyles.biometricCopy}>
+                <Text style={localStyles.biometricTitle}>
+                  {biometricPending
+                    ? `${biometricLabel ?? "Face ID"} ile giriş deneniyor`
+                    : biometricLabel
+                      ? `${biometricLabel} ile hızlı giriş`
+                      : "Şifreyle giriş"}
+                </Text>
+                <Text style={localStyles.biometricCaption}>
+                  {biometricPending
+                    ? "Kayıtlı oturum varsa önce biyometrik doğrulama açılır."
+                    : biometricLabel
+                      ? "Olmazsa aşağıdaki şifreyle devam edebilirsin."
+                      : "Bu cihazda yüz tanıma hazır değilse şifreyle devam edebilirsin."}
+                </Text>
+              </View>
+              {!biometricPending && biometricLabel ? (
+                <Pressable accessibilityRole="button" style={localStyles.biometricRetry} onPress={attemptBiometricLogin}>
+                  <Text style={localStyles.biometricRetryText}>Dene</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
 
           {mode === "register" ? (
             <TextInput
@@ -1614,6 +1666,56 @@ const localStyles = StyleSheet.create({
     color: palette.ink,
     backgroundColor: "#FBFCFA",
     fontSize: 14
+  },
+  biometricCard: {
+    minHeight: 76,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    backgroundColor: palette.surface2,
+    padding: 12
+  },
+  biometricIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: palette.primarySoft
+  },
+  biometricCopy: {
+    flex: 1,
+    gap: 3
+  },
+  biometricTitle: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: "900"
+  },
+  biometricCaption: {
+    color: palette.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700"
+  },
+  biometricRetry: {
+    minHeight: 36,
+    minWidth: 54,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: palette.surface,
+    borderColor: palette.line,
+    borderWidth: 1,
+    paddingHorizontal: 10
+  },
+  biometricRetryText: {
+    color: palette.primary,
+    fontSize: 12,
+    fontWeight: "900"
   },
   authError: {
     color: palette.danger,
