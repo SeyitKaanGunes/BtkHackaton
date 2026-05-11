@@ -42,6 +42,56 @@ describe("Fintwin finance engines", () => {
     expect(dna.patterns.length).toBeGreaterThan(0);
   });
 
+  it("calculates Spending DNA time scores in the user's local timezone", () => {
+    const localTransactions = [
+      {
+        id: "tx-weekday-night",
+        userId: "user-timezone",
+        accountId: "acc-main",
+        categoryId: "cat-food",
+        merchant: "Weekday Night",
+        amount: 100,
+        currency: "TRY",
+        type: "expense",
+        occurredAt: "2026-05-08T17:30:00.000Z",
+        paymentMethod: "credit_card"
+      },
+      {
+        id: "tx-weekend-day",
+        userId: "user-timezone",
+        accountId: "acc-main",
+        categoryId: "cat-food",
+        merchant: "Weekend Day",
+        amount: 200,
+        currency: "TRY",
+        type: "expense",
+        occurredAt: "2026-05-09T10:00:00.000Z",
+        paymentMethod: "credit_card"
+      },
+      {
+        id: "tx-weekend-night",
+        userId: "user-timezone",
+        accountId: "acc-main",
+        categoryId: "cat-food",
+        merchant: "Weekend Night",
+        amount: 300,
+        currency: "TRY",
+        type: "expense",
+        occurredAt: "2026-05-09T17:30:00.000Z",
+        paymentMethod: "credit_card"
+      }
+    ] as typeof transactions;
+    const dna = calculateSpendingDna(localTransactions, [{ id: "budget-food-test", userId: "user-timezone", categoryId: "cat-food", monthlyLimit: 10000 }], {
+      timeZone: "Europe/Istanbul",
+      referenceDate: "2026-05-09"
+    });
+
+    expect(dna.nightSpendingScore).toBe(83);
+    expect(dna.weekendSpendingScore).toBe(99);
+    expect(dna.weekendNightScore).toBe(66);
+    expect(dna.timeZone).toBe("Europe/Istanbul");
+  });
+
   it("returns safe, balanced and risky what-if scenarios", () => {
     const simulation = buildWhatIfScenarios(
       { amount: 10000, categoryId: "cat-tech" },

@@ -19,6 +19,7 @@ export class SimulationsController {
       actions: data.actions,
       budgets: data.budgets,
       goals: data.goals,
+      user: data.user,
       transactions: data.transactions
     });
   }
@@ -31,7 +32,8 @@ function normalizeWhatIfRequest(value: unknown): WhatIfRequest {
     amount: optionalPositiveNumber(value.amount, "amount"),
     categoryId: optionalText(value.categoryId, "categoryId"),
     decisionDate: optionalDateOnly(value.decisionDate, "decisionDate"),
-    description: optionalText(value.description, "description")
+    description: optionalText(value.description, "description"),
+    timeZone: optionalText(value.timeZone, "timeZone")
   };
 }
 

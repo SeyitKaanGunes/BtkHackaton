@@ -8,11 +8,14 @@ import {
   calculateDashboardSummary,
   calculateSpendingDna,
   detectSubscriptionLeakage,
+  parseAmountFromText,
+  resolveCategoryFromText,
   type ActionItem,
   type AgentResponse
 } from "@fintwin/shared";
 import { QwenService } from "../ai/qwen.service.js";
 import { DataStoreService } from "../data/data-store.service.js";
+import { composeSimulationAnswer } from "./simulation-response.js";
 
 const AgentState = Annotation.Root({
   message: Annotation<string>(),
@@ -52,13 +55,23 @@ export class AgentService {
         };
       })
       .addNode("simulation", async (state) => {
+        const parsedAmount = parseAmountFromText(state.message);
+        if (!parsedAmount.value || parsedAmount.confidence < 0.45) {
+          return {
+            answer: "What-if simülasyonu yapabilmem için tutarı da net yazar mısın? Örneğin: \"10.000 TL telefon alırsam ne olur?\"",
+            confidence: 0.9,
+            routedAgents: ["Simulation Agent"]
+          };
+        }
+        const parsedCategory = resolveCategoryFromText(state.message);
         const simulation = buildWhatIfScenarios(
-          { amount: this.extractAmount(state.message), categoryId: this.extractCategoryId(state.message), description: state.message },
+          { amount: parsedAmount.value, categoryId: parsedCategory.categoryId, description: state.message },
           {
             accounts: data.accounts,
             actions: data.actions,
             budgets: data.budgets,
             goals: data.goals,
+            user: data.user,
             transactions: data.transactions
           }
         );
@@ -70,7 +83,7 @@ export class AgentService {
           };
         }
         return {
-          answer: `What-if sonucu: güvenli limit ${simulation.safeLimit.toLocaleString("tr-TR")} TL. Riskli senaryoda ay sonu bakiye ${simulation.cards[2]!.monthEndBalance.toLocaleString("tr-TR")} TL olur.`,
+          answer: composeSimulationAnswer({ simulation, parsedAmount, parsedCategory }),
           confidence: 0.9,
           routedAgents: ["Simulation Agent", "Action Agent"],
           suggestedActions: [
@@ -163,27 +176,11 @@ export class AgentService {
 
   private routeIntent(message: string) {
     const normalized = message.toLocaleLowerCase("tr-TR");
-    if (/(alırsam|harcarsam|ertelersem|senaryo|what-if|ne olur)/i.test(normalized)) return "simulation";
+    if (/(alırsam|alsam|harcarsam|ödersem|yaparsam|ertelersem|senaryo|what-if|ne olur|olursa|giderse|zamlanırsa)/i.test(normalized)) return "simulation";
     if (/(abonelik|subscription|tekrarlayan|sızıntı)/i.test(normalized)) return "subscriptions";
     if (/(nedir|anlat|öğret|faiz|enflasyon|kredi)/i.test(normalized)) return "education";
     if (/(dna|risk|profil|ikiz|sağlık skoru|skor)/i.test(normalized)) return "twin";
     return "assistant";
-  }
-
-  private extractAmount(message: string) {
-    const match = message.replace(/\./g, "").match(/(\d{3,})/);
-    return match ? Number(match[1]) : undefined;
-  }
-
-  private extractCategoryId(message: string) {
-    const normalized = message.toLocaleLowerCase("tr-TR");
-    if (/(teknoloji|elektronik|telefon|bilgisayar|yazılım|software|tekno)/i.test(normalized)) return "cat-tech";
-    if (/(market|bakkal|gıda|groceries)/i.test(normalized)) return "cat-market";
-    if (/(yemek|restoran|burger|kahve|kafe)/i.test(normalized)) return "cat-food";
-    if (/(ulaşım|taksi|metro|otobüs|benzin)/i.test(normalized)) return "cat-transport";
-    if (/(giyim|kıyafet|moda|ayakkabı)/i.test(normalized)) return "cat-clothes";
-    if (/(abonelik|subscription|üyelik|stream|cloud)/i.test(normalized)) return "cat-subscription";
-    return undefined;
   }
 
   private async educationalAnswer(message: string): Promise<string> {

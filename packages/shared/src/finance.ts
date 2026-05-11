@@ -1,4 +1,5 @@
 import { categories } from "./category-catalog.js";
+import { getLocalDateParts, isLocalNight, isLocalWeekend, isLocalWeekendNight, resolveTimeZone } from "./timezone.js";
 import type {
   Account,
   ActionItem,
@@ -20,6 +21,7 @@ import type {
   SubscriptionLeak,
   Subscription,
   Transaction,
+  UserProfile,
   WhatIfRequest,
   WhatIfResponse
 } from "./types.js";
@@ -165,6 +167,7 @@ export function calculateSpendingDna(
   options: DashboardPeriodOptions = {}
 ): SpendingDna {
   const period = normalizeDashboardPeriod(options.period);
+  const timeZone = resolveTimeZone(options.timeZone);
   const summary = summarizePeriod(sourceTransactions, { ...options, period });
   const budgetMultiplier = periodBudgetMultiplier(period);
   const expenseTransactions = summary.periodTransactions.filter((transaction) => transaction.type === "expense");
@@ -178,7 +181,12 @@ export function calculateSpendingDna(
       campaignSensitivity: 0,
       savingDiscipline: 0,
       categories: [],
-      patterns: ["Harcama verisi eklendiğinde Spending DNA davranış profili oluşacak."]
+      patterns: ["Harcama verisi eklendiğinde Spending DNA davranış profili oluşacak."],
+      nightSpendingScore: 0,
+      weekendSpendingScore: 0,
+      dataConfidence: 0,
+      reasons: ["Seçili dönemde harcama işlemi bulunmadığı için zaman bazlı skorlar hesaplanmadı."],
+      timeZone
     };
   }
 
@@ -191,38 +199,54 @@ export function calculateSpendingDna(
       const budgetPressure = periodLimit ? (categorySpend / periodLimit) * 100 : categorySpend / 100;
       const campaignBoost = expenseTransactions.some((transaction) => transaction.categoryId === category.id && transaction.tags?.includes("campaign")) ? 18 : 0;
       const riskScore = clamp(budgetPressure + campaignBoost, 0, 100);
+      const hasBudget = periodLimit !== undefined;
       return {
         categoryId: category.id,
         categoryName: category.name,
         riskScore,
         riskLevel: riskFromScore(riskScore),
         monthlySpend: categorySpend,
-        budgetLimit: periodLimit ? Math.round(periodLimit) : undefined
+        budgetLimit: periodLimit ? Math.round(periodLimit) : undefined,
+        dataConfidence: hasBudget || categorySpend === 0 ? 0.9 : 0.55,
+        reasons: [
+          hasBudget
+            ? `${category.name} harcaması seçili dönem bütçe limitine göre ölçüldü.`
+            : `${category.name} için bütçe limiti bulunmadığından kategori riski düşük güvenle yorumlandı.`,
+          campaignBoost > 0 ? "Kampanya etiketli işlem kategori riskini artırdı." : undefined
+        ].filter((reason): reason is string => Boolean(reason))
       };
     })
     .sort((a, b) => b.riskScore - a.riskScore);
 
-  const weekendNightTransactions = expenseTransactions.filter((transaction) => {
-    const date = new Date(transaction.occurredAt);
-    const hour = date.getUTCHours();
-    const day = date.getUTCDay();
-    return hour >= 19 || day === 0 || day === 6;
+  const nightTransactions = expenseTransactions.filter((transaction) => isLocalNight(transaction.occurredAt, timeZone));
+  const weekendTransactions = expenseTransactions.filter((transaction) => isLocalWeekend(transaction.occurredAt, timeZone));
+  const weekendNightTransactions = expenseTransactions.filter((transaction) => isLocalWeekendNight(transaction.occurredAt, timeZone));
+  const paydayTransactions = expenseTransactions.filter((transaction) => {
+    const day = getLocalDateParts(transaction.occurredAt, timeZone).day;
+    return day >= 5 && day <= 8;
   });
-  const paydayTransactions = expenseTransactions.filter((transaction) => new Date(transaction.occurredAt).getUTCDate() >= 5 && new Date(transaction.occurredAt).getUTCDate() <= 8);
   const campaignTransactions = expenseTransactions.filter((transaction) => transaction.tags?.includes("campaign"));
   const totalExpense = Math.max(sum(expenseTransactions.map((transaction) => transaction.amount)), 1);
   const incomeBase = Math.max(summary.income, totalExpense, 1);
   const savingDiscipline = clamp(100 - (totalExpense / incomeBase) * 100 + 28);
   const topCategory = categoryRisks.find((category) => category.monthlySpend > 0);
   const paydayRatio = sum(paydayTransactions.map((transaction) => transaction.amount)) / totalExpense;
+  const nightRatio = sum(nightTransactions.map((transaction) => transaction.amount)) / totalExpense;
+  const weekendRatio = sum(weekendTransactions.map((transaction) => transaction.amount)) / totalExpense;
   const weekendNightRatio = sum(weekendNightTransactions.map((transaction) => transaction.amount)) / totalExpense;
   const campaignRatio = sum(campaignTransactions.map((transaction) => transaction.amount)) / totalExpense;
+  const budgetedSpend = sum(
+    categoryRisks.filter((category) => category.monthlySpend > 0 && category.budgetLimit !== undefined).map((category) => category.monthlySpend)
+  );
+  const dataConfidence = Math.round((budgetedSpend / totalExpense) * 100) / 100;
   const patterns = [
     topCategory
       ? `${topCategory.categoryName} kategorisi bu dönemin en belirgin harcama sinyali: ${topCategory.monthlySpend.toLocaleString("tr-TR")} TL.`
       : undefined,
     paydayRatio >= 0.25 ? "Maaş sonrası ilk günlerde harcama yoğunluğu artıyor." : undefined,
-    weekendNightRatio >= 0.2 ? "Akşam veya hafta sonu harcamaları bütçe sapmasına anlamlı katkı veriyor." : undefined,
+    nightRatio >= 0.2 ? "Lokal saate göre gece harcamaları bütçe sapmasına anlamlı katkı veriyor." : undefined,
+    weekendRatio >= 0.2 ? "Lokal hafta sonu harcamaları ayrıca izlenmeli." : undefined,
+    weekendNightRatio >= 0.15 ? "Hafta sonu gece harcamaları belirgin bir risk sinyali oluşturuyor." : undefined,
     campaignRatio > 0 ? "Kampanya etiketli işlemler harcama kararlarında ayrıca izlenmeli." : undefined
   ].filter((pattern): pattern is string => Boolean(pattern));
 
@@ -230,11 +254,19 @@ export function calculateSpendingDna(
     userId,
     overallRisk: clamp(sum(categoryRisks.slice(0, 3).map((category) => category.riskScore)) / 3),
     paydayReflexScore: clamp((sum(paydayTransactions.map((transaction) => transaction.amount)) / totalExpense) * 100 + 24),
+    nightSpendingScore: clamp(nightRatio * 100 + 16),
+    weekendSpendingScore: clamp(weekendRatio * 100 + 16),
     weekendNightScore: clamp((sum(weekendNightTransactions.map((transaction) => transaction.amount)) / totalExpense) * 100 + 16),
     campaignSensitivity: clamp((sum(campaignTransactions.map((transaction) => transaction.amount)) / totalExpense) * 100 + 18),
     savingDiscipline,
     categories: categoryRisks,
-    patterns: patterns.length ? patterns : ["Harcama dağılımı şu an belirgin bir risk deseni göstermiyor."]
+    patterns: patterns.length ? patterns : ["Harcama dağılımı şu an belirgin bir risk deseni göstermiyor."],
+    dataConfidence,
+    reasons: [
+      `Zaman bazlı skorlar ${timeZone} lokal saatine göre hesaplandı.`,
+      dataConfidence < 0.75 ? "Bazı harcamaların kategori bütçesi olmadığı için genel risk güveni düşürüldü." : "Harcama riskleri çoğunlukla bütçe verisiyle destekleniyor."
+    ],
+    timeZone
   };
 }
 
@@ -331,6 +363,7 @@ type PersonalFinanceData = {
   actions?: ActionItem[];
   budgets?: Budget[];
   goals?: Goal[];
+  user?: Pick<UserProfile, "payday">;
   transactions?: Transaction[];
 };
 
@@ -340,8 +373,9 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
   const sourceBudgets = source.budgets ?? [];
   const sourceGoals = source.goals ?? [];
   const sourceTransactions = source.transactions ?? [];
-  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets);
-  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
+  const timeZone = resolveTimeZone(input.timeZone);
+  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets, { timeZone });
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, { timeZone });
   const hasFinancialActivity = sourceTransactions.length > 0 || dashboard.balance !== 0 || sourceBudgets.length > 0 || sourceGoals.length > 0 || sourceActions.length > 0;
   const requestedAmount = positiveAmount(input.amount);
   if (!hasFinancialActivity) {
@@ -350,7 +384,9 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
       safeLimit: 0,
       emotionalDelayMinutes: 0,
       cards: [],
-      assumptions: ["Simülasyon boş finansal veriyle otomatik varsayım üretmez."]
+      assumptions: ["Simülasyon boş finansal veriyle otomatik varsayım üretmez."],
+      dataConfidence: 0,
+      missingData: ["financial_activity"]
     };
   }
 
@@ -364,13 +400,32 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
   const safeLimitBase = selectedBudget?.monthlyLimit ?? defaultAmountBase;
   const safeLimit = Math.max(0, Math.round((safeLimitBase * 0.55) / 100) * 100);
   const currentSavingsGap = sum(sourceGoals.map((goal) => Math.max(goal.targetAmount - goal.currentAmount, 0)));
+  const missingData = [
+    selectedBudget ? undefined : "category_budget",
+    requestedAmount ? undefined : "requested_amount"
+  ].filter((item): item is string => Boolean(item));
+  const dataConfidence = Math.max(0.35, Math.round((0.9 - missingData.length * 0.15) * 100) / 100);
 
   const makeCard = (id: ScenarioCard["id"], multiplier: number, label: string, recommendation: string): ScenarioCard => {
     const spendAmount = Math.round(amount * multiplier);
     const debtImpact = spendAmount;
     const monthEndBalance = dashboard.balance - spendAmount;
     const savingsImpactPercent = currentSavingsGap > 0 ? Math.round((spendAmount / currentSavingsGap) * 100) : 0;
-    return { id, label, spendAmount, monthEndBalance, debtImpact, savingsImpactPercent, recommendation };
+    const riskLevel = id === "safe" ? "low" : id === "balanced" ? riskFromScore(Math.max(categoryRisk, 45)) : riskFromScore(Math.max(categoryRisk, 70));
+    return {
+      id,
+      label,
+      spendAmount,
+      monthEndBalance,
+      debtImpact,
+      savingsImpactPercent,
+      recommendation,
+      riskLevel,
+      reasons: [
+        `${getCategoryName(resolvedCategoryId)} kategorisi için güvenli limit ${safeLimit.toLocaleString("tr-TR")} TL.`,
+        currentSavingsGap > 0 ? `Aktif hedeflerin kalan tutarına etkisi yaklaşık %${savingsImpactPercent}.` : undefined
+      ].filter((reason): reason is string => Boolean(reason))
+    };
   };
 
   return {
@@ -386,7 +441,11 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
       "Aylık gelir ve sabit giderler kayıtlı finans verilerine göre hesaplandı.",
       "Kart borcu etkisi işlem tutarı kadar kabul edildi.",
       "Tasarruf etkisi aktif hedeflerin kalan tutarına oranla hesaplandı."
-    ]
+    ],
+    dataConfidence,
+    missingData,
+    resolvedCategoryId,
+    resolvedCategoryName: getCategoryName(resolvedCategoryId)
   };
 }
 

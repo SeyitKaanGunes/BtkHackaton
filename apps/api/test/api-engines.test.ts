@@ -55,6 +55,11 @@ describe("API feature services", () => {
     expect(result.routedAgents).toContain("Simulation Agent");
     expect(result.evidence.length).toBeGreaterThan(0);
     expect(result.suggestedActions[0]?.type).toBe("delay_purchase");
+    expect(result.answer).toContain("Güvenli senaryo");
+    expect(result.answer).toContain("Dengeli senaryo");
+    expect(result.answer).toContain("Riskli senaryo");
+    expect(result.answer).toContain("Varsayımlar");
+    expect(result.answer).toContain("Veri güveni");
     expect(store.getPersonalData(authUser.id).actions).toHaveLength(before + 1);
 
     const repeated = await agent.chat(authUser.id, "10000 TL harcarsam ne olur?");
@@ -64,6 +69,15 @@ describe("API feature services", () => {
     const controller = new ActionsController(store);
     const approved = await controller.approve(authUser, result.suggestedActions[0]!.id);
     expect(approved.status).toBe("approved");
+  });
+
+  it("asks for an amount when a what-if chat message only contains model or date-like numbers", async () => {
+    const store = createTestStore();
+    const agent = new AgentService(store, new QwenService());
+    const result = await agent.chat(authUser.id, "iPhone 15 alsam ne olur?");
+    expect(result.routedAgents).toContain("Simulation Agent");
+    expect(result.answer).toContain("tutarı");
+    expect(result.suggestedActions).toEqual([]);
   });
 
   it("rejects invalid agent and what-if request bodies before defaulting", () => {

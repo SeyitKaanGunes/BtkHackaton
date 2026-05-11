@@ -15,6 +15,7 @@ export type DashboardPeriod = "daily" | "weekly" | "monthly" | "yearly";
 export interface DashboardPeriodOptions {
   period?: DashboardPeriod | string;
   referenceDate?: string;
+  timeZone?: string;
 }
 
 export type ActionStatus = "pending" | "approved" | "dismissed";
@@ -287,17 +288,24 @@ export interface SpendingDnaCategory {
   riskLevel: RiskLevel;
   monthlySpend: number;
   budgetLimit?: number;
+  dataConfidence?: number;
+  reasons?: string[];
 }
 
 export interface SpendingDna {
   userId: string;
   overallRisk: number;
   paydayReflexScore: number;
+  nightSpendingScore?: number;
+  weekendSpendingScore?: number;
   weekendNightScore: number;
   campaignSensitivity: number;
   savingDiscipline: number;
   categories: SpendingDnaCategory[];
   patterns: string[];
+  dataConfidence?: number;
+  reasons?: string[];
+  timeZone?: string;
 }
 
 export interface ScenarioCard {
@@ -308,6 +316,8 @@ export interface ScenarioCard {
   debtImpact: number;
   savingsImpactPercent: number;
   recommendation: string;
+  riskLevel?: RiskLevel;
+  reasons?: string[];
 }
 
 export interface WhatIfRequest {
@@ -315,6 +325,7 @@ export interface WhatIfRequest {
   categoryId?: string;
   decisionDate?: string;
   description?: string;
+  timeZone?: string;
 }
 
 export interface WhatIfResponse {
@@ -323,6 +334,10 @@ export interface WhatIfResponse {
   emotionalDelayMinutes: number;
   cards: ScenarioCard[];
   assumptions: string[];
+  dataConfidence?: number;
+  missingData?: string[];
+  resolvedCategoryId?: string;
+  resolvedCategoryName?: string;
 }
 
 export interface DashboardSummary {
