@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Inject, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Inject, NotFoundException, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { createInvestmentHolding, type InvestmentHoldingCreateRequest } from "@fintwin/shared";
 import type { AuthUser } from "../auth/auth-user.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
@@ -35,7 +35,8 @@ export class InvestmentsController {
 
   @Delete("holdings/:id")
   async removeHolding(@CurrentUser() user: AuthUser, @Param("id") id: string) {
-    await this.store.removeInvestmentHolding(id, user.id);
+    const removed = await this.store.removeInvestmentHolding(id, user.id);
+    if (!removed) throw new NotFoundException("Investment holding not found.");
     return this.marketData.buildPortfolio(this.store.getPersonalData(user.id).investmentHoldings);
   }
 }

@@ -3,7 +3,7 @@ import type { DashboardPeriod } from "@fintwin/shared";
 import { AlertTriangle, Bell, Brain, BriefcaseBusiness, Landmark, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
 import { AppShell } from "../components/app-shell";
 import { SpendingCharts } from "../components/dashboard-charts";
-import { getBusinessOverview, getCampaignReadiness, getInvestmentPortfolio, getPersonalDashboard, getSpendingDna, getSubscriptionLeaks, getWhatIf } from "../lib/api";
+import { ApiRequestError, getBusinessOverview, getCampaignReadiness, getInvestmentPortfolio, getPersonalDashboard, getSpendingDna, getSubscriptionLeaks, getWhatIf } from "../lib/api";
 import { requireAuthSession } from "../lib/server-auth";
 
 export const dynamic = "force-dynamic";
@@ -38,8 +38,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     getCampaignReadiness(dataOptions),
     getSubscriptionLeaks({ token }),
     getWhatIf({ token }),
-    getInvestmentPortfolio({ token }).catch(() => null),
-    getBusinessOverview({ token }).catch(() => null)
+    getInvestmentPortfolio({ token }),
+    getOptionalBusinessOverview(token)
   ]);
   const hasFinancialData =
     dashboard.income > 0 ||
@@ -221,6 +221,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </section>
     </AppShell>
   );
+}
+
+async function getOptionalBusinessOverview(token: string) {
+  try {
+    return await getBusinessOverview({ token });
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 function healthLabel(score: number) {

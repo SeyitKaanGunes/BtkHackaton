@@ -35,6 +35,7 @@ import { StatementExpenseAgentService } from "../src/documents/statement-expense
 import { StatementExtractorService } from "../src/documents/statement-extractor.service.js";
 import { InvestmentsController } from "../src/investments/investments.controller.js";
 import { TwelveDataService } from "../src/investments/twelve-data.service.js";
+import { NotificationsController } from "../src/notifications/notifications.controller.js";
 import { TransactionsController } from "../src/transactions/transactions.controller.js";
 
 describe("API feature services", () => {
@@ -165,6 +166,30 @@ describe("API feature services", () => {
     expect(store.actions[0]?.id).toBe(result.action.id);
   });
 
+  it("rejects missing actions and invalid reminder dates instead of returning soft errors", async () => {
+    const store = createTestStore();
+    const controller = new ActionsController(store);
+
+    await expectHttpException(controller.approve(authUser, "missing-action"), 404, {
+      message: "Action not found.",
+      error: "Not Found",
+      statusCode: 404
+    });
+
+    await expect(controller.createSubscriptionReminder(authUser, { merchant: "StreamPlus", amount: 219, remindAt: "2026-02-30" })).rejects.toThrow(
+      "remindAt must be a valid date"
+    );
+  });
+
+  it("rejects invalid notification tokens at runtime", async () => {
+    const store = createTestStore();
+    const controller = new NotificationsController(store);
+
+    await expect(controller.saveToken(authUser, { token: "   ", platform: "web" })).rejects.toThrow("token is required");
+    await expect(controller.saveToken(authUser, { token: "token-1", platform: "desktop" as "web" })).rejects.toThrow("platform must be ios, android or web");
+    expect(store.fcmTokens).toEqual([]);
+  });
+
   it("builds an investment portfolio with explicit market-data gaps", async () => {
     const previousKey = process.env.TWELVE_DATA_API_KEY;
     delete process.env.TWELVE_DATA_API_KEY;
@@ -208,6 +233,7 @@ describe("API feature services", () => {
       expect(next.positions.some((position) => position.symbol === "USD/TRY")).toBe(true);
       expect(next.positions.find((position) => position.symbol === "USD/TRY")?.isPriced).toBe(false);
       expect((await controller.symbols("akbank")).some((symbol) => symbol.symbol === "AKBNK")).toBe(true);
+      await expect(controller.removeHolding(authUser, "missing-holding")).rejects.toThrow("Investment holding not found");
     } finally {
       if (previousKey === undefined) {
         delete process.env.TWELVE_DATA_API_KEY;
@@ -244,6 +270,35 @@ describe("API feature services", () => {
     expect(createdCashEvent.businessId).toBe(createdBusiness.id);
     expect(controller.dashboard(authUser, createdBusiness.id).expectedCollections).toHaveLength(1);
   });
+
+  it("rejects invalid cached statement documents before they can be imported", async () => {
+    const repository = new StatementDocumentRepository({
+      document: {
+        findFirst: vi.fn(async () => ({
+          id: "doc-invalid",
+          userId: authUser.id,
+          kind: "statement",
+          status: "extracted",
+          fileName: null,
+          statementMonth: "2026-05",
+          sourceType: "pdf-text",
+          tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          totalAmount: "0",
+          rawResult: {
+            statementMonth: "2026-05",
+            totalAmount: 0,
+            sourceType: "pdf-text",
+            avgConfidence: 0.9,
+            warnings: [],
+            items: [{ merchant: "", amount: 0, occurredAt: "", categoryName: "", paymentMethod: "wire", confidence: 0.9, index: 0 }]
+          },
+          createdAt: new Date("2026-05-10T12:00:00.000Z")
+        }))
+      }
+    } as unknown as ConstructorParameters<typeof StatementDocumentRepository>[0]);
+
+    await expect(repository.getById("doc-invalid", authUser.id)).rejects.toThrow("Cached statement document is invalid");
+  });
 });
 
 function createTestStore(): DataStoreService {
@@ -260,7 +315,7 @@ function createTestStore(): DataStoreService {
     investmentHoldings: [...demoInvestmentHoldings],
     actions: [...actions],
     transactions: [...transactions],
-    fcmTokens: [],
+    fcmTokens: [] as Array<{ userId: string; token: string; platform: string }>,
     users: [{ ...demoUser, passwordHash: "$2b$10$XUWXgP2dSqJbe1dTT4rC9O71yPUb4B3bVAeMzb7XHSc6uWXr6KI0m" }],
     getDemoUser() {
       return this.users[0]!;
@@ -348,6 +403,16 @@ function createTestStore(): DataStoreService {
       if (!existing) return undefined;
       existing.status = "approved";
       return existing;
+    },
+    async dismissAction(id: string, userId: string) {
+      const existing = this.actions.find((action) => action.id === id && action.userId === userId);
+      if (!existing) return undefined;
+      existing.status = "dismissed";
+      return existing;
+    },
+    async saveFcmToken(input: { userId: string; token: string; platform: string }) {
+      this.fcmTokens.unshift(input);
+      return input;
     }
   };
   return store as unknown as DataStoreService;

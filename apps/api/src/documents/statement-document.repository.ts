@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { StatementPreviewItem } from "@fintwin/shared";
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -56,28 +56,22 @@ export class StatementDocumentRepository {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findCachedExtraction(userId: string, fileHash: string): Promise<StatementCachedExtraction | undefined> {
-    try {
-      const document = await this.prisma.document.findFirst({
-        where: { userId, kind: "statement", fileHash },
-        orderBy: { createdAt: "desc" }
-      });
-      if (!document) return undefined;
+    const document = await this.prisma.document.findFirst({
+      where: { userId, kind: "statement", fileHash },
+      orderBy: { createdAt: "desc" }
+    });
+    if (!document) return undefined;
 
-      const mapped = mapDocument(document);
-      if (!mapped) return undefined;
-      return {
-        items: mapped.items.map(stripExistingTransactionId),
-        warnings: mapped.warnings,
-        statementMonth: mapped.statementMonth,
-        totalAmount: mapped.totalAmount,
-        sourceType: mapped.sourceType,
-        avgConfidence: mapped.avgConfidence,
-        tokenUsage: mapped.tokenUsage
-      };
-    } catch (error) {
-      console.warn("Statement cache lookup failed", error);
-      return undefined;
-    }
+    const mapped = mapDocument(document);
+    return {
+      items: mapped.items.map(stripExistingTransactionId),
+      warnings: mapped.warnings,
+      statementMonth: mapped.statementMonth,
+      totalAmount: mapped.totalAmount,
+      sourceType: mapped.sourceType,
+      avgConfidence: mapped.avgConfidence,
+      tokenUsage: mapped.tokenUsage
+    };
   }
 
   async create(input: CreateDocumentInput): Promise<StatementPreviewDocument> {
@@ -105,11 +99,7 @@ export class StatementDocumentRepository {
       }
     });
 
-    const mapped = mapDocument(document);
-    if (!mapped) {
-      throw new Error("Created statement document could not be mapped.");
-    }
-    return mapped;
+    return mapDocument(document);
   }
 
   async getById(id: string, userId: string): Promise<StatementPreviewDocument | undefined> {
@@ -127,13 +117,16 @@ export class StatementDocumentRepository {
   }
 }
 
-function mapDocument(document: StatementDocumentRecord): StatementPreviewDocument | undefined {
+function mapDocument(document: StatementDocumentRecord): StatementPreviewDocument {
   const rawResult = asRecord(document.rawResult);
-  if (!rawResult) return undefined;
+  if (!rawResult) throw invalidStatementDocument("rawResult is missing.");
 
   const statementMonth = normalizeString(rawResult.statementMonth) ?? document.statementMonth;
   const sourceType = normalizeSourceType(rawResult.sourceType) ?? normalizeSourceType(document.sourceType);
-  if (!statementMonth || !sourceType) return undefined;
+  if (!statementMonth || !/^\d{4}-\d{2}$/.test(statementMonth)) throw invalidStatementDocument("statementMonth is invalid.");
+  if (!sourceType) throw invalidStatementDocument("sourceType is invalid.");
+  const items = normalizeItems(rawResult.items);
+  if (items.length === 0) throw invalidStatementDocument("items are empty.");
 
   return {
     id: document.id,
@@ -141,12 +134,12 @@ function mapDocument(document: StatementDocumentRecord): StatementPreviewDocumen
     status: normalizeStatus(document.status),
     fileName: document.fileName ?? undefined,
     createdAt: document.createdAt,
-    items: normalizeItems(rawResult.items),
+    items,
     warnings: normalizeWarnings(rawResult.warnings),
     statementMonth,
-    totalAmount: normalizeNumber(rawResult.totalAmount, normalizeNumber(document.totalAmount, 0)),
+    totalAmount: requiredNonNegativeNumber(rawResult.totalAmount ?? document.totalAmount, "totalAmount"),
     sourceType,
-    avgConfidence: normalizeNumber(rawResult.avgConfidence, 0),
+    avgConfidence: requiredConfidence(rawResult.avgConfidence, "avgConfidence"),
     tokenUsage: normalizeTokenUsage(document.tokenUsage)
   };
 }
@@ -164,18 +157,20 @@ function stripExistingTransactionId(item: StatementPreviewItem): StatementPrevie
 }
 
 function normalizeItems(value: unknown): StatementPreviewItem[] {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) throw invalidStatementDocument("items must be an array.");
   return value.map((item, fallbackIndex) => {
     const record = asRecord(item);
+    if (!record) throw invalidStatementDocument(`item ${fallbackIndex + 1} must be an object.`);
+    const occurredAt = requiredDateOnly(record.occurredAt, `item ${fallbackIndex + 1} occurredAt`);
     return {
-      merchant: normalizeString(record?.merchant) ?? "",
-      amount: normalizeNumber(record?.amount, 0),
-      occurredAt: normalizeString(record?.occurredAt) ?? "",
-      categoryName: normalizeString(record?.categoryName) ?? "Diğer",
-      paymentMethod: normalizePaymentMethod(record?.paymentMethod),
-      confidence: normalizeNumber(record?.confidence, 0),
-      index: Number.isInteger(record?.index) ? Number(record?.index) : fallbackIndex,
-      existingTransactionId: normalizeString(record?.existingTransactionId)
+      merchant: requiredString(record.merchant, `item ${fallbackIndex + 1} merchant`),
+      amount: requiredPositiveNumber(record.amount, `item ${fallbackIndex + 1} amount`),
+      occurredAt,
+      categoryName: requiredString(record.categoryName, `item ${fallbackIndex + 1} categoryName`),
+      paymentMethod: requiredPaymentMethod(record.paymentMethod, `item ${fallbackIndex + 1} paymentMethod`),
+      confidence: requiredConfidence(record.confidence, `item ${fallbackIndex + 1} confidence`),
+      index: Number.isInteger(record.index) ? Number(record.index) : fallbackIndex,
+      existingTransactionId: normalizeString(record.existingTransactionId)
     };
   });
 }
@@ -194,10 +189,6 @@ function normalizeTokenUsage(value: unknown): TokenUsage {
   };
 }
 
-function normalizePaymentMethod(value: unknown): StatementPreviewItem["paymentMethod"] {
-  return value === "cash" || value === "debit_card" || value === "credit_card" || value === "transfer" ? value : "credit_card";
-}
-
 function normalizeStatus(value: string): StatementDocumentStatus {
   return value === "imported" ? "imported" : "extracted";
 }
@@ -210,11 +201,54 @@ function normalizeString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function requiredString(value: unknown, field: string): string {
+  const text = normalizeString(value);
+  if (!text) throw invalidStatementDocument(`${field} is required.`);
+  return text;
+}
+
 function normalizeNumber(value: unknown, fallback: number): number {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : fallback;
 }
 
+function requiredPositiveNumber(value: unknown, field: string): number {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) throw invalidStatementDocument(`${field} must be positive.`);
+  return number;
+}
+
+function requiredNonNegativeNumber(value: unknown, field: string): number {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) throw invalidStatementDocument(`${field} must be zero or greater.`);
+  return number;
+}
+
+function requiredConfidence(value: unknown, field: string): number {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0 || number > 1) throw invalidStatementDocument(`${field} must be between 0 and 1.`);
+  return number;
+}
+
+function requiredDateOnly(value: unknown, field: string): string {
+  const text = requiredString(value, field);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) throw invalidStatementDocument(`${field} must be YYYY-MM-DD.`);
+  const date = new Date(`${text}T12:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== text) {
+    throw invalidStatementDocument(`${field} must be a valid date.`);
+  }
+  return text;
+}
+
+function requiredPaymentMethod(value: unknown, field: string): StatementPreviewItem["paymentMethod"] {
+  if (value === "cash" || value === "debit_card" || value === "credit_card" || value === "transfer") return value;
+  throw invalidStatementDocument(`${field} is invalid.`);
+}
+
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
+function invalidStatementDocument(reason: string): BadRequestException {
+  return new BadRequestException(`Cached statement document is invalid: ${reason}`);
 }
