@@ -37,6 +37,7 @@ Use `.env.production.example` as the deployment checklist. For the API, these va
 - `JWT_SECRET`: a random secret with at least 32 characters.
 - `API_CORS_ORIGINS`: comma-separated web origins allowed to call the API.
 - `QWEN_API_KEY`: required for production AI/OCR flows.
+- `TWELVE_DATA_API_KEY`: required for production portfolio market data.
 
 Generate a JWT secret with:
 
@@ -72,7 +73,7 @@ Market data defaults:
 - Provider: Twelve Data
 - Key env name: `TWELVE_DATA_API_KEY`
 - Portfolio API: `GET /investments/portfolio`, `GET /investments/symbols?query=THYAO`, `POST /investments/holdings`
-- Quote cache: 24 hours, with static fallback quotes when the provider is unavailable
+- Quote cache: 24 hours for successful provider responses only. If the provider/key is unavailable, portfolio positions are explicitly marked unpriced; the app does not calculate profit/loss from static fallback quotes.
 
 ## Product Focus
 

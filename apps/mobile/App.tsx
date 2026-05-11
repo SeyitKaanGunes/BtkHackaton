@@ -91,6 +91,17 @@ const periodNetCaptions: Record<DashboardPeriod, string> = {
   monthly: "aylık net durum",
   yearly: "yıllık net durum"
 };
+const expenseTransactionCategories = [
+  { id: "cat-market", label: "Market" },
+  { id: "cat-food", label: "Yemek" },
+  { id: "cat-transport", label: "Ulaşım" },
+  { id: "cat-tech", label: "Teknoloji" },
+  { id: "cat-clothes", label: "Giyim" },
+  { id: "cat-subscription", label: "Abonelik" },
+  { id: "cat-rent", label: "Kira" },
+  { id: "cat-other", label: "Diğer" }
+];
+const incomeTransactionCategories = [{ id: "cat-salary", label: "Maaş" }];
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(() => hasAuthToken());
@@ -849,11 +860,19 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<TransactionType>("expense");
+  const [categoryId, setCategoryId] = useState("cat-other");
   const [currency, setCurrency] = useState<Currency>("TRY");
   const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 10));
-  const [csv, setCsv] = useState("occurredAt,merchant,amount,categoryId,type\n");
+  const [csv, setCsv] = useState("occurredAt,merchant,amount,categoryId,type,paymentMethod,currency\n");
   const [pending, setPending] = useState<"manual" | "csv" | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const categoryOptions = type === "income" ? incomeTransactionCategories : expenseTransactionCategories;
+
+  useEffect(() => {
+    if (!categoryOptions.some((option) => option.id === categoryId)) {
+      setCategoryId(categoryOptions[0]?.id ?? "");
+    }
+  }, [categoryId, categoryOptions]);
 
   async function addManual() {
     const parsedAmount = parseDecimalInput(amount);
@@ -868,6 +887,7 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
         merchant: merchant.trim(),
         amount: parsedAmount,
         type,
+        categoryId,
         currency,
         occurredAt: `${occurredAt}T12:00:00.000Z`,
         paymentMethod: type === "income" ? "transfer" : "debit_card"
@@ -925,13 +945,20 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
           ))}
         </View>
       </View>
+      <View style={localStyles.segmentedWrap}>
+        {categoryOptions.map((item) => (
+          <Pressable key={item.id} onPress={() => setCategoryId(item.id)} style={[localStyles.segmentButton, localStyles.segmentWrapButton, categoryId === item.id && localStyles.segmentButtonActive]}>
+            <Text style={[localStyles.segmentButtonText, categoryId === item.id && localStyles.segmentButtonTextActive]}>{item.label}</Text>
+          </Pressable>
+        ))}
+      </View>
       <Button label={pending === "manual" ? "Ekleniyor" : "İşlem ekle"} onPress={() => void addManual()} disabled={Boolean(pending)} icon={<Plus size={15} color={palette.surface} />} />
 
       <View style={styles.divider} />
       <SectionTitle title="CSV İçe Aktar" meta="toplu işlem" />
       <TextInput value={csv} onChangeText={setCsv} multiline textAlignVertical="top" style={[localStyles.authInput, localStyles.csvInput]} />
       <Button label={pending === "csv" ? "Aktarılıyor" : "CSV aktar"} variant="secondary" onPress={() => void importCsv()} disabled={Boolean(pending)} icon={<FileUp size={15} color={palette.ink} />} />
-      {status ? <Text style={status.includes("gerekli") || status.includes("API") || status.includes("edilemedi") ? localStyles.authError : localStyles.formSuccess}>{status}</Text> : null}
+      {status ? <Text style={status.includes("gerekli") || status.includes("zorunlu") || status.includes("olmalı") || status.includes("edilemedi") ? localStyles.authError : localStyles.formSuccess}>{status}</Text> : null}
     </Panel>
   );
 }
@@ -2031,12 +2058,26 @@ const localStyles = StyleSheet.create({
     borderRadius: 8,
     padding: 4
   },
+  segmentedWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+    backgroundColor: palette.surface2,
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 4
+  },
   segmentButton: {
     flex: 1,
     minHeight: 42,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 6
+  },
+  segmentWrapButton: {
+    flexGrow: 1,
+    flexBasis: "30%"
   },
   segmentButtonActive: {
     backgroundColor: palette.secondary

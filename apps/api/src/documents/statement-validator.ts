@@ -28,7 +28,8 @@ export function validateItems(items: unknown[]): { valid: StatementLineItem[]; w
     }
 
     const occurredAt = typeof record.occurredAt === "string" ? record.occurredAt.trim() : "";
-    if (!ISO_DATE_PATTERN.test(occurredAt) || Number.isNaN(new Date(`${occurredAt}T00:00:00.000Z`).getTime())) {
+    const parsedDate = new Date(`${occurredAt}T12:00:00.000Z`);
+    if (!ISO_DATE_PATTERN.test(occurredAt) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== occurredAt) {
       warnings.push(`Item #${itemNumber} atıldı: occurredAt geçersiz`);
       return;
     }

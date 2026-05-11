@@ -54,7 +54,6 @@ export class DataStoreService implements OnModuleInit {
   async onModuleInit() {
     await this.ensureSeedData();
     await this.reload();
-    await this.ensureStarterBusinesses();
     this.ready = true;
   }
 
@@ -200,7 +199,6 @@ export class DataStoreService implements OnModuleInit {
     const mapped = this.mapUser(created);
     this.users.push(mapped);
     await this.createStarterAccounts(mapped.id, mapped.currency);
-    await this.createStarterBusiness(mapped.id);
     return mapped;
   }
 
@@ -317,12 +315,6 @@ export class DataStoreService implements OnModuleInit {
     await this.seedCategories();
   }
 
-  private async ensureStarterBusinesses() {
-    for (const user of this.users) {
-      await this.createStarterBusiness(user.id);
-    }
-  }
-
   private async seedCategories() {
     for (const category of categories) {
       await this.prisma.category.upsert({
@@ -366,22 +358,6 @@ export class DataStoreService implements OnModuleInit {
         creditLimit: created.creditLimit === null ? undefined : Number(created.creditLimit)
       });
     }
-  }
-
-  private async createStarterBusiness(userId: string) {
-    const existing = await this.prisma.business.findFirst({ where: { ownerId: userId } });
-    if (existing) return;
-
-    const created = await this.prisma.business.create({
-      data: {
-        id: `biz-primary-${userId}`,
-        ownerId: userId,
-        name: "İlk İşletmem",
-        sector: "Genel",
-        cashBalance: 0
-      }
-    });
-    this.businesses.push(this.mapBusiness(created));
   }
 
   private async reload() {

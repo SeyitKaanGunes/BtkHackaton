@@ -18,7 +18,10 @@ export function mapCategoryNameToId(categoryName: string, merchant: string, cate
   const matched = categoryHints.find((hint) => hint.terms.some((term) => haystack.includes(normalize(term))));
   if (matched && categories.some((category) => category.id === matched.categoryId)) return matched.categoryId;
 
-  return categories.find((category) => category.kind === "expense" && normalize(category.name) === "diger")?.id ?? "cat-market";
+  const otherCategory = categories.find((category) => category.id === "cat-other" && category.kind === "expense");
+  if (otherCategory) return otherCategory.id;
+
+  throw new Error("cat-other expense category is required for uncategorized document imports.");
 }
 
 function normalize(value: string) {

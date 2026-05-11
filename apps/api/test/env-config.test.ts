@@ -12,6 +12,12 @@ describe("API environment validation", () => {
     );
   });
 
+  it("rejects placeholder Qwen keys in production", () => {
+    expect(() => validateApiEnvironment(productionEnv({ QWEN_API_KEY: "your-qwen-api-key" }))).toThrow(
+      "QWEN_API_KEY must be a real Qwen API key in production."
+    );
+  });
+
   it("allows development without Twelve Data", () => {
     expect(() =>
       validateApiEnvironment({

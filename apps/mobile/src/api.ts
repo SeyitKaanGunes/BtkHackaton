@@ -28,13 +28,11 @@ import type {
   TransactionType,
   WhatIfResponse
 } from "@fintwin/shared";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Keychain from "react-native-keychain";
 
 const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 const apiUrl = requiredPublicEnv("EXPO_PUBLIC_API_URL").replace(/\/$/, "");
 let authToken = runtimeEnv.EXPO_PUBLIC_AUTH_TOKEN?.trim() || undefined;
-const legacyAuthStorageKey = "fintwin_token";
 const biometricService = "fintwin.auth.biometric-token";
 const biometricUsername = "fintwin-auth-token";
 
@@ -83,7 +81,7 @@ export class ApiRequestError extends Error {
     message: string,
     public readonly code?: string
   ) {
-    super(`API ${status}: ${message}`);
+    super(message);
     this.name = "ApiRequestError";
   }
 }
@@ -104,14 +102,6 @@ export class ReceiptApiError extends Error {
 
 export function setAuthToken(token: string) {
   authToken = token;
-}
-
-async function removeLegacyAuthToken() {
-  try {
-    await AsyncStorage.removeItem(legacyAuthStorageKey);
-  } catch {
-    // Legacy cleanup must not block a normal login flow.
-  }
 }
 
 export async function getBiometricAuthLabel() {
@@ -140,7 +130,6 @@ async function canUseBiometricAuth() {
 
 export async function persistAuthToken(token: string) {
   setAuthToken(token);
-  await removeLegacyAuthToken();
 
   if (!(await canUseBiometricAuth())) {
     return false;
@@ -165,7 +154,6 @@ export async function persistAuthToken(token: string) {
 
 export async function loadStoredAuthToken() {
   if (authToken) return authToken;
-  await removeLegacyAuthToken();
   try {
     const credentials = await Keychain.getGenericPassword({
       service: biometricService,
@@ -185,7 +173,6 @@ export async function loadStoredAuthToken() {
 
 export async function clearAuthToken() {
   authToken = undefined;
-  await removeLegacyAuthToken();
   try {
     await Keychain.resetGenericPassword({ service: biometricService });
   } catch {
@@ -342,11 +329,11 @@ export function dismissAction(id: string): Promise<ActionItem> {
 export function createTransaction(input: {
   merchant: string;
   amount: number;
-  type?: TransactionType;
-  currency?: Currency;
-  categoryId?: string;
-  occurredAt?: string;
-  paymentMethod?: Transaction["paymentMethod"];
+  type: TransactionType;
+  currency: Currency;
+  categoryId: string;
+  occurredAt: string;
+  paymentMethod: Transaction["paymentMethod"];
 }): Promise<Transaction> {
   return request<Transaction>("/transactions", { method: "POST", body: JSON.stringify(input) });
 }

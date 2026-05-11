@@ -61,6 +61,13 @@ export class AgentService {
             transactions: data.transactions
           }
         );
+        if (simulation.cards.length === 0) {
+          return {
+            answer: "What-if simülasyonu için önce gelir, gider, bütçe veya hedef verisi eklenmeli. Demo varsayım üretmeden bekliyorum.",
+            confidence: 0.9,
+            routedAgents: ["Simulation Agent"]
+          };
+        }
         return {
           answer: `What-if sonucu: güvenli limit ${simulation.safeLimit.toLocaleString("tr-TR")} TL. Riskli senaryoda ay sonu bakiye ${simulation.cards[2]!.monthEndBalance.toLocaleString("tr-TR")} TL olur.`,
           confidence: 0.9,

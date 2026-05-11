@@ -47,7 +47,7 @@ export class BusinessController {
     });
     return {
       business,
-      dashboard: calculateBusinessDashboard(business.id, business, this.store.getBusinessCashEvents(business.id)),
+      dashboard: calculateBusinessDashboard(business, this.store.getBusinessCashEvents(business.id)),
       customers,
       scores,
       collectionScores
@@ -57,7 +57,7 @@ export class BusinessController {
   @Get(":id/dashboard")
   dashboard(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     const business = this.businessFor(user.id, id);
-    return calculateBusinessDashboard(id, business, this.store.getBusinessCashEvents(business.id));
+    return calculateBusinessDashboard(business, this.store.getBusinessCashEvents(business.id));
   }
 
   @Get(":id/customers")
@@ -94,7 +94,7 @@ export class BusinessController {
   @Post(":id/ai-cfo/simulate")
   simulate(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: { amount: number; decision?: string }) {
     const business = this.businessFor(user.id, id);
-    return simulateAiCfo(Number(body.amount ?? 0), body.decision ?? "Yeni karar", business, this.store.getBusinessCashEvents(business.id));
+    return simulateAiCfo(positiveNumber(body.amount, "amount"), body.decision ?? "Yeni karar", business, this.store.getBusinessCashEvents(business.id));
   }
 
   @Get(":id/customers/:customerId/collection-score")
@@ -150,5 +150,6 @@ function dateOnly(value: unknown, field: string) {
   }
   const date = new Date(`${value}T12:00:00.000Z`);
   if (Number.isNaN(date.getTime())) throw new BadRequestException(`${field} must be a valid date.`);
+  if (date.toISOString().slice(0, 10) !== value) throw new BadRequestException(`${field} must be a valid date.`);
   return value;
 }

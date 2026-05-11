@@ -89,13 +89,65 @@ export class StatementExtractorService {
   async extractFromImage(base64: string, mimeType: string): Promise<RawExtraction> {
     this.ensureQwenConfigured();
 
+    try {
+      const extracted = await this.extractImageItems(base64, mimeType, "Ekstre görselindeki harcama satırlarını çıkar.");
+      return buildRawExtraction(extracted.items, extracted.warnings, extracted.tokenUsage);
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new StatementImportException("STATEMENT_JSON_PARSE_FAILED", "Qwen ekstre görseli yanıtı JSON olarak ayrıştırılamadı.");
+      }
+      throw error;
+    }
+  }
+
+  async extractFromPdfVision(base64: string): Promise<RawExtraction> {
+    this.ensureQwenConfigured();
+
+    const { images, pageCount } = await this.pdfExtractor.renderPageImages(base64);
+    const tokenUsage = emptyTokenUsage();
+    const items: StatementLineItem[] = [];
+    const warnings = ["PDF metni zayıf olduğu için vision OCR fallback kullanıldı."];
+    let parsedPageCount = 0;
+
+    for (const image of images) {
+      try {
+        const extracted = await this.extractImageItems(
+          image.base64,
+          image.mimeType,
+          `Ekstre PDF sayfası ${image.pageNumber}/${pageCount} içindeki harcama satırlarını çıkar.`
+        );
+        parsedPageCount += 1;
+        mergeUsage(tokenUsage, extracted.tokenUsage);
+        items.push(...extracted.items);
+        warnings.push(...extracted.warnings.map((warning) => `Sayfa ${image.pageNumber}: ${warning}`));
+      } catch (error) {
+        if (error instanceof SyntaxError) {
+          warnings.push(`Sayfa ${image.pageNumber}: Qwen vision yanıtı JSON olarak ayrıştırılamadı.`);
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (parsedPageCount === 0) {
+      throw new StatementImportException("STATEMENT_JSON_PARSE_FAILED", "Qwen PDF vision yanıtı JSON olarak ayrıştırılamadı.");
+    }
+
+    return buildRawExtraction(items, warnings, tokenUsage);
+  }
+
+  private async extractImageItems(
+    base64: string,
+    mimeType: string,
+    userText: string
+  ): Promise<{ items: StatementLineItem[]; warnings: string[]; tokenUsage: RawExtraction["tokenUsage"] }> {
     const response = await this.qwen.chat(
       [
         { role: "system", content: STATEMENT_CHUNK_INSTRUCTION },
         {
           role: "user",
           content: [
-            { type: "text", text: "Ekstre görselindeki harcama satırlarını çıkar." },
+            { type: "text", text: userText },
             { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } }
           ]
         }
@@ -103,17 +155,15 @@ export class StatementExtractorService {
       { model: getVisionModel(), temperature: 0 }
     );
 
-    let parsed: ChunkExtraction;
-    try {
-      parsed = parseChunkExtraction(response.content);
-    } catch {
-      throw new StatementImportException("STATEMENT_JSON_PARSE_FAILED", "Qwen ekstre görseli yanıtı JSON olarak ayrıştırılamadı.");
-    }
-
     const tokenUsage = emptyTokenUsage();
     addUsage(tokenUsage, response.usage);
+    const parsed = parseChunkExtraction(response.content);
     const validated = validateItems(Array.isArray(parsed.items) ? parsed.items : []);
-    return buildRawExtraction(validated.valid, [...normalizeWarnings(parsed.warnings), ...validated.warnings], tokenUsage);
+    return {
+      items: validated.valid,
+      warnings: [...normalizeWarnings(parsed.warnings), ...validated.warnings],
+      tokenUsage
+    };
   }
 
   async extract(input: {
@@ -122,11 +172,12 @@ export class StatementExtractorService {
     fileName?: string;
   }): Promise<RawExtraction & { sourceType: "pdf-text" | "pdf-vision" | "image" }> {
     if (input.mimeType === "application/pdf") {
-      const { text, pageCount } = await this.pdfExtractor.extractText(input.fileBase64);
+      const { text } = await this.pdfExtractor.extractText(input.fileBase64);
       if (isTextExtractionWeak(text)) {
-        // TODO Faz 1.5: pdf-poppler ile sayfa render → vision
-        const pageMessage = pageCount > 3 ? "PDF 3 sayfadan uzun ve OCR fallback henüz aktif değil." : "PDF metni çok zayıf ve OCR fallback henüz aktif değil.";
-        throw new StatementImportException("STATEMENT_OCR_FAILED", pageMessage);
+        return {
+          ...(await this.extractFromPdfVision(input.fileBase64)),
+          sourceType: "pdf-vision"
+        };
       }
       return {
         ...(await this.extractFromText(text)),
@@ -211,6 +262,12 @@ function addUsage(target: RawExtraction["tokenUsage"], usage?: { prompt_tokens?:
   target.promptTokens += usage?.prompt_tokens ?? 0;
   target.completionTokens += usage?.completion_tokens ?? 0;
   target.totalTokens += usage?.total_tokens ?? 0;
+}
+
+function mergeUsage(target: RawExtraction["tokenUsage"], usage: RawExtraction["tokenUsage"]) {
+  target.promptTokens += usage.promptTokens;
+  target.completionTokens += usage.completionTokens;
+  target.totalTokens += usage.totalTokens;
 }
 
 function getVisionModel(): string {

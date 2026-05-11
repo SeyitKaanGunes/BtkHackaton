@@ -1,4 +1,3 @@
-import { DEMO_USER_ID } from "./demo-data.js";
 import type {
   Currency,
   InvestmentAssetType,
@@ -76,40 +75,7 @@ export const investmentSymbolPresets: MarketSymbolResult[] = [
   { symbol: "CASH_EUR", name: "Nakit / Mevduat EUR", assetType: "cash", currency: "EUR", source: "local" }
 ];
 
-export const demoInvestmentHoldings: InvestmentHolding[] = [
-  createInvestmentHolding({
-    symbol: "THYAO",
-    name: "Turk Hava Yollari",
-    assetType: "stock",
-    quantity: 12,
-    averageCost: 302,
-    costCurrency: "TRY",
-    exchange: "BIST",
-    micCode: "XIST",
-    marketCurrency: "TRY"
-  }),
-  createInvestmentHolding({
-    symbol: "XAU_GRAM_TRY",
-    name: "Gram Gold / Turkish Lira",
-    assetType: "gold",
-    quantity: 5,
-    averageCost: 2450,
-    costCurrency: "TRY",
-    marketCurrency: "TRY"
-  }),
-  createInvestmentHolding({
-    symbol: "CASH_TRY",
-    name: "Vadeli Mevduat TRY",
-    assetType: "cash",
-    quantity: 25000,
-    averageCost: 1,
-    costCurrency: "TRY",
-    marketCurrency: "TRY",
-    annualInterestRate: 42
-  })
-];
-
-export function createInvestmentHolding(input: InvestmentHoldingCreateRequest, now = new Date().toISOString()): InvestmentHolding {
+export function createInvestmentHolding(input: InvestmentHoldingCreateRequest, now = new Date().toISOString(), userId = ""): InvestmentHolding {
   const inputSymbol = input.symbol?.trim().toUpperCase();
   const requestedCurrency = normalizeCurrency(input.marketCurrency) ?? input.costCurrency ?? cashCurrencyFromSymbol(inputSymbol ?? "") ?? "TRY";
   const requestedAssetType = input.assetType;
@@ -120,7 +86,7 @@ export function createInvestmentHolding(input: InvestmentHoldingCreateRequest, n
   const costCurrency = input.costCurrency ?? normalizeCurrency(input.marketCurrency) ?? presetCurrency(preset) ?? "TRY";
   return {
     id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    userId: DEMO_USER_ID,
+    userId,
     symbol,
     name: input.name?.trim() || preset?.name || (assetType === "cash" ? cashNameFor(costCurrency) : symbol),
     assetType,

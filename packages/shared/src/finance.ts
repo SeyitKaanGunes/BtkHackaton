@@ -1,17 +1,4 @@
-import {
-  accounts,
-  actions,
-  budgets,
-  business,
-  businessCashEvents,
-  businessCustomers,
-  categories,
-  DEMO_BUSINESS_ID,
-  DEMO_USER_ID,
-  goals,
-  subscriptions,
-  transactions
-} from "./demo-data.js";
+import { categories } from "./category-catalog.js";
 import type {
   Account,
   ActionItem,
@@ -133,27 +120,12 @@ function positiveAmount(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
-export const demoDataset = {
-  userId: DEMO_USER_ID,
-  businessId: DEMO_BUSINESS_ID,
-  accounts,
-  actions,
-  budgets,
-  business,
-  businessCashEvents,
-  businessCustomers,
-  categories,
-  goals,
-  subscriptions,
-  transactions
-};
-
 export function getCategoryName(categoryId: string): string {
   return categories.find((category) => category.id === categoryId)?.name ?? "Diğer";
 }
 
 export function summarizeMonth(
-  sourceTransactions: Transaction[] = transactions,
+  sourceTransactions: Transaction[],
   selectedMonth = latestMonthKey(sourceTransactions)
 ) {
   const monthTransactions = sourceTransactions.filter((transaction) => monthKey(transaction.occurredAt) === selectedMonth);
@@ -163,7 +135,7 @@ export function summarizeMonth(
 }
 
 export function summarizePeriod(
-  sourceTransactions: Transaction[] = transactions,
+  sourceTransactions: Transaction[],
   options: DashboardPeriodOptions = {}
 ) {
   const period = normalizeDashboardPeriod(options.period);
@@ -188,17 +160,18 @@ export function summarizePeriod(
 }
 
 export function calculateSpendingDna(
-  sourceTransactions: Transaction[] = transactions,
-  sourceBudgets: Budget[] = budgets,
+  sourceTransactions: Transaction[],
+  sourceBudgets: Budget[],
   options: DashboardPeriodOptions = {}
 ): SpendingDna {
   const period = normalizeDashboardPeriod(options.period);
   const summary = summarizePeriod(sourceTransactions, { ...options, period });
   const budgetMultiplier = periodBudgetMultiplier(period);
   const expenseTransactions = summary.periodTransactions.filter((transaction) => transaction.type === "expense");
+  const userId = sourceTransactions[0]?.userId ?? sourceBudgets[0]?.userId ?? "current-user";
   if (expenseTransactions.length === 0) {
     return {
-      userId: DEMO_USER_ID,
+      userId,
       overallRisk: 0,
       paydayReflexScore: 0,
       weekendNightScore: 0,
@@ -254,7 +227,7 @@ export function calculateSpendingDna(
   ].filter((pattern): pattern is string => Boolean(pattern));
 
   return {
-    userId: DEMO_USER_ID,
+    userId,
     overallRisk: clamp(sum(categoryRisks.slice(0, 3).map((category) => category.riskScore)) / 3),
     paydayReflexScore: clamp((sum(paydayTransactions.map((transaction) => transaction.amount)) / totalExpense) * 100 + 24),
     weekendNightScore: clamp((sum(weekendNightTransactions.map((transaction) => transaction.amount)) / totalExpense) * 100 + 16),
@@ -266,11 +239,11 @@ export function calculateSpendingDna(
 }
 
 export function calculateDashboardSummary(
-  sourceAccounts: Account[] = accounts,
-  sourceTransactions: Transaction[] = transactions,
-  sourceGoals: Goal[] = goals,
-  sourceActions: ActionItem[] = actions,
-  sourceBudgets: Budget[] = budgets,
+  sourceAccounts: Account[],
+  sourceTransactions: Transaction[],
+  sourceGoals: Goal[],
+  sourceActions: ActionItem[],
+  sourceBudgets: Budget[],
   options: DashboardPeriodOptions = {}
 ): DashboardSummary {
   const summary = summarizePeriod(sourceTransactions, options);
@@ -317,8 +290,8 @@ export function calculateDashboardSummary(
 }
 
 export function calculateCampaignReadiness(
-  sourceTransactions: Transaction[] = transactions,
-  sourceBudgets: Budget[] = budgets,
+  sourceTransactions: Transaction[],
+  sourceBudgets: Budget[],
   options: DashboardPeriodOptions = {}
 ) {
   const period = normalizeDashboardPeriod(options.period);
@@ -362,18 +335,18 @@ type PersonalFinanceData = {
 };
 
 export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: PersonalFinanceData = {}): WhatIfResponse {
-  const sourceAccounts = source.accounts ?? accounts;
-  const sourceActions = source.actions ?? actions;
-  const sourceBudgets = source.budgets ?? budgets;
-  const sourceGoals = source.goals ?? goals;
-  const sourceTransactions = source.transactions ?? transactions;
+  const sourceAccounts = source.accounts ?? [];
+  const sourceActions = source.actions ?? [];
+  const sourceBudgets = source.budgets ?? [];
+  const sourceGoals = source.goals ?? [];
+  const sourceTransactions = source.transactions ?? [];
   const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets);
   const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
   const hasFinancialActivity = sourceTransactions.length > 0 || dashboard.balance !== 0 || sourceBudgets.length > 0 || sourceGoals.length > 0 || sourceActions.length > 0;
   const requestedAmount = positiveAmount(input.amount);
-  if (!hasFinancialActivity && !requestedAmount && !input.categoryId) {
+  if (!hasFinancialActivity) {
     return {
-      question: "What-if senaryosu için önce gelir, gider, bütçe veya hedef verisi eklenmeli.",
+      question: input.description ?? "What-if senaryosu için önce gelir, gider, bütçe veya hedef verisi eklenmeli.",
       safeLimit: 0,
       emotionalDelayMinutes: 0,
       cards: [],
@@ -417,7 +390,7 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
   };
 }
 
-export function detectSubscriptionLeakage(sourceSubscriptions: Subscription[] = subscriptions, referenceDate = new Date()): SubscriptionLeak[] {
+export function detectSubscriptionLeakage(sourceSubscriptions: Subscription[], referenceDate = new Date()): SubscriptionLeak[] {
   const unusedBefore = new Date(referenceDate);
   unusedBefore.setUTCDate(unusedBefore.getUTCDate() - 60);
   return sourceSubscriptions.flatMap((subscription) => {
@@ -445,11 +418,11 @@ export function detectSubscriptionLeakage(sourceSubscriptions: Subscription[] = 
 }
 
 export function buildAgentEvidence(source: PersonalFinanceData = {}): AgentEvidence[] {
-  const sourceAccounts = source.accounts ?? accounts;
-  const sourceActions = source.actions ?? actions;
-  const sourceBudgets = source.budgets ?? budgets;
-  const sourceGoals = source.goals ?? goals;
-  const sourceTransactions = source.transactions ?? transactions;
+  const sourceAccounts = source.accounts ?? [];
+  const sourceActions = source.actions ?? [];
+  const sourceBudgets = source.budgets ?? [];
+  const sourceGoals = source.goals ?? [];
+  const sourceTransactions = source.transactions ?? [];
   const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets);
   const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
   return [
@@ -460,17 +433,17 @@ export function buildAgentEvidence(source: PersonalFinanceData = {}): AgentEvide
   ];
 }
 
-export function calculateBusinessDashboard(
-  businessId = DEMO_BUSINESS_ID,
-  sourceBusiness: Business = business,
-  sourceCashEvents: BusinessCashEvent[] = businessCashEvents
-): BusinessDashboard {
-  const relatedEvents = sourceCashEvents.filter((event) => event.businessId === businessId);
+export function calculateBusinessDashboard(sourceBusiness: Business, sourceCashEvents: BusinessCashEvent[], referenceDate = new Date()): BusinessDashboard {
+  const businessId = sourceBusiness.id;
+  const referenceDay = parseUtcDate(referenceDate.toISOString());
+  const relatedEvents = sourceCashEvents
+    .filter((event) => event.businessId === businessId)
+    .sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+  const futureEvents = relatedEvents.filter((event) => parseUtcDate(event.dueAt) >= referenceDay);
   const byDays = (days: number) => {
-    const maxDate = new Date("2026-05-08T00:00:00.000Z");
-    maxDate.setUTCDate(maxDate.getUTCDate() + days);
-    return relatedEvents
-      .filter((event) => new Date(event.dueAt) <= maxDate)
+    const maxDate = addUtcDays(referenceDay, days);
+    return futureEvents
+      .filter((event) => parseUtcDate(event.dueAt) <= maxDate)
       .reduce((balance, event) => balance + (event.type === "inflow" ? event.amount : -event.amount), sourceBusiness.cashBalance);
   };
   const projected30Days = byDays(30);
@@ -484,13 +457,16 @@ export function calculateBusinessDashboard(
     projected60Days,
     projected90Days,
     liquidityRisk,
-    upcomingPayments: relatedEvents.filter((event) => event.type === "outflow"),
-    expectedCollections: relatedEvents.filter((event) => event.type === "inflow")
+    upcomingPayments: futureEvents.filter((event) => event.type === "outflow"),
+    expectedCollections: futureEvents.filter((event) => event.type === "inflow")
   };
 }
 
-export function calculateCollectionScore(customerId: string, sourceCustomers: BusinessCustomer[] = businessCustomers): CollectionScore {
-  const customer = sourceCustomers.find((item) => item.id === customerId) ?? sourceCustomers[0]!;
+export function calculateCollectionScore(customerId: string, sourceCustomers: BusinessCustomer[]): CollectionScore {
+  const customer = sourceCustomers.find((item) => item.id === customerId);
+  if (!customer) {
+    throw new Error(`Business customer not found: ${customerId}`);
+  }
   const lateRatio = customer.invoicesLate / Math.max(customer.invoicesPaid + customer.invoicesLate, 1);
   const score = clamp(100 - customer.averageDelayDays * 1.6 - lateRatio * 45 - customer.outstandingAmount / 4000);
   const riskLevel = riskFromScore(100 - score);
@@ -507,11 +483,11 @@ export function calculateCollectionScore(customerId: string, sourceCustomers: Bu
 
 export function simulateAiCfo(
   amount: number,
-  decision = "Yeni yatırım",
-  sourceBusiness: Business = business,
-  sourceCashEvents: BusinessCashEvent[] = businessCashEvents
+  decision: string,
+  sourceBusiness: Business,
+  sourceCashEvents: BusinessCashEvent[]
 ): AiCfoSimulation {
-  const dashboard = calculateBusinessDashboard(sourceBusiness.id, sourceBusiness, sourceCashEvents);
+  const dashboard = calculateBusinessDashboard(sourceBusiness, sourceCashEvents);
   const afterInvestment = dashboard.projected30Days - amount;
   const riskLevel = afterInvestment < 60000 ? "high" : afterInvestment < 120000 ? "medium" : "low";
   return {

@@ -6,11 +6,11 @@ import {
   calculateSpendingDna,
   detectSubscriptionLeakage
 } from "./finance.js";
-import { subscriptions } from "./demo-data.js";
+import { accounts, actions, budgets, businessCustomers, goals, subscriptions, transactions } from "./demo-data.js";
 
 describe("Fintwin finance engines", () => {
   it("calculates a personal dashboard with a health score", () => {
-    const dashboard = calculateDashboardSummary();
+    const dashboard = calculateDashboardSummary(accounts, transactions, goals, actions, budgets);
     expect(dashboard.financialHealthScore).toBeGreaterThan(0);
     expect(dashboard.periodLabel).toBe("Mayıs 2026");
     expect(dashboard.categoryBreakdown.length).toBeGreaterThan(0);
@@ -28,8 +28,8 @@ describe("Fintwin finance engines", () => {
   });
 
   it("filters dashboard summaries by selected period", () => {
-    const daily = calculateDashboardSummary(undefined, undefined, undefined, undefined, undefined, { period: "daily", referenceDate: "2026-05-08" });
-    const monthly = calculateDashboardSummary(undefined, undefined, undefined, undefined, undefined, { period: "monthly", referenceDate: "2026-05-08" });
+    const daily = calculateDashboardSummary(accounts, transactions, goals, actions, budgets, { period: "daily", referenceDate: "2026-05-08" });
+    const monthly = calculateDashboardSummary(accounts, transactions, goals, actions, budgets, { period: "monthly", referenceDate: "2026-05-08" });
     expect(daily.period).toBe("daily");
     expect(daily.periodStart).toBe("2026-05-08");
     expect(monthly.period).toBe("monthly");
@@ -37,19 +37,22 @@ describe("Fintwin finance engines", () => {
   });
 
   it("builds Spending DNA category risks", () => {
-    const dna = calculateSpendingDna();
+    const dna = calculateSpendingDna(transactions, budgets);
     expect(dna.categories[0]?.riskScore).toBeGreaterThan(0);
     expect(dna.patterns.length).toBeGreaterThan(0);
   });
 
   it("returns safe, balanced and risky what-if scenarios", () => {
-    const simulation = buildWhatIfScenarios({ amount: 10000, categoryId: "cat-tech" });
+    const simulation = buildWhatIfScenarios(
+      { amount: 10000, categoryId: "cat-tech" },
+      { accounts, actions, budgets, goals, transactions }
+    );
     expect(simulation.cards.map((card) => card.id)).toEqual(["safe", "balanced", "risky"]);
     expect(simulation.emotionalDelayMinutes).toBe(10);
   });
 
   it("does not invent what-if scenarios for empty financial data", () => {
-    const simulation = buildWhatIfScenarios({}, { accounts: [], actions: [], budgets: [], goals: [], transactions: [] });
+    const simulation = buildWhatIfScenarios({ amount: 10000, categoryId: "cat-tech" }, { accounts: [], actions: [], budgets: [], goals: [], transactions: [] });
     expect(simulation.safeLimit).toBe(0);
     expect(simulation.cards).toEqual([]);
   });
@@ -60,7 +63,7 @@ describe("Fintwin finance engines", () => {
   });
 
   it("calculates collection score for a business customer", () => {
-    const score = calculateCollectionScore("cus-2");
+    const score = calculateCollectionScore("cus-2", businessCustomers);
     expect(score.score).toBeLessThan(100);
     expect(score.recommendation.length).toBeGreaterThan(10);
   });

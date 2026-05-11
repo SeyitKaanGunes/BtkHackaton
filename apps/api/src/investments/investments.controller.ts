@@ -28,7 +28,7 @@ export class InvestmentsController {
   async addHolding(@CurrentUser() user: AuthUser, @Body() body: InvestmentHoldingCreateRequest) {
     if (body.assetType !== "cash" && !body.symbol?.trim()) throw new BadRequestException("symbol is required");
     if (Number(body.quantity) <= 0) throw new BadRequestException("quantity must be greater than zero");
-    const holding = { ...createInvestmentHolding(body), userId: user.id };
+    const holding = createInvestmentHolding(body, undefined, user.id);
     await this.store.addInvestmentHolding(holding);
     return this.marketData.buildPortfolio(this.store.getPersonalData(user.id).investmentHoldings);
   }

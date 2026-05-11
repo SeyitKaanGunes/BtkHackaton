@@ -58,6 +58,40 @@ describe("StatementExtractorService extractFromText parsing", () => {
       code: "STATEMENT_NO_VALID_ITEMS"
     } satisfies Partial<StatementImportException>);
   });
+
+  it("rejects impossible statement dates instead of letting JavaScript normalize them", async () => {
+    const invalidDateChunk = JSON.stringify({
+      items: [{ merchant: "MIGROS", amount: 250.75, occurredAt: "2026-02-30", categoryName: "Market", paymentMethod: "credit_card", confidence: 0.88 }],
+      warnings: []
+    });
+    const extractor = createExtractor(invalidDateChunk);
+    await expect(extractor.extractFromText("30/02/2026 MIGROS 250,75 TL")).rejects.toMatchObject({
+      code: "STATEMENT_NO_VALID_ITEMS"
+    } satisfies Partial<StatementImportException>);
+  });
+
+  it("uses PDF vision fallback when PDF text extraction is weak", async () => {
+    const chat = vi.fn().mockResolvedValue({ content: validChunk, model: "mock", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } });
+    const mockQwen = {
+      isConfigured: () => true,
+      chat
+    } as unknown as QwenService;
+    const pdfExtractor = {
+      extractText: vi.fn(async () => ({ text: "", pageCount: 1 })),
+      renderPageImages: vi.fn(async () => ({
+        pageCount: 1,
+        images: [{ pageNumber: 1, mimeType: "image/png", base64: "ZmFrZS1wbmc=", width: 1600, height: 2200 }]
+      }))
+    } as unknown as PdfExtractorService;
+    const extractor = new StatementExtractorService(mockQwen, pdfExtractor);
+
+    const result = await extractor.extract({ fileBase64: "ZmFrZS1wZGY=", mimeType: "application/pdf" });
+
+    expect(result.sourceType).toBe("pdf-vision");
+    expect(result.items).toHaveLength(1);
+    expect(result.warnings).toContain("PDF metni zayıf olduğu için vision OCR fallback kullanıldı.");
+    expect(result.tokenUsage.totalTokens).toBe(15);
+  });
 });
 
 function createExtractor(content: string): StatementExtractorService {

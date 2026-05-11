@@ -5,8 +5,8 @@ import type {
   Business,
   BusinessCashEvent,
   BusinessCustomer,
-  Category,
   Goal,
+  InvestmentHolding,
   Subscription,
   Transaction,
   UserProfile
@@ -24,17 +24,6 @@ export const demoUser: UserProfile = {
   payday: 5,
   currency: "TRY"
 };
-
-export const categories: Category[] = [
-  { id: "cat-salary", name: "Maaş", kind: "income", color: "#16a34a" },
-  { id: "cat-tech", name: "Teknoloji", kind: "expense", color: "#4f46e5" },
-  { id: "cat-clothes", name: "Giyim", kind: "expense", color: "#db2777" },
-  { id: "cat-market", name: "Market", kind: "expense", color: "#f59e0b" },
-  { id: "cat-food", name: "Yemek", kind: "expense", color: "#ef4444" },
-  { id: "cat-transport", name: "Ulaşım", kind: "expense", color: "#0891b2" },
-  { id: "cat-subscription", name: "Abonelik", kind: "expense", color: "#7c3aed" },
-  { id: "cat-rent", name: "Kira", kind: "expense", color: "#64748b" }
-];
 
 export const accounts: Account[] = [
   { id: "acc-main", userId: DEMO_USER_ID, name: "Vadesiz Hesap", type: "debit", balance: 18400, currency: "TRY" },
@@ -118,4 +107,49 @@ export const businessCashEvents: BusinessCashEvent[] = [
   { id: "be-4", businessId: DEMO_BUSINESS_ID, title: "Atlas tahsilatı", amount: 86000, type: "inflow", dueAt: "2026-06-08" },
   { id: "be-5", businessId: DEMO_BUSINESS_ID, title: "Vergi ödemesi", amount: 54000, type: "outflow", dueAt: "2026-06-25" },
   { id: "be-6", businessId: DEMO_BUSINESS_ID, title: "Yeni ekipman yatırımı", amount: 76000, type: "outflow", dueAt: "2026-07-08" }
+];
+
+export const demoInvestmentHoldings: InvestmentHolding[] = [
+  {
+    id: "inv-demo-thyao",
+    userId: DEMO_USER_ID,
+    symbol: "THYAO",
+    name: "Turk Hava Yollari",
+    assetType: "stock",
+    quantity: 12,
+    averageCost: 302,
+    costCurrency: "TRY",
+    exchange: "BIST",
+    micCode: "XIST",
+    marketCurrency: "TRY",
+    createdAt: "2026-05-01T00:00:00.000Z",
+    updatedAt: "2026-05-01T00:00:00.000Z"
+  },
+  {
+    id: "inv-demo-gold",
+    userId: DEMO_USER_ID,
+    symbol: "XAU_GRAM_TRY",
+    name: "Gram Gold / Turkish Lira",
+    assetType: "gold",
+    quantity: 5,
+    averageCost: 2450,
+    costCurrency: "TRY",
+    marketCurrency: "TRY",
+    createdAt: "2026-05-01T00:00:00.000Z",
+    updatedAt: "2026-05-01T00:00:00.000Z"
+  },
+  {
+    id: "inv-demo-cash",
+    userId: DEMO_USER_ID,
+    symbol: "CASH_TRY",
+    name: "Vadeli Mevduat TRY",
+    assetType: "cash",
+    quantity: 25000,
+    averageCost: 1,
+    costCurrency: "TRY",
+    marketCurrency: "TRY",
+    annualInterestRate: 42,
+    createdAt: "2026-05-01T00:00:00.000Z",
+    updatedAt: "2026-05-01T00:00:00.000Z"
+  }
 ];

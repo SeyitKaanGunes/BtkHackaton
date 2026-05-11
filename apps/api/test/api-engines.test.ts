@@ -2,24 +2,26 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HttpException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
-  accounts,
-  actions,
-  budgets,
-  business,
-  businessCashEvents,
-  businessCustomers,
   categories,
-  demoInvestmentHoldings,
-  demoUser,
-  goals,
-  subscriptions,
-  transactions,
   type ActionItem,
   type BusinessCashEvent,
   type BusinessCustomer,
   type InvestmentHolding,
   type Transaction
 } from "@fintwin/shared";
+import {
+  accounts,
+  actions,
+  budgets,
+  business,
+  businessCashEvents,
+  businessCustomers,
+  demoInvestmentHoldings,
+  demoUser,
+  goals,
+  subscriptions,
+  transactions
+} from "@fintwin/shared/dist/demo-data.js";
 import { AgentService } from "../src/agent/agent.service.js";
 import { QwenService } from "../src/ai/qwen.service.js";
 import { ActionsController } from "../src/actions/actions.controller.js";
@@ -33,6 +35,7 @@ import { StatementExpenseAgentService } from "../src/documents/statement-expense
 import { StatementExtractorService } from "../src/documents/statement-extractor.service.js";
 import { InvestmentsController } from "../src/investments/investments.controller.js";
 import { TwelveDataService } from "../src/investments/twelve-data.service.js";
+import { TransactionsController } from "../src/transactions/transactions.controller.js";
 
 describe("API feature services", () => {
   const authUser = { id: demoUser.id, email: demoUser.email, name: demoUser.name };
@@ -73,6 +76,22 @@ describe("API feature services", () => {
     expect(store.transactions.length).toBe(before + 1);
   });
 
+  it("rejects scanned receipt imports when the date is missing instead of using today", async () => {
+    const store = createTestStore();
+    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(qwenWith(receiptWithoutDateJson)), store);
+    await expectHttpException(receiptAgent.importReceipt(authUser.id, { imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" }), 400, {
+      code: "RECEIPT_INVALID_DATE",
+      message: "Fiş tarihi okunamadı; bugüne çekilmeden işlem reddedildi."
+    });
+  });
+
+  it("maps unknown document categories to cat-other instead of market", async () => {
+    const store = createTestStore();
+    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(qwenWith(receiptUnknownCategoryJson)), store);
+    const result = await receiptAgent.importReceipt(authUser.id, { imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" });
+    expect(result.transaction.categoryId).toBe("cat-other");
+  });
+
   it("previews and confirms statement line items as categorized expense transactions", async () => {
     const store = createTestStore();
     const statementRepository = createTestStatementRepository();
@@ -86,6 +105,45 @@ describe("API feature services", () => {
     expect(result.recurringSubscriptions.length).toBeGreaterThan(0);
     expect(result.transactions.every((transaction) => transaction.type === "expense")).toBe(true);
     expect(store.transactions.length).toBe(before + result.importedCount);
+  });
+
+  it("rejects invalid manual and CSV transactions before writing dirty data", async () => {
+    const store = createTestStore();
+    const controller = new TransactionsController(store);
+    const before = store.transactions.length;
+
+    await expect(
+      controller.create(authUser, {
+        merchant: "",
+        amount: 0,
+        categoryId: "cat-market",
+        type: "expense",
+        currency: "TRY",
+        paymentMethod: "debit_card",
+        occurredAt: "2026-05-10"
+      })
+    ).rejects.toThrow("merchant zorunlu");
+
+    await expect(
+      controller.importCsv(authUser, {
+        csv: "occurredAt,merchant,amount,categoryId,type,paymentMethod,currency\n2026-02-30,Market,100,cat-market,expense,debit_card,TRY"
+      })
+    ).rejects.toThrow("occurredAt geçerli takvim tarihi olmalı");
+
+    expect(store.transactions.length).toBe(before);
+  });
+
+  it("imports valid CSV transactions with explicit categories and dates", async () => {
+    const store = createTestStore();
+    const controller = new TransactionsController(store);
+    const result = await controller.importCsv(authUser, {
+      csv: "occurredAt,merchant,amount,categoryId,type,paymentMethod,currency,tags\n2026-05-10,\"Canli Market\",100.5,cat-market,expense,debit_card,TRY,manual;csv"
+    });
+
+    expect(result.imported).toBe(1);
+    expect(result.rows[0]?.merchant).toBe("Canli Market");
+    expect(result.rows[0]?.occurredAt).toBe("2026-05-10T12:00:00.000Z");
+    expect(result.rows[0]?.tags).toEqual(["manual", "csv"]);
   });
 
   it("rejects statement previews with a clear error when Qwen is not configured", async () => {
@@ -359,6 +417,28 @@ const receiptJson = JSON.stringify({
     { name: "Temel gida", amount: 720.4 },
     { name: "Temizlik", amount: 529.5 }
   ]
+});
+
+const receiptWithoutDateJson = JSON.stringify({
+  merchant: "Canli Market",
+  totalAmount: 1249.9,
+  taxAmount: 113.63,
+  occurredAt: "",
+  categoryName: "Market",
+  paymentMethod: "credit_card",
+  confidence: 0.62,
+  lineItems: [{ name: "Temel gida", amount: 1249.9 }]
+});
+
+const receiptUnknownCategoryJson = JSON.stringify({
+  merchant: "Belirsiz Magaza",
+  totalAmount: 429.9,
+  taxAmount: 39.08,
+  occurredAt: "2026-05-08",
+  categoryName: "Hobi",
+  paymentMethod: "debit_card",
+  confidence: 0.82,
+  lineItems: [{ name: "Urun", amount: 429.9 }]
 });
 
 const statementJson = JSON.stringify({
