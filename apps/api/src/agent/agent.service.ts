@@ -122,6 +122,7 @@ export class AgentService {
     const result = await graph.invoke({ message });
     const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets);
     const readiness = calculateCampaignReadiness(data.transactions, data.budgets);
+    const suggestedActions = await this.persistSuggestedActions(result.suggestedActions);
     return {
       answer:
         result.answer ??
@@ -140,8 +141,24 @@ export class AgentService {
         "LLM açıklama üretir; tutar ve skorlar deterministik servislerden gelir.",
         "KOBİ verileri bireysel dashboard metriklerine karıştırılmaz."
       ],
-      suggestedActions: result.suggestedActions
+      suggestedActions
     };
+  }
+
+  private async persistSuggestedActions(actions: ActionItem[]) {
+    if (!actions.length) return [];
+    const persisted: ActionItem[] = [];
+    for (const action of actions) {
+      const existing = this.findMatchingPendingAction(action);
+      persisted.push(existing ?? (await this.store.addAction(action)));
+    }
+    return persisted;
+  }
+
+  private findMatchingPendingAction(action: ActionItem) {
+    return this.store
+      .getPersonalData(action.userId)
+      .actions.find((item) => item.status === "pending" && item.type === action.type && item.title === action.title && item.source === action.source);
   }
 
   private routeIntent(message: string) {

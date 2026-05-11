@@ -148,7 +148,7 @@ export default function App() {
             <Loading />
           ))}
         {tab === "portfolio" && <PortfolioScreen onImported={refreshData} />}
-        {tab === "agent" && <AgentScreen />}
+        {tab === "agent" && <AgentScreen onActionChanged={refreshData} />}
         {tab === "business" &&
           (business ? (
             <BusinessScreen {...business} onChanged={refreshData} />

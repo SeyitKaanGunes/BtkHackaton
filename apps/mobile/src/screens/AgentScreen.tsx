@@ -3,8 +3,8 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-nativ
 import * as RNFS from "react-native-fs";
 import Sound, { AVEncoderAudioQualityIOSType, type AudioSet, type RecordBackType } from "react-native-nitro-sound";
 import { Bot, Mic, Send, Shield, Sparkles, Volume2 } from "lucide-react-native";
-import type { AgentResponse } from "@fintwin/shared";
-import { sendAgentMessage, transcribeSpeech } from "../api";
+import type { ActionItem, AgentResponse } from "@fintwin/shared";
+import { approveAction, dismissAction, sendAgentMessage, transcribeSpeech } from "../api";
 import { speakWithGemini } from "../audio";
 import { Btn, Card, Chip, Eyebrow, ScreenHeader, SectionTitle } from "../ui";
 import { radius, space, usePalette } from "../theme";
@@ -32,12 +32,13 @@ const SUGGESTIONS = [
   "Bugün 10000 TL teknoloji harcaması yaparsam ne olur?"
 ];
 
-export function AgentScreen() {
+export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void }) {
   const p = usePalette();
   const [message, setMessage] = useState(SUGGESTIONS[0]);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [response, setResponse] = useState<AgentResponse | null>(null);
   const [busyMode, setBusyMode] = useState<BusyMode | null>(null);
+  const [actionPendingId, setActionPendingId] = useState<string | null>(null);
   const [recordMillis, setRecordMillis] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const loading = busyMode !== null;
@@ -119,10 +120,33 @@ export function AgentScreen() {
     try {
       const next = await sendAgentMessage(text);
       setResponse(next);
+      onActionChanged?.();
       setTurns((items) => [...items, { id: `assistant-${Date.now()}`, role: "assistant", text: next.answer }]);
       void speak(next.answer);
     } catch (nextError) {
       setError(formatError(nextError, "Agent cevabı alınamadı."));
+    }
+  }
+
+  async function updateSuggestedAction(action: ActionItem, decision: "approve" | "dismiss") {
+    if (actionPendingId || action.status !== "pending") return;
+    setActionPendingId(action.id);
+    setError(null);
+    try {
+      const updated = decision === "approve" ? await approveAction(action.id) : await dismissAction(action.id);
+      setResponse((current) =>
+        current
+          ? {
+              ...current,
+              suggestedActions: current.suggestedActions.map((item) => (item.id === updated.id ? updated : item))
+            }
+          : current
+      );
+      onActionChanged?.();
+    } catch (nextError) {
+      setError(formatError(nextError, "Aksiyon güncellenemedi."));
+    } finally {
+      setActionPendingId(null);
     }
   }
 
@@ -270,23 +294,32 @@ export function AgentScreen() {
                 <SectionTitle>Önerilen aksiyonlar</SectionTitle>
                 <Sparkles color={p.muted} size={14} />
               </View>
-              {response.suggestedActions.map((a, i) => (
+              {response.suggestedActions.map((a, i) => {
+                const pending = actionPendingId === a.id;
+                const closed = a.status !== "pending";
+                return (
                 <View
                   key={`${a.title ?? i}-${i}`}
                   style={{ borderColor: p.line, borderWidth: 1, borderRadius: radius.md, padding: space[3], gap: 6, backgroundColor: p.surface2 }}
                 >
-                  <Text style={{ color: p.ink, fontWeight: "900", fontSize: 13 }}>{a.title ?? `Aksiyon ${i + 1}`}</Text>
-                  {a.description ? <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>{a.description}</Text> : null}
-                  <View style={{ flexDirection: "row", gap: 6 }}>
-                    <View style={{ flex: 1 }}>
-                      <Btn label="Onayla" onPress={() => undefined} variant="primary" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Btn label="Reddet" onPress={() => undefined} variant="ghost" />
-                    </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                    <Text style={{ color: p.ink, fontWeight: "900", fontSize: 13, flex: 1 }}>{a.title ?? `Aksiyon ${i + 1}`}</Text>
+                    <Chip label={actionStatusLabel(a.status)} tone={a.status === "approved" ? "good" : a.status === "dismissed" ? "neutral" : "accent"} small />
                   </View>
+                  {a.description ? <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>{a.description}</Text> : null}
+                  {!closed ? (
+                    <View style={{ flexDirection: "row", gap: 6 }}>
+                      <View style={{ flex: 1 }}>
+                        <Btn label={pending ? "İşleniyor" : "Onayla"} onPress={() => void updateSuggestedAction(a, "approve")} variant="primary" disabled={Boolean(actionPendingId)} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Btn label="Reddet" onPress={() => void updateSuggestedAction(a, "dismiss")} variant="ghost" disabled={Boolean(actionPendingId)} />
+                      </View>
+                    </View>
+                  ) : null}
                 </View>
-              ))}
+                );
+              })}
             </Card>
           ) : null}
         </View>
@@ -338,6 +371,12 @@ function busyDescription(mode: BusyMode | null) {
   if (mode === "stt") return "OpenAI STT ses dosyasını metne çeviriyor.";
   if (mode === "tts") return "Gemini TTS cevabı seslendiriyor.";
   return "Agent finans verilerini okuyup cevap hazırlıyor.";
+}
+
+function actionStatusLabel(status: ActionItem["status"]) {
+  if (status === "approved") return "Onaylandı";
+  if (status === "dismissed") return "Reddedildi";
+  return "Bekliyor";
 }
 
 function voiceButtonLabel(mode: BusyMode | null, recordMillis: number) {

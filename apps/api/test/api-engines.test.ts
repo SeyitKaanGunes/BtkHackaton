@@ -48,11 +48,22 @@ describe("API feature services", () => {
   });
 
   it("routes agent questions through LangGraph and returns explainability", async () => {
-    const agent = new AgentService(createTestStore(), new QwenService());
+    const store = createTestStore();
+    const agent = new AgentService(store, new QwenService());
+    const before = store.getPersonalData(authUser.id).actions.length;
     const result = await agent.chat(authUser.id, "10000 TL harcarsam ne olur?");
     expect(result.routedAgents).toContain("Simulation Agent");
     expect(result.evidence.length).toBeGreaterThan(0);
     expect(result.suggestedActions[0]?.type).toBe("delay_purchase");
+    expect(store.getPersonalData(authUser.id).actions).toHaveLength(before + 1);
+
+    const repeated = await agent.chat(authUser.id, "10000 TL harcarsam ne olur?");
+    expect(repeated.suggestedActions[0]?.id).toBe(result.suggestedActions[0]?.id);
+    expect(store.getPersonalData(authUser.id).actions).toHaveLength(before + 1);
+
+    const controller = new ActionsController(store);
+    const approved = await controller.approve(authUser, result.suggestedActions[0]!.id);
+    expect(approved.status).toBe("approved");
   });
 
   it("rejects invalid agent and what-if request bodies before defaulting", () => {
