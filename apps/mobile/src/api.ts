@@ -31,7 +31,8 @@ import type {
 import * as Keychain from "react-native-keychain";
 
 const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
-const apiUrl = requiredPublicEnv("EXPO_PUBLIC_API_URL").replace(/\/$/, "");
+const devApiUrl = "http://localhost:4000";
+const apiUrl = resolveApiUrl();
 let authToken = runtimeEnv.EXPO_PUBLIC_AUTH_TOKEN?.trim() || undefined;
 const biometricService = "fintwin.auth.biometric-token";
 const biometricUsername = "fintwin-auth-token";
@@ -410,8 +411,12 @@ function apiCode(body: unknown) {
   return body && typeof body === "object" && typeof (body as Record<string, unknown>).code === "string" ? String((body as Record<string, unknown>).code) : undefined;
 }
 
-function requiredPublicEnv(key: string) {
-  const value = runtimeEnv[key]?.trim();
-  if (!value) throw new Error(`${key} is required.`);
-  return value;
+function resolveApiUrl() {
+  const envApiUrl = runtimeEnv.EXPO_PUBLIC_API_URL?.trim();
+  if (envApiUrl) return envApiUrl.replace(/\/$/, "");
+
+  const isDevRuntime = typeof __DEV__ === "boolean" ? __DEV__ : runtimeEnv.NODE_ENV !== "production";
+  if (isDevRuntime) return devApiUrl;
+
+  throw new Error("EXPO_PUBLIC_API_URL is required.");
 }
