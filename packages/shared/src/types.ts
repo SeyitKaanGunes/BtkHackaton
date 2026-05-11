@@ -364,6 +364,30 @@ export interface AgentResponse {
   suggestedActions: ActionItem[];
 }
 
+export interface TextToSpeechRequest {
+  text: string;
+  voiceName?: string;
+}
+
+export interface TextToSpeechResult {
+  audioBase64: string;
+  mimeType: string;
+  model: string;
+  voiceName: string;
+}
+
+export interface SpeechToTextRequest {
+  audioBase64: string;
+  mimeType?: string;
+  fileName?: string;
+  language?: string;
+}
+
+export interface SpeechToTextResult {
+  text: string;
+  model: string;
+}
+
 export interface Business {
   id: string;
   ownerUserId: string;

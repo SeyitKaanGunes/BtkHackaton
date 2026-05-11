@@ -98,13 +98,20 @@ export class AgentService {
         confidence: 0.78,
         routedAgents: ["Education Agent"]
       }))
+      .addNode("assistant", async (state) => ({
+        answer: await this.assistantAnswer(userId, state.message),
+        confidence: this.qwen.isConfigured() ? 0.8 : 0.72,
+        routedAgents: ["LLM Agent", "Twin Agent"]
+      }))
       .addConditionalEdges("supervisor", (state) => state.intent, {
+        assistant: "assistant",
         simulation: "simulation",
         subscriptions: "subscriptions",
         education: "education",
         twin: "twin"
       })
       .addEdge(START, "supervisor")
+      .addEdge("assistant", END)
       .addEdge("twin", END)
       .addEdge("simulation", END)
       .addEdge("subscriptions", END)
@@ -141,7 +148,8 @@ export class AgentService {
     if (/(alırsam|harcarsam|ertelersem|senaryo|what-if|ne olur)/i.test(normalized)) return "simulation";
     if (/(abonelik|subscription|tekrarlayan|sızıntı)/i.test(normalized)) return "subscriptions";
     if (/(nedir|anlat|öğret|faiz|enflasyon|kredi)/i.test(normalized)) return "education";
-    return "twin";
+    if (/(dna|risk|profil|ikiz|sağlık skoru|skor)/i.test(normalized)) return "twin";
+    return "assistant";
   }
 
   private extractAmount(message: string) {
@@ -172,6 +180,49 @@ export class AgentService {
       return response.content || "";
     } catch {
       return unavailable;
+    }
+  }
+
+  private async assistantAnswer(userId: string, message: string): Promise<string> {
+    const data = this.store.getPersonalData(userId);
+    const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets);
+    const dna = calculateSpendingDna(data.transactions, data.budgets);
+    const leaks = detectSubscriptionLeakage(data.subscriptions);
+    const fallback = `Finansal sağlık skorun ${dashboard.financialHealthScore}/100. Bu dönem gelir ${dashboard.income.toLocaleString("tr-TR")} TL, gider ${dashboard.expenses.toLocaleString("tr-TR")} TL ve net durum ${dashboard.balance.toLocaleString("tr-TR")} TL. En riskli kategori ${dna.categories[0]?.categoryName ?? "henüz belirlenmedi"}.`;
+
+    if (!this.qwen.isConfigured()) return fallback;
+
+    try {
+      const response = await this.qwen.chat(
+        [
+          {
+            role: "system",
+            content:
+              "Sen Fintwin mobil uygulamasındaki Türkçe finans asistanısın. Kullanıcının kayıtlı finans verilerine dayanarak kısa, net ve uygulanabilir cevap ver. Yatırım tavsiyesi verme; eğitim ve kişisel finans organizasyonu odağında kal. Otomatik işlem yaptığını iddia etme."
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              message,
+              context: {
+                period: dashboard.periodLabel,
+                income: dashboard.income,
+                expenses: dashboard.expenses,
+                balance: dashboard.balance,
+                financialHealthScore: dashboard.financialHealthScore,
+                topRiskCategory: dna.categories[0]?.categoryName,
+                subscriptionLeakCount: leaks.length,
+                upcomingActionCount: dashboard.upcomingActions.length,
+                goalCount: dashboard.goals.length
+              }
+            })
+          }
+        ],
+        { temperature: 0.35 }
+      );
+      return response.content || fallback;
+    } catch {
+      return fallback;
     }
   }
 }

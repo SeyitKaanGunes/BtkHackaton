@@ -18,10 +18,11 @@ export default defineConfig({
     extensions: [".web.tsx", ".web.ts", ".web.jsx", ".web.js", ".tsx", ".ts", ".jsx", ".js"],
     alias: [
       { find: /^react-native$/, replacement: "react-native-web" },
-      { find: /^react-native-tts$/, replacement: stub("react-native-tts.ts") },
       { find: /^react-native-keychain$/, replacement: stub("react-native-keychain.ts") },
       { find: /^react-native-image-picker$/, replacement: stub("react-native-image-picker.ts") },
       { find: /^react-native-document-picker$/, replacement: stub("react-native-document-picker.ts") },
+      { find: /^react-native-nitro-sound$/, replacement: stub("react-native-nitro-sound.ts") },
+      { find: /^react-native-sound$/, replacement: stub("react-native-sound.ts") },
       { find: /^react-native-fs$/, replacement: stub("react-native-fs.ts") },
       { find: /^lucide-react-native$/, replacement: "lucide-react" },
       { find: "@fintwin/shared", replacement: path.resolve(here, "../../packages/shared/src/index.ts") }
@@ -44,6 +45,7 @@ export default defineConfig({
       "/subscriptions": "http://localhost:4000",
       "/simulations": "http://localhost:4000",
       "/agent": "http://localhost:4000",
+      "/speech": "http://localhost:4000",
       "/documents": "http://localhost:4000",
       "/actions": "http://localhost:4000",
       "/business": "http://localhost:4000"

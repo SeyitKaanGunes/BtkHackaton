@@ -4,6 +4,8 @@ import { JwtModule } from "@nestjs/jwt";
 import { ActionsController } from "./actions/actions.controller.js";
 import { AgentController } from "./agent/agent.controller.js";
 import { AgentService } from "./agent/agent.service.js";
+import { GeminiTtsService } from "./ai/gemini-tts.service.js";
+import { OpenAiSpeechService } from "./ai/openai-speech.service.js";
 import { QwenService } from "./ai/qwen.service.js";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthService } from "./auth/auth.service.js";
@@ -26,6 +28,7 @@ import { TwelveDataService } from "./investments/twelve-data.service.js";
 import { NotificationsController } from "./notifications/notifications.controller.js";
 import { PrismaService } from "./prisma/prisma.service.js";
 import { SimulationsController } from "./simulations/simulations.controller.js";
+import { SpeechController } from "./speech/speech.controller.js";
 import { SpendingDnaController } from "./spending-dna/spending-dna.controller.js";
 import { SubscriptionsController } from "./subscriptions/subscriptions.controller.js";
 import { TransactionsController } from "./transactions/transactions.controller.js";
@@ -57,6 +60,7 @@ import { TransactionsController } from "./transactions/transactions.controller.j
     InvestmentsController,
     NotificationsController,
     SimulationsController,
+    SpeechController,
     SpendingDnaController,
     SubscriptionsController,
     TransactionsController
@@ -66,7 +70,9 @@ import { TransactionsController } from "./transactions/transactions.controller.j
     AuthService,
     DataStoreService,
     DocumentsService,
+    GeminiTtsService,
     JwtAuthGuard,
+    OpenAiSpeechService,
     PdfExtractorService,
     PrismaService,
     QwenService,

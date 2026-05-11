@@ -1,6 +1,7 @@
 const DocumentPicker = {
   types: {
-    pdf: "application/pdf"
+    pdf: "application/pdf",
+    audio: "audio/*"
   },
   async pickSingle(): Promise<never> {
     throw new Error("PDF seçimi web önizlemede desteklenmiyor.");

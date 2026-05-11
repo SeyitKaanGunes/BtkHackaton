@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Dimensions, Modal, PanResponder, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
-import Tts from "react-native-tts";
 import {
   AlertTriangle,
   Bot,
@@ -8,17 +7,14 @@ import {
   Building2,
   CalendarPlus,
   Check,
-  CheckCircle2,
   ChevronRight,
   Clock3,
   FileScan,
   Fingerprint,
   Landmark,
   LogOut,
-  Mic2,
   PauseCircle,
   Plus,
-  RefreshCcw,
   Search,
   Send,
   ShieldAlert,
@@ -30,7 +26,6 @@ import {
 } from "lucide-react-native";
 import type {
   ActionItem,
-  AgentResponse,
   AiCfoSimulation,
   Business,
   BusinessCustomer,
@@ -62,10 +57,10 @@ import {
   login,
   persistAuthToken,
   register,
-  sendAgentMessage,
   simulateBusinessDecision,
   type AuthUserProfile
 } from "./src/api";
+import { AgentScreen } from "./src/screens/AgentScreen";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
 import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles } from "./src/ui";
 
@@ -73,7 +68,6 @@ type Tab = "home" | "portfolio" | "agent" | "business";
 type HomeData = Awaited<ReturnType<typeof loadMobileHome>>;
 type BusinessData = NonNullable<Awaited<ReturnType<typeof loadBusiness>>>;
 
-const defaultQuestion = "Bugün 10.000 ₺ teknoloji harcaması yaparsam ne olur?";
 const dashboardPeriods: Array<{ value: DashboardPeriod; label: string }> = [
   { value: "daily", label: "Günlük" },
   { value: "weekly", label: "Haftalık" },
@@ -1025,117 +1019,6 @@ function SubscriptionLeakCard({ leak }: { leak: SubscriptionLeak }) {
         <Button label="Detay" variant="ghost" />
       </View>
     </View>
-  );
-}
-
-function AgentScreen() {
-  const [message, setMessage] = useState(defaultQuestion);
-  const [response, setResponse] = useState<AgentResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function ask() {
-    setLoading(true);
-    const next = await sendAgentMessage(message);
-    setResponse(next);
-    Tts.setDefaultLanguage("tr-TR").catch(() => undefined);
-    Tts.speak(next.answer);
-    setLoading(false);
-  }
-
-  const routedAgents = response?.routedAgents.length ? response.routedAgents : ["Supervisor", "Simulation", "Risk"];
-
-  return (
-    <>
-      <ScreenHeader
-        eyebrow="Agent · Multi-agent finans danışmanı"
-        title="Sor, ikiz açıklasın"
-        subtitle="Önerilerin kanıtlara dayanır. Otomatik işlem yapılmaz."
-      />
-
-      <Panel>
-        <View style={localStyles.agentInputShell}>
-          <Bot size={20} color={palette.primary} />
-          <TextInput
-            value={message}
-            onChangeText={setMessage}
-            style={localStyles.agentInput}
-            multiline
-            textAlignVertical="top"
-          />
-          <IconButton onPress={ask} tone="primary">
-            <Send size={19} color={palette.primary} />
-          </IconButton>
-        </View>
-        <View style={styles.wrapRow}>
-          {routedAgents.map((agent) => (
-            <Badge key={agent} label={agent} tone="primary" />
-          ))}
-          <Badge label={response ? `%${Math.round(response.confidence * 100)} güven` : "%82 güven"} tone="teal" />
-        </View>
-      </Panel>
-
-      {loading ? (
-        <Panel>
-          <ActivityIndicator color={palette.primary} />
-          <Text style={styles.bodyMuted}>İkiz kanıtları topluyor...</Text>
-        </Panel>
-      ) : response ? (
-        <AgentResult response={response} />
-      ) : (
-        <AgentEmpty onPress={ask} />
-      )}
-    </>
-  );
-}
-
-function AgentEmpty({ onPress }: { onPress: () => void }) {
-  return (
-    <Panel style={localStyles.emptyPanel}>
-      <Bot size={30} color={palette.primary} />
-      <Text style={localStyles.cardTitle}>Soru hazır</Text>
-      <Text style={styles.bodyMuted}>Gönderince Explainable AI paneli, kanıtlar ve aksiyon taslakları burada açılır.</Text>
-      <Button label="Agent'a gönder" onPress={onPress} icon={<Send size={15} color={palette.surface} />} />
-    </Panel>
-  );
-}
-
-function AgentResult({ response }: { response: AgentResponse }) {
-  const suggestedActions = response.suggestedActions.length
-    ? response.suggestedActions.map((action) => action.title)
-    : ["10 dakika beklet", "Güvenli senaryoyu uygula", "Alternatif fiyat ara"];
-
-  return (
-    <Panel>
-      <View style={styles.rowBetween}>
-        <Badge label="İkiz · Simulation Agent" tone="primary" />
-        <Mono style={localStyles.agentLatency}>1.4s</Mono>
-      </View>
-      <Text style={localStyles.agentAnswer}>{response.answer}</Text>
-      <View style={localStyles.actionButtons}>
-        <Button label="Sesli oku" icon={<Mic2 size={15} color={palette.surface} />} onPress={() => Tts.speak(response.answer)} style={localStyles.flexButton} />
-        <Button label="Yeniden" variant="ghost" icon={<RefreshCcw size={15} color={palette.ink} />} style={localStyles.flexButton} />
-      </View>
-      <View style={styles.divider} />
-      <SectionTitle title="Kanıtlar" />
-      <View style={localStyles.evidenceGrid}>
-        {response.evidence.map((item) => (
-          <View style={localStyles.evidenceItem} key={`${item.label}-${item.value}`}>
-            <CheckCircle2 size={15} color={palette.teal} />
-            <Text style={localStyles.evidenceLabel}>{item.label}</Text>
-            <Mono style={localStyles.evidenceValue}>{item.value}</Mono>
-          </View>
-        ))}
-      </View>
-      <SectionTitle title="Önerilen aksiyonlar" />
-      {suggestedActions.map((title, index) => (
-        <View style={localStyles.suggestedAction} key={`${title}-${index}`}>
-          <Text style={localStyles.cardTitle}>{title}</Text>
-          <Text style={styles.bodyMuted}>
-            {index === 0 ? "Emotional delay ile dürtüyü yavaşlat" : index === 1 ? "Güvenli limitte kal · sağlık +3" : "İkiz, son 30 gün fiyat geçmişine bakar"}
-          </Text>
-        </View>
-      ))}
-    </Panel>
   );
 }
 

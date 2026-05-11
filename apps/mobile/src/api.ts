@@ -19,11 +19,15 @@ import type {
   ReceiptExpenseImportResult,
   ReceiptScanResult,
   RiskLevel,
+  SpeechToTextRequest,
+  SpeechToTextResult,
   SpendingDna,
   StatementConfirmResult,
   StatementPreviewResult,
   SubscriptionLeak,
   SubscriptionReminderResult,
+  TextToSpeechRequest,
+  TextToSpeechResult,
   Transaction,
   TransactionType,
   WhatIfResponse
@@ -293,6 +297,15 @@ export function deleteInvestmentHolding(id: string): Promise<InvestmentPortfolio
 
 export function sendAgentMessage(message: string) {
   return request<AgentResponse>("/agent/chat", { method: "POST", body: JSON.stringify({ message }) });
+}
+
+export function synthesizeSpeech(input: TextToSpeechRequest | string): Promise<TextToSpeechResult> {
+  const body = typeof input === "string" ? { text: input } : input;
+  return request<TextToSpeechResult>("/speech/tts", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function transcribeSpeech(input: SpeechToTextRequest): Promise<SpeechToTextResult> {
+  return request<SpeechToTextResult>("/speech/stt", { method: "POST", body: JSON.stringify(input) });
 }
 
 export function scanReceipt(imageBase64?: string, mimeType?: string) {
