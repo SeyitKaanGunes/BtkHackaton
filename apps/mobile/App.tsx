@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, Modal, PanResponder, Platform, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Animated, Dimensions, Modal, PanResponder, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import Tts from "react-native-tts";
 import {
   AlertTriangle,
-  BellRing,
   Bot,
   BriefcaseBusiness,
   Building2,
@@ -13,7 +12,6 @@ import {
   ChevronRight,
   Clock3,
   FileScan,
-  FileUp,
   Fingerprint,
   Landmark,
   LogOut,
@@ -58,14 +56,12 @@ import {
   dismissAction,
   getBiometricAuthLabel,
   hasAuthToken,
-  importTransactionsCsv,
   loadBusiness,
   loadMobileHome,
   loadStoredAuthToken,
   login,
   persistAuthToken,
   register,
-  saveFcmToken,
   sendAgentMessage,
   simulateBusinessDecision,
   type AuthUserProfile
@@ -160,7 +156,7 @@ export default function App() {
           ) : (
             <Loading />
           ))}
-        {tab === "portfolio" && <PortfolioScreen />}
+        {tab === "portfolio" && <PortfolioScreen onImported={refreshData} />}
         {tab === "agent" && <AgentScreen />}
         {tab === "scan" && <ScanScreen onImported={refreshData} />}
         {tab === "business" &&
@@ -529,7 +525,6 @@ function HomeScreen({
       <CategoryRiskList dna={dna} periodLabel={dashboard.periodLabel} />
       <GoalsSection goals={dashboard.goals} />
       <ManualTransactionPanel onChanged={onRefresh} />
-      <NotificationTokenPanel />
       <ActionCenter actions={dashboard.upcomingActions} onChanged={onRefresh} />
       <WhatIfPreview simulation={simulation} />
       <SubscriptionHunter leaks={leaks} />
@@ -863,8 +858,7 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
   const [categoryId, setCategoryId] = useState("cat-other");
   const [currency, setCurrency] = useState<Currency>("TRY");
   const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 10));
-  const [csv, setCsv] = useState("occurredAt,merchant,amount,categoryId,type,paymentMethod,currency\n");
-  const [pending, setPending] = useState<"manual" | "csv" | null>(null);
+  const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const categoryOptions = type === "income" ? incomeTransactionCategories : expenseTransactionCategories;
 
@@ -880,7 +874,7 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
       setStatus("Satıcı ve tutar gerekli.");
       return;
     }
-    setPending("manual");
+    setPending(true);
     setStatus(null);
     try {
       await createTransaction({
@@ -899,25 +893,7 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "İşlem eklenemedi.");
     } finally {
-      setPending(null);
-    }
-  }
-
-  async function importCsv() {
-    if (csv.trim().split(/\r?\n/).length < 2) {
-      setStatus("CSV için başlık ve en az bir satır gerekli.");
-      return;
-    }
-    setPending("csv");
-    setStatus(null);
-    try {
-      const result = await importTransactionsCsv(csv);
-      setStatus(`${result.imported} işlem içe aktarıldı.`);
-      onChanged();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "CSV içe aktarılamadı.");
-    } finally {
-      setPending(null);
+      setPending(false);
     }
   }
 
@@ -952,50 +928,8 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
           </Pressable>
         ))}
       </View>
-      <Button label={pending === "manual" ? "Ekleniyor" : "İşlem ekle"} onPress={() => void addManual()} disabled={Boolean(pending)} icon={<Plus size={15} color={palette.surface} />} />
-
-      <View style={styles.divider} />
-      <SectionTitle title="CSV İçe Aktar" meta="toplu işlem" />
-      <TextInput value={csv} onChangeText={setCsv} multiline textAlignVertical="top" style={[localStyles.authInput, localStyles.csvInput]} />
-      <Button label={pending === "csv" ? "Aktarılıyor" : "CSV aktar"} variant="secondary" onPress={() => void importCsv()} disabled={Boolean(pending)} icon={<FileUp size={15} color={palette.ink} />} />
+      <Button label={pending ? "Ekleniyor" : "İşlem ekle"} onPress={() => void addManual()} disabled={pending} icon={<Plus size={15} color={palette.surface} />} />
       {status ? <Text style={status.includes("gerekli") || status.includes("zorunlu") || status.includes("olmalı") || status.includes("edilemedi") ? localStyles.authError : localStyles.formSuccess}>{status}</Text> : null}
-    </Panel>
-  );
-}
-
-function NotificationTokenPanel() {
-  const platform = Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "web";
-  const [token, setToken] = useState("");
-  const [pending, setPending] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-
-  async function submit() {
-    if (!token.trim()) {
-      setStatus("Token gerekli.");
-      return;
-    }
-    setPending(true);
-    setStatus(null);
-    try {
-      await saveFcmToken({ token: token.trim(), platform });
-      setToken("");
-      setStatus("Bildirim tokenı kaydedildi.");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Token kaydedilemedi.");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <Panel>
-      <SectionTitle title="Bildirim Bağlantısı" meta={platform.toUpperCase()} />
-      <View style={localStyles.agentInputShell}>
-        <BellRing size={20} color={palette.primary} />
-        <TextInput value={token} onChangeText={setToken} placeholder="FCM/APNs token" placeholderTextColor={palette.muted} style={[localStyles.authInput, localStyles.formInput]} />
-      </View>
-      <Button label={pending ? "Kaydediliyor" : "Token kaydet"} variant="secondary" onPress={() => void submit()} disabled={pending} />
-      {status ? <Text style={status.includes("gerekli") || status.includes("API") || status.includes("kaydedilemedi") ? localStyles.authError : localStyles.formSuccess}>{status}</Text> : null}
     </Panel>
   );
 }
@@ -2089,10 +2023,6 @@ const localStyles = StyleSheet.create({
   },
   segmentButtonTextActive: {
     color: palette.surface
-  },
-  csvInput: {
-    minHeight: 112,
-    lineHeight: 19
   },
   flexButton: {
     flexGrow: 1,
