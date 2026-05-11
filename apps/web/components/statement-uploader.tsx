@@ -68,6 +68,7 @@ export function StatementUploader() {
   async function confirmImport() {
     if (state.phase !== "preview") return;
     const { data, selected, skipDuplicates } = state;
+    if (countImportableSelected(data, selected, skipDuplicates) === 0) return;
     setState({ phase: "confirming" });
     try {
       const confirmed = await postStatementConfirm({
@@ -100,6 +101,8 @@ export function StatementUploader() {
   }
 
   if (state.phase === "preview") {
+    const importableSelectedCount = countImportableSelected(state.data, state.selected, state.skipDuplicates);
+    const confirmDisabled = importableSelectedCount === 0;
     return (
       <div className="panel receipt-result statement-preview">
         <div className="section-title">
@@ -172,7 +175,12 @@ export function StatementUploader() {
             </label>
           ))}
         </div>
-        <button className="secondary-button statement-confirm" disabled={!state.selected.size} onClick={confirmImport}>
+        {confirmDisabled ? (
+          <div className="empty-state">
+            {state.selected.size ? "Seçilen kalemler mevcut işlemlerle eşleşiyor. Yinelenenleri atla kapatılmadan içe aktarılamaz." : "İçe aktarılacak en az bir kalem seç."}
+          </div>
+        ) : null}
+        <button className="secondary-button statement-confirm" disabled={confirmDisabled} onClick={confirmImport}>
           Onayla ve içe aktar
         </button>
       </div>
@@ -282,6 +290,10 @@ export function StatementUploader() {
       <input type="file" accept="image/*,.pdf" onChange={(event) => onStatementFile(event.target.files?.[0])} />
     </label>
   );
+}
+
+function countImportableSelected(data: StatementPreviewResult, selected: Set<number>, skipDuplicates: boolean) {
+  return data.items.filter((item) => selected.has(item.index) && (!skipDuplicates || !item.existingTransactionId)).length;
 }
 
 function toErrorState(error: unknown, fallback: string): UploaderState {

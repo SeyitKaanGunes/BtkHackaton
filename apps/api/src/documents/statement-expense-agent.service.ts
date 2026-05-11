@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import {
   type StatementConfirmResult,
   type StatementLineItem,
@@ -96,19 +97,23 @@ export class StatementExpenseAgentService {
       throw new BadRequestException("Bu belge zaten içe aktarıldı");
     }
 
-    const selectedIndexSet = input.selectedItemIndexes
-      ? new Set(input.selectedItemIndexes.filter((index) => Number.isInteger(index)))
-      : new Set(document.items.map((item) => item.index));
+    const selectedIndexSet = resolveSelectedIndexSet(input.selectedItemIndexes, document.items);
     const userTransactions = this.store.getPersonalData(userId).transactions;
     const freshItems = markDuplicates(document.items.map(stripExistingTransactionId), userId, userTransactions);
     const selectedItems = freshItems.filter((item) => selectedIndexSet.has(item.index));
+    if (selectedItems.length === 0) {
+      throw new BadRequestException("İçe aktarılacak ekstre kalemi seçilmedi.");
+    }
     const skipDuplicates = input.skipDuplicates ?? true;
     const duplicateItems = selectedItems.filter((item) => item.existingTransactionId);
     const itemsToImport = skipDuplicates ? selectedItems.filter((item) => !item.existingTransactionId) : selectedItems;
+    if (itemsToImport.length === 0) {
+      throw new BadRequestException("Seçilen ekstre kalemleri zaten kayıtlı; içe aktarılacak yeni kalem yok.");
+    }
 
     const transactions: Transaction[] = [];
-    for (const [index, item] of itemsToImport.entries()) {
-      transactions.push(await this.store.addTransaction(this.toTransaction(userId, item, index)));
+    for (const item of itemsToImport) {
+      transactions.push(await this.store.addTransaction(this.toTransaction(userId, item)));
     }
 
     await this.documentRepository.markImported(document.id, new Date());
@@ -127,10 +132,10 @@ export class StatementExpenseAgentService {
     };
   }
 
-  private toTransaction(userId: string, item: StatementLineItem, index: number): Transaction {
+  private toTransaction(userId: string, item: StatementLineItem): Transaction {
     const categoryId = mapCategoryNameToId(item.categoryName, item.merchant, this.store.categories);
     return {
-      id: `tx-statement-${Date.now()}-${index}`,
+      id: `tx-statement-${randomUUID()}`,
       userId,
       accountId: this.store.defaultAccountIdFor(userId, item.paymentMethod),
       categoryId,
@@ -173,6 +178,32 @@ export class StatementExpenseAgentService {
     }
     return [...unique.values()].sort((left, right) => right.confidence - left.confidence);
   }
+}
+
+function resolveSelectedIndexSet(value: unknown, items: StatementPreviewItem[]) {
+  const validIndexes = new Set(items.map((item) => item.index));
+  if (value === undefined) return validIndexes;
+  if (!Array.isArray(value)) {
+    throw new BadRequestException("selectedItemIndexes sayı dizisi olmalı.");
+  }
+  if (value.length === 0) {
+    throw new BadRequestException("En az bir ekstre kalemi seçilmeli.");
+  }
+
+  const selected = new Set<number>();
+  for (const index of value) {
+    if (!Number.isInteger(index)) {
+      throw new BadRequestException("selectedItemIndexes sadece tam sayı içermeli.");
+    }
+    if (!validIndexes.has(index)) {
+      throw new BadRequestException(`selectedItemIndexes geçersiz kalem içeriyor: ${index}`);
+    }
+    if (selected.has(index)) {
+      throw new BadRequestException(`selectedItemIndexes tekrar eden kalem içeriyor: ${index}`);
+    }
+    selected.add(index);
+  }
+  return selected;
 }
 
 function dedupeItems(items: StatementLineItem[]) {

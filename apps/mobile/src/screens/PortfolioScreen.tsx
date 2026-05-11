@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
-import { Plus, Search, Trash2, TrendingDown, TrendingUp } from "lucide-react-native";
-import type { Currency, InvestmentAssetType, InvestmentPortfolioSummary, MarketSymbolResult } from "@fintwin/shared";
-import { addInvestmentHolding, deleteInvestmentHolding, loadInvestmentPortfolio, searchInvestmentSymbols } from "../api";
-import { Btn, Card, Chip, Eyebrow, KV, Muted, ScreenHeader, SectionTitle } from "../ui";
+import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from "react-native";
+import DocumentPicker from "react-native-document-picker";
+import * as RNFS from "react-native-fs";
+import { CheckCircle2, FileText, FileUp, Plus, Search, Trash2, TrendingDown, TrendingUp, X } from "lucide-react-native";
+import { statementErrorMessage, type Currency, type InvestmentAssetType, type InvestmentPortfolioSummary, type MarketSymbolResult, type StatementConfirmResult, type StatementPreviewResult } from "@fintwin/shared";
+import { addInvestmentHolding, confirmStatementImport, deleteInvestmentHolding, importStatementPreview, loadInvestmentPortfolio, searchInvestmentSymbols, StatementApiError } from "../api";
+import { Btn, Card, Chip, Divider, Eyebrow, KV, Muted, ScreenHeader, SectionTitle } from "../ui";
 import { radius, space, usePalette } from "../theme";
-import { ScanScreen } from "./ScanScreen";
 
 const assetTypes: Array<{ value: InvestmentAssetType; label: string }> = [
   { value: "stock", label: "Hisse" },
@@ -20,6 +21,11 @@ const assetTypes: Array<{ value: InvestmentAssetType; label: string }> = [
 
 const currencies: Currency[] = ["TRY", "USD", "EUR"];
 
+type StatementFlow =
+  | { phase: "idle" }
+  | { phase: "preview"; data: StatementPreviewResult; selected: Set<number>; skipDuplicates: boolean }
+  | { phase: "confirmed"; data: StatementConfirmResult };
+
 export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
   const p = usePalette();
   const [portfolio, setPortfolio] = useState<InvestmentPortfolioSummary | null>(null);
@@ -33,6 +39,8 @@ export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
   const [costCurrency, setCostCurrency] = useState<Currency>("TRY");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [statementFlow, setStatementFlow] = useState<StatementFlow>({ phase: "idle" });
+  const [statementLoading, setStatementLoading] = useState(false);
   const isCash = assetType === "cash";
 
   useEffect(() => {
@@ -57,25 +65,27 @@ export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
 
   async function addHolding() {
     const symbol = isCash ? undefined : selected?.symbol ?? query.trim().toUpperCase();
-    const parsedQuantity = parseNumber(quantity);
-    if ((!isCash && !symbol) || parsedQuantity <= 0) {
+    if (!isCash && !symbol) {
       setMessage(isCash ? "Tutar gerekli." : "Sembol ve adet gerekli.");
       return;
     }
     setBusy(true);
     setMessage(null);
     try {
+      const parsedQuantity = parseRequiredPositiveNumber(quantity, isCash ? "Tutar" : "Adet");
+      const parsedAverageCost = isCash ? 1 : parseRequiredPositiveNumber(averageCost, "Alış fiyatı");
+      const parsedAnnualInterestRate = isCash ? parseOptionalPositiveNumber(annualInterestRate, "Faiz oranı") : undefined;
       const next = await addInvestmentHolding({
         symbol,
         name: isCash ? query.trim() || `Nakit / Mevduat ${costCurrency}` : selected?.name,
         assetType: isCash ? "cash" : selected?.assetType ?? assetType,
         quantity: parsedQuantity,
-        averageCost: isCash ? 1 : parseNumber(averageCost),
+        averageCost: parsedAverageCost,
         costCurrency,
         exchange: isCash ? undefined : selected?.exchange,
         micCode: isCash ? undefined : selected?.micCode,
         marketCurrency: isCash ? costCurrency : selected?.currency,
-        annualInterestRate: isCash ? parseNumber(annualInterestRate) : undefined
+        annualInterestRate: parsedAnnualInterestRate
       });
       setPortfolio(next);
       setSelected(null);
@@ -84,6 +94,8 @@ export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
       setAverageCost("");
       setAnnualInterestRate("");
       setMessage("Portfoye eklendi.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Portfoye eklenemedi.");
     } finally {
       setBusy(false);
     }
@@ -93,8 +105,49 @@ export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
     setBusy(true);
     try {
       setPortfolio(await deleteInvestmentHolding(id));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Pozisyon silinemedi.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function pickBankStatement() {
+    try {
+      setStatementLoading(true);
+      const file = await DocumentPicker.pickSingle({ type: [DocumentPicker.types.pdf], copyTo: "cachesDirectory" });
+      const sourceUri = file.fileCopyUri ?? file.uri;
+      const base64 = await RNFS.readFile(normalizeFileUri(sourceUri), "base64");
+      const data = await importStatementPreview(base64, file.type ?? "application/pdf", file.name ?? "banka-ekstresi.pdf");
+      setStatementFlow({
+        phase: "preview",
+        data,
+        selected: new Set(data.items.filter((item) => !item.existingTransactionId).map((item) => item.index)),
+        skipDuplicates: true
+      });
+    } catch (error) {
+      if (DocumentPicker.isCancel(error)) return;
+      Alert.alert("Ekstre yüklenemedi", formatStatementError(error, "Banka ekstresi okunamadı."));
+    } finally {
+      setStatementLoading(false);
+    }
+  }
+
+  async function confirmBankStatement() {
+    if (statementFlow.phase !== "preview") return;
+    if (countImportableSelected(statementFlow.data, statementFlow.selected, statementFlow.skipDuplicates) === 0) {
+      Alert.alert("Kalem seçilmedi", "İçe aktarılacak yeni ekstre kalemi seç.");
+      return;
+    }
+    try {
+      setStatementLoading(true);
+      const result = await confirmStatementImport(statementFlow.data.documentId, [...statementFlow.selected], statementFlow.skipDuplicates);
+      setStatementFlow({ phase: "confirmed", data: result });
+      onImported?.();
+    } catch (error) {
+      Alert.alert("Ekstre işlenemedi", formatStatementError(error, "Ekstre kalemleri giderlere eklenemedi."));
+    } finally {
+      setStatementLoading(false);
     }
   }
 
@@ -111,7 +164,13 @@ export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
     <View style={{ gap: space[4] }}>
       <ScreenHeader eyebrow="Piyasa" title="Yatirim Portfoyu" subtitle="Hisse, doviz, altin, nakit ve mevduati tek toplamda takip et." />
 
-      <ScanScreen onImported={onImported ?? noop} embedded />
+      <BankStatementCard
+        flow={statementFlow}
+        loading={statementLoading}
+        onPick={() => void pickBankStatement()}
+        onConfirm={() => void confirmBankStatement()}
+        setFlow={setStatementFlow}
+      />
 
       <Card>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
@@ -320,6 +379,158 @@ export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
   );
 }
 
+function BankStatementCard({
+  flow,
+  loading,
+  onPick,
+  onConfirm,
+  setFlow
+}: {
+  flow: StatementFlow;
+  loading: boolean;
+  onPick: () => void;
+  onConfirm: () => void;
+  setFlow: (flow: StatementFlow) => void;
+}) {
+  const p = usePalette();
+  const previewItems = flow.phase === "preview" ? flow.data.items : [];
+  const importableSelectedCount = flow.phase === "preview" ? countImportableSelected(flow.data, flow.selected, flow.skipDuplicates) : 0;
+  const confirmDisabled = loading || importableSelectedCount === 0;
+
+  function toggle(index: number) {
+    if (flow.phase !== "preview") return;
+    const selected = new Set(flow.selected);
+    if (selected.has(index)) {
+      selected.delete(index);
+    } else {
+      selected.add(index);
+    }
+    setFlow({ ...flow, selected });
+  }
+
+  return (
+    <Card>
+      <View style={{ flexDirection: "row", gap: 12, alignItems: "flex-start" }}>
+        <View
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: radius.md,
+            backgroundColor: p.accentSoft,
+            alignItems: "center",
+            justifyContent: "center"
+          }}
+        >
+          {loading ? <ActivityIndicator color={p.accent} /> : <FileText color={p.accent} size={22} />}
+        </View>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Eyebrow>Ekstre</Eyebrow>
+          <Text style={{ color: p.ink, fontSize: 18, fontWeight: "900" }}>Banka ekstresi yükle</Text>
+          <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>
+            PDF ekstreden harcama kalemlerini çıkar, seçtiklerini gider geçmişine işle.
+          </Text>
+        </View>
+      </View>
+
+      <Btn
+        label={loading ? "Ekstre okunuyor" : "PDF seç"}
+        onPress={onPick}
+        disabled={loading}
+        variant={flow.phase === "idle" ? "primary" : "secondary"}
+        icon={<FileUp color={flow.phase === "idle" ? p.surface : p.ink} size={14} />}
+      />
+
+      {flow.phase === "preview" ? (
+        <>
+          <Divider />
+          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: p.ink, fontSize: 16, fontWeight: "900" }}>{flow.data.statementMonth} önizleme</Text>
+              <Text style={{ color: p.muted, fontSize: 12 }}>{flow.selected.size} / {flow.data.items.length} kalem seçili</Text>
+            </View>
+            <Chip label={`%${Math.round(flow.data.avgConfidence * 100)} güven`} tone={flow.data.avgConfidence < 0.6 ? "warn" : "good"} small />
+          </View>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <StatementSummary label="Kalem" value={String(flow.data.items.length)} />
+            <StatementSummary label="Toplam" value={`${flow.data.totalAmount.toLocaleString("tr-TR")} TL`} />
+          </View>
+          {flow.data.warnings.map((warning, index) => (
+            <Text key={`${warning}-${index}`} style={{ color: p.warn, fontSize: 12, lineHeight: 17 }}>
+              {warning}
+            </Text>
+          ))}
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Btn label="Tümünü seç" variant="secondary" onPress={() => setFlow({ ...flow, selected: new Set(flow.data.items.map((item) => item.index)) })} />
+            <Btn label="Temizle" variant="secondary" onPress={() => setFlow({ ...flow, selected: new Set() })} />
+          </View>
+          <Pressable
+            onPress={() => setFlow({ ...flow, skipDuplicates: !flow.skipDuplicates })}
+            style={{ flexDirection: "row", gap: 8, alignItems: "center" }}
+          >
+            <CheckBox checked={flow.skipDuplicates} />
+            <Text style={{ color: p.ink, fontWeight: "800", fontSize: 13 }}>Yinelenenleri atla</Text>
+          </Pressable>
+          <View style={{ gap: 8 }}>
+            {previewItems.map((item) => (
+              <Pressable
+                key={item.index}
+                onPress={() => toggle(item.index)}
+                style={{
+                  borderColor: flow.selected.has(item.index) ? p.accent : p.line,
+                  borderWidth: 1,
+                  borderRadius: radius.md,
+                  padding: 10,
+                  backgroundColor: flow.selected.has(item.index) ? p.accentSoft : p.surface2,
+                  gap: 6
+                }}
+              >
+                <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+                  <CheckBox checked={flow.selected.has(item.index)} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: p.ink, fontWeight: "900", fontSize: 13 }} numberOfLines={1}>{item.merchant}</Text>
+                    <Text style={{ color: p.muted, fontSize: 11 }}>{item.occurredAt} · {item.categoryName}</Text>
+                  </View>
+                  <Text style={{ color: p.ink, fontWeight: "900", fontSize: 13 }}>{item.amount.toLocaleString("tr-TR")} TL</Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+                  <Chip label={`%${Math.round(item.confidence * 100)} güven`} tone={item.confidence < 0.6 ? "warn" : "good"} small />
+                  {item.existingTransactionId ? <Chip label="Mevcut işlem" tone="warn" small /> : null}
+                </View>
+              </Pressable>
+            ))}
+          </View>
+          {confirmDisabled && !loading ? (
+            <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>
+              {flow.selected.size ? "Seçilen kalemler mevcut işlemlerle eşleşiyor. Yinelenenleri atla kapatılmadan içe aktarılamaz." : "İçe aktarılacak en az bir kalem seç."}
+            </Text>
+          ) : null}
+          <Btn label={loading ? "İşleniyor" : "Seçilenleri giderlere ekle"} onPress={onConfirm} disabled={confirmDisabled} />
+        </>
+      ) : null}
+
+      {flow.phase === "confirmed" ? (
+        <>
+          <Divider />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <CheckCircle2 color={p.good} size={17} />
+            <Text style={{ color: p.good, fontSize: 13, fontWeight: "900" }}>
+              {flow.data.importedCount} harcama kalemi eklendi
+            </Text>
+          </View>
+          <Text style={{ color: p.muted, fontSize: 12 }}>
+            {flow.data.duplicateCount ? `${flow.data.duplicateCount} yinelenen kalem atlandı.` : "Ekstre harcama geçmişine işlendi."}
+          </Text>
+          <Btn label="Yeni ekstre yükle" onPress={() => setFlow({ phase: "idle" })} variant="secondary" icon={<X color={p.ink} size={14} />} />
+        </>
+      ) : null}
+    </Card>
+  );
+}
+
+function countImportableSelected(data: StatementPreviewResult, selected: Set<number>, skipDuplicates: boolean) {
+  return data.items.filter((item) => selected.has(item.index) && (!skipDuplicates || !item.existingTransactionId)).length;
+}
+
 function Choice({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   const p = usePalette();
   return (
@@ -376,9 +587,48 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function parseNumber(value: string) {
-  const parsed = Number(value.replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : 0;
+function StatementSummary({ label, value }: { label: string; value: string }) {
+  const p = usePalette();
+  return (
+    <View style={{ flex: 1, backgroundColor: p.surface2, borderRadius: radius.md, padding: space[2], gap: 2 }}>
+      <Text style={{ color: p.muted, fontSize: 11 }}>{label}</Text>
+      <Text style={{ color: p.ink, fontSize: 15, fontWeight: "900" }}>{value}</Text>
+    </View>
+  );
+}
+
+function CheckBox({ checked }: { checked: boolean }) {
+  const p = usePalette();
+  return (
+    <View
+      style={{
+        width: 22,
+        height: 22,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: checked ? p.accent : p.line,
+        backgroundColor: checked ? p.accent : p.surface,
+        alignItems: "center",
+        justifyContent: "center"
+      }}
+    >
+      {checked ? <Text style={{ color: p.onAccent, fontWeight: "900", fontSize: 14 }}>✓</Text> : null}
+    </View>
+  );
+}
+
+function parseRequiredPositiveNumber(value: string, field: string) {
+  const parsed = parseOptionalPositiveNumber(value, field);
+  if (parsed === undefined) throw new Error(`${field} gerekli.`);
+  return parsed;
+}
+
+function parseOptionalPositiveNumber(value: string, field: string) {
+  const raw = value.trim();
+  if (!raw) return undefined;
+  const parsed = Number(raw.replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`${field} pozitif sayı olmalı.`);
+  return parsed;
 }
 
 function formatTry(value: number) {
@@ -389,4 +639,13 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 2 }).format(value);
 }
 
-function noop() {}
+function normalizeFileUri(uri: string): string {
+  return decodeURIComponent(uri.replace(/^file:\/\//, ""));
+}
+
+function formatStatementError(error: unknown, fallback: string): string {
+  if (error instanceof StatementApiError) {
+    return statementErrorMessage(error.code, error.message);
+  }
+  return error instanceof Error ? error.message : fallback;
+}

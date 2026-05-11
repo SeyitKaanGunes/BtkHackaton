@@ -17,9 +17,14 @@ export function statementErrorMessage(code: string | undefined, fallback: string
 
 export const RECEIPT_ERROR_MESSAGES: Record<string, string> = {
   RECEIPT_AI_NOT_CONFIGURED: "Fiş analizi için QWEN_API_KEY tanımlı değil. Demo sonuç üretilmedi; lütfen API yapılandırmasını tamamlayın.",
+  RECEIPT_AI_REQUEST_FAILED: "Fiş yapay zeka servisine ulaşılamadı. Lütfen tekrar deneyin.",
   RECEIPT_JSON_PARSE_FAILED: "Fiş yapay zeka yanıtı ayrıştırılamadı. Lütfen daha net bir görsel ile tekrar deneyin.",
   RECEIPT_INVALID_AMOUNT: "Fiş tutarı okunamadı. İşlem DB'ye yazılmadı.",
+  RECEIPT_INVALID_CATEGORY: "Fiş kategorisi okunamadı. İşlem DB'ye yazılmadı.",
+  RECEIPT_INVALID_CONFIDENCE: "Fiş güven skoru geçersiz. İşlem DB'ye yazılmadı.",
   RECEIPT_INVALID_DATE: "Fiş tarihi okunamadı veya geçersiz. İşlem bugüne çekilmeden reddedildi.",
+  RECEIPT_INVALID_LINE_ITEMS: "Fiş kalemleri okunamadı. İşlem DB'ye yazılmadı.",
+  RECEIPT_INVALID_PAYMENT_METHOD: "Fiş ödeme yöntemi geçersiz. İşlem DB'ye yazılmadı.",
   RECEIPT_INVALID_MERCHANT: "Fiş satıcısı okunamadı. İşlem DB'ye yazılmadı."
 };
 

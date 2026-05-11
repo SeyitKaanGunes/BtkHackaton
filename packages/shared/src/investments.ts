@@ -85,7 +85,7 @@ export function createInvestmentHolding(input: InvestmentHoldingCreateRequest, n
   const assetType = input.assetType ?? preset?.assetType ?? inferAssetType(symbol);
   const costCurrency = input.costCurrency ?? normalizeCurrency(input.marketCurrency) ?? presetCurrency(preset) ?? "TRY";
   return {
-    id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `inv-${globalThis.crypto.randomUUID()}`,
     userId,
     symbol,
     name: input.name?.trim() || preset?.name || (assetType === "cash" ? cashNameFor(costCurrency) : symbol),

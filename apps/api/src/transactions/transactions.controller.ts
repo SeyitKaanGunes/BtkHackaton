@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import type { Currency, Transaction } from "@fintwin/shared";
 import type { AuthUser } from "../auth/auth-user.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
@@ -22,13 +23,13 @@ export class TransactionsController {
 
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() body: Partial<Transaction>) {
-    const transaction = this.toTransaction(user.id, body, `tx-${Date.now()}`);
+    const transaction = this.toTransaction(user.id, body, `tx-${randomUUID()}`);
     return this.store.addTransaction(transaction);
   }
 
   @Post("import-csv")
   async importCsv(@CurrentUser() user: AuthUser, @Body() body: { csv: string }) {
-    const parsedRows = parseCsv(body.csv).map((row, index) => this.toTransaction(user.id, row, `tx-csv-${Date.now()}-${index}`));
+    const parsedRows = parseCsv(body.csv).map((row) => this.toTransaction(user.id, row, `tx-csv-${randomUUID()}`));
     const rows: Transaction[] = [];
     for (const row of parsedRows) {
       rows.push(await this.store.addTransaction(row));

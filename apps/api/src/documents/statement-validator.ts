@@ -34,9 +34,23 @@ export function validateItems(items: unknown[]): { valid: StatementLineItem[]; w
       return;
     }
 
-    const categoryName = typeof record.categoryName === "string" && record.categoryName.trim() ? record.categoryName.trim() : "Diğer";
-    const paymentMethod = normalizePaymentMethod(record.paymentMethod);
-    const confidence = clamp(Number(record.confidence));
+    const categoryName = typeof record.categoryName === "string" ? record.categoryName.trim() : "";
+    if (!categoryName) {
+      warnings.push(`Item #${itemNumber} atıldı: categoryName boş`);
+      return;
+    }
+
+    const paymentMethod = typeof record.paymentMethod === "string" && PAYMENT_METHODS.has(record.paymentMethod) ? (record.paymentMethod as StatementLineItem["paymentMethod"]) : undefined;
+    if (!paymentMethod) {
+      warnings.push(`Item #${itemNumber} atıldı: paymentMethod geçersiz`);
+      return;
+    }
+
+    const confidence = Number(record.confidence);
+    if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+      warnings.push(`Item #${itemNumber} atıldı: confidence geçersiz`);
+      return;
+    }
 
     valid.push({
       merchant,
@@ -49,13 +63,4 @@ export function validateItems(items: unknown[]): { valid: StatementLineItem[]; w
   });
 
   return { valid, warnings };
-}
-
-function normalizePaymentMethod(value: unknown): StatementLineItem["paymentMethod"] {
-  return typeof value === "string" && PAYMENT_METHODS.has(value) ? (value as StatementLineItem["paymentMethod"]) : "credit_card";
-}
-
-function clamp(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(1, value));
 }

@@ -1,4 +1,5 @@
 import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { DataStoreService } from "../data/data-store.service.js";
@@ -17,7 +18,7 @@ export class AuthService {
     }
     const passwordHash = await bcrypt.hash(input.password, 10);
     const user = await this.store.createUser({
-      id: `user-${Date.now()}`,
+      id: `user-${randomUUID()}`,
       name: input.name,
       email: input.email,
       persona: "young_professional",

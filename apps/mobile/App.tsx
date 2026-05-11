@@ -15,8 +15,6 @@ import {
   LogOut,
   PauseCircle,
   Plus,
-  Search,
-  Send,
   ShieldAlert,
   Target,
   ReceiptText,
@@ -856,8 +854,8 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
 
   async function addManual() {
     const parsedAmount = parseDecimalInput(amount);
-    if (!merchant.trim() || parsedAmount <= 0) {
-      setStatus("Satıcı ve tutar gerekli.");
+    if (!merchant.trim() || parsedAmount === undefined || parsedAmount <= 0) {
+      setStatus("Satıcı ve geçerli pozitif tutar gerekli.");
       return;
     }
     setPending(true);
@@ -948,10 +946,6 @@ function WhatIfPreview({ simulation }: { simulation: WhatIfResponse }) {
               <Mono style={localStyles.timer}>{delayMinutes ? `${delayMinutes}:00` : "0:00"}</Mono>
             </View>
           </View>
-          <View style={localStyles.actionButtons}>
-            <Button label={delayMinutes ? `${delayMinutes} dakika beklet` : "Senaryoyu izle"} style={localStyles.flexButton} />
-            <Button label="Alternatif fiyat" variant="secondary" icon={<Search size={15} color={palette.primary} />} style={localStyles.flexButton} />
-          </View>
         </>
       ) : (
         <EmptyPanelMessage message="Gelir, gider veya bütçe verisi eklenince what-if senaryoları gerçek limitlerle hesaplanır." />
@@ -1014,10 +1008,6 @@ function SubscriptionLeakCard({ leak }: { leak: SubscriptionLeak }) {
         <Mono style={localStyles.negativeValue}>− {money(leak.monthlyImpact)}</Mono>
       </View>
       <Text style={styles.bodyMuted}>{leak.recommendation}</Text>
-      <View style={styles.row}>
-        <Button label={leak.issue === "unused" ? "İptal taslağı" : leak.issue === "duplicate" ? "Tek planı tut" : "Plan düşür"} variant="secondary" />
-        <Button label="Detay" variant="ghost" />
-      </View>
     </View>
   );
 }
@@ -1034,13 +1024,18 @@ function BusinessOnboardingScreen({ onCreated }: { onCreated: () => void }) {
       setStatus("İşletme adı ve sektör gerekli.");
       return;
     }
+    const parsedCashBalance = parseDecimalInput(cashBalance);
+    if (cashBalance.trim() && parsedCashBalance === undefined) {
+      setStatus("Başlangıç kasa bakiyesi geçerli sayı olmalı.");
+      return;
+    }
     setPending(true);
     setStatus(null);
     try {
       await createBusiness({
         name: name.trim(),
         sector: sector.trim(),
-        cashBalance: parseDecimalInput(cashBalance)
+        cashBalance: parsedCashBalance
       });
       setStatus("İşletme oluşturuldu.");
       onCreated();
@@ -1134,8 +1129,8 @@ function BusinessCashEventForm({ businessId, onChanged }: { businessId: string; 
 
   async function submit() {
     const parsedAmount = parseDecimalInput(amount);
-    if (!title.trim() || parsedAmount <= 0) {
-      setStatus("Başlık ve pozitif tutar gerekli.");
+    if (!title.trim() || parsedAmount === undefined || parsedAmount <= 0) {
+      setStatus("Başlık ve geçerli pozitif tutar gerekli.");
       return;
     }
     setPending(true);
@@ -1188,15 +1183,28 @@ function BusinessCustomerForm({ businessId, onChanged }: { businessId: string; o
       setStatus("Müşteri adı gerekli.");
       return;
     }
+    const parsedAverageDelayDays = parseIntegerInput(averageDelayDays);
+    const parsedInvoicesPaid = parseIntegerInput(invoicesPaid);
+    const parsedInvoicesLate = parseIntegerInput(invoicesLate);
+    const parsedOutstandingAmount = parseDecimalInput(outstandingAmount);
+    if (
+      (averageDelayDays.trim() && parsedAverageDelayDays === undefined) ||
+      (invoicesPaid.trim() && parsedInvoicesPaid === undefined) ||
+      (invoicesLate.trim() && parsedInvoicesLate === undefined) ||
+      (outstandingAmount.trim() && parsedOutstandingAmount === undefined)
+    ) {
+      setStatus("Müşteri sayısal alanları sıfır veya pozitif geçerli sayı olmalı.");
+      return;
+    }
     setPending(true);
     setStatus(null);
     try {
       await createBusinessCustomer(businessId, {
         name: name.trim(),
-        averageDelayDays: parseIntegerInput(averageDelayDays),
-        invoicesPaid: parseIntegerInput(invoicesPaid),
-        invoicesLate: parseIntegerInput(invoicesLate),
-        outstandingAmount: parseDecimalInput(outstandingAmount)
+        averageDelayDays: parsedAverageDelayDays,
+        invoicesPaid: parsedInvoicesPaid,
+        invoicesLate: parsedInvoicesLate,
+        outstandingAmount: parsedOutstandingAmount
       });
       setName("");
       setAverageDelayDays("");
@@ -1293,9 +1301,10 @@ function AiCfoSimulationPanel({ business, dashboard }: { business: Business; das
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const parsedAmount = parseMoneyInput(amount);
+  const previewAmount = parsedAmount ?? 0;
 
   async function runSimulation() {
-    if (parsedAmount <= 0) {
+    if (parsedAmount === undefined || parsedAmount <= 0) {
       setError("Simülasyon için pozitif bir tutar gir.");
       return;
     }
@@ -1318,7 +1327,7 @@ function AiCfoSimulationPanel({ business, dashboard }: { business: Business; das
         <TextInput value={amount} onChangeText={setAmount} keyboardType="numeric" style={localStyles.simAmountInput} />
       </View>
       <View style={styles.metricGrid}>
-        <MiniFact label="30 gün sonrası" value={money(dashboard.projected30Days - parsedAmount)} />
+        <MiniFact label="30 gün sonrası" value={money(dashboard.projected30Days - previewAmount)} />
         <MiniFact label="Likidite" value={result ? riskLabel(result.riskLevel) : riskLabel(dashboard.liquidityRisk)} />
       </View>
       {result ? <Text style={styles.body}>İkiz CFO: {result.summary} {result.recommendedPlan}</Text> : null}
@@ -1365,19 +1374,22 @@ function signedMoney(value: number) {
 }
 
 function parseMoneyInput(value: string) {
-  const parsed = Number(value.replace(/\D/g, ""));
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseDecimalInput(value);
 }
 
 function parseDecimalInput(value: string) {
-  const normalized = value.trim().replace(/\./g, "").replace(",", ".");
+  const raw = value.trim();
+  if (!raw) return undefined;
+  const normalized = raw.replace(/\./g, "").replace(",", ".");
   const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function parseIntegerInput(value: string) {
-  const parsed = Number(value.trim());
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+  const raw = value.trim();
+  if (!raw) return undefined;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function projectionBarHeights(dashboard: BusinessDashboard) {

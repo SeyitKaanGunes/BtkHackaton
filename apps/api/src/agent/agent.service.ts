@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import {
   buildAgentEvidence,
@@ -74,7 +75,7 @@ export class AgentService {
           routedAgents: ["Simulation Agent", "Action Agent"],
           suggestedActions: [
             {
-              id: `act-agent-${Date.now()}`,
+              id: `act-agent-${randomUUID()}`,
               userId,
               type: "delay_purchase",
               title: "Satın alma kararına bilinçli mola",

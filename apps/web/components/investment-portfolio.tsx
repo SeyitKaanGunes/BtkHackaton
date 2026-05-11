@@ -58,8 +58,7 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
 
   async function submit() {
     const symbol = isCash ? undefined : selected?.symbol ?? query.trim().toUpperCase();
-    const quantity = parseNumber(form.quantity);
-    if ((!isCash && !symbol) || quantity <= 0) {
+    if (!isCash && !symbol) {
       setMessage(isCash ? "Tutar gerekli." : "Sembol ve adet gerekli.");
       return;
     }
@@ -67,17 +66,20 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
     setIsBusy(true);
     setMessage(null);
     try {
+      const quantity = parseRequiredPositiveNumber(form.quantity, isCash ? "Tutar" : "Adet");
+      const averageCost = isCash ? 1 : parseRequiredPositiveNumber(form.averageCost, "Alış fiyatı");
+      const annualInterestRate = isCash ? parseOptionalPositiveNumber(form.annualInterestRate, "Yıllık faiz oranı") : undefined;
       const next = await addInvestmentHolding({
         symbol,
         name: isCash ? query.trim() || `Nakit / Mevduat ${form.costCurrency}` : selected?.name,
         assetType: isCash ? "cash" : selected?.assetType ?? form.assetType,
         quantity,
-        averageCost: isCash ? 1 : parseNumber(form.averageCost),
+        averageCost,
         costCurrency: form.costCurrency,
         exchange: isCash ? undefined : selected?.exchange,
         micCode: isCash ? undefined : selected?.micCode,
         marketCurrency: isCash ? form.costCurrency : selected?.currency,
-        annualInterestRate: isCash ? parseNumber(form.annualInterestRate) : undefined
+        annualInterestRate
       });
       setPortfolio(next);
       setSelected(null);
@@ -292,9 +294,18 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
   );
 }
 
-function parseNumber(value: string) {
-  const parsed = Number(value.replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : 0;
+function parseRequiredPositiveNumber(value: string, field: string) {
+  const parsed = parseOptionalPositiveNumber(value, field);
+  if (parsed === undefined) throw new Error(`${field} gerekli.`);
+  return parsed;
+}
+
+function parseOptionalPositiveNumber(value: string, field: string) {
+  const raw = value.trim();
+  if (!raw) return undefined;
+  const parsed = Number(raw.replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`${field} pozitif sayı olmalı.`);
+  return parsed;
 }
 
 function formatTry(value: number) {

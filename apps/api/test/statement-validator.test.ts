@@ -35,19 +35,21 @@ describe("validateItems", () => {
     expect(result.warnings[0]).toContain("occurredAt geçersiz");
   });
 
-  it("fills empty category with Diğer", () => {
+  it("drops items with empty category", () => {
     const result = validateItems([{ ...validItem, categoryName: "" }]);
-    expect(result.valid[0]?.categoryName).toBe("Diğer");
-    expect(result.warnings).toEqual([]);
+    expect(result.valid).toEqual([]);
+    expect(result.warnings[0]).toContain("categoryName boş");
   });
 
-  it("normalizes invalid payment method", () => {
+  it("drops invalid payment methods", () => {
     const result = validateItems([{ ...validItem, paymentMethod: "btc" }]);
-    expect(result.valid[0]?.paymentMethod).toBe("credit_card");
+    expect(result.valid).toEqual([]);
+    expect(result.warnings[0]).toContain("paymentMethod geçersiz");
   });
 
-  it("clamps confidence to 1", () => {
+  it("drops invalid confidence values", () => {
     const result = validateItems([{ ...validItem, confidence: 1.5 }]);
-    expect(result.valid[0]?.confidence).toBe(1);
+    expect(result.valid).toEqual([]);
+    expect(result.warnings[0]).toContain("confidence geçersiz");
   });
 });

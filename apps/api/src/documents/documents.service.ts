@@ -51,21 +51,26 @@ export class DocumentsService {
       "Bu fiş/fatura görselinden alanları çıkar." +
       (input.textHint ? ` Kullanıcı notu: ${input.textHint}` : "");
 
-    try {
-      const response = await this.qwen.chat(
-        [
-          { role: "system", content: RECEIPT_INSTRUCTION },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: userText },
-              { type: "image_url", image_url: { url: dataUrl } }
-            ]
-          }
-        ],
-        { model: process.env.QWEN_VISION_MODEL ?? QWEN_PRIMARY_MODEL, temperature: 0 }
-      );
+    const response = await this.qwen.chat(
+      [
+        { role: "system", content: RECEIPT_INSTRUCTION },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userText },
+            { type: "image_url", image_url: { url: dataUrl } }
+          ]
+        }
+      ],
+      { model: process.env.QWEN_VISION_MODEL ?? QWEN_PRIMARY_MODEL, temperature: 0 }
+    ).catch(() => {
+      throw new BadGatewayException({
+        code: "RECEIPT_AI_REQUEST_FAILED",
+        message: "Receipt OCR request failed."
+      });
+    });
 
+    try {
       return JSON.parse(extractJson(response.content)) as ReceiptScanResult;
     } catch {
       throw new BadGatewayException({

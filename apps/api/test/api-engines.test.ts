@@ -22,6 +22,7 @@ import {
   subscriptions,
   transactions
 } from "@fintwin/shared/dist/demo-data.js";
+import { AgentController } from "../src/agent/agent.controller.js";
 import { AgentService } from "../src/agent/agent.service.js";
 import { QwenService } from "../src/ai/qwen.service.js";
 import { ActionsController } from "../src/actions/actions.controller.js";
@@ -36,6 +37,7 @@ import { StatementExtractorService } from "../src/documents/statement-extractor.
 import { InvestmentsController } from "../src/investments/investments.controller.js";
 import { TwelveDataService } from "../src/investments/twelve-data.service.js";
 import { NotificationsController } from "../src/notifications/notifications.controller.js";
+import { SimulationsController } from "../src/simulations/simulations.controller.js";
 import { TransactionsController } from "../src/transactions/transactions.controller.js";
 
 describe("API feature services", () => {
@@ -51,6 +53,20 @@ describe("API feature services", () => {
     expect(result.routedAgents).toContain("Simulation Agent");
     expect(result.evidence.length).toBeGreaterThan(0);
     expect(result.suggestedActions[0]?.type).toBe("delay_purchase");
+  });
+
+  it("rejects invalid agent and what-if request bodies before defaulting", () => {
+    const store = createTestStore();
+    const agentController = new AgentController(new AgentService(store, new QwenService()));
+    const simulationsController = new SimulationsController(store);
+
+    expect(() => agentController.chat(authUser, { message: "   " })).toThrow("message is required");
+    expect(() => simulationsController.whatIf(authUser, { amount: "abc" })).toThrow("amount must be a positive number");
+    expect(() => simulationsController.whatIf(authUser, { amount: -1 })).toThrow("amount must be a positive number");
+    expect(() => simulationsController.whatIf(authUser, { decisionDate: "2026-02-30" })).toThrow("decisionDate must be a valid date");
+
+    const result = simulationsController.whatIf(authUser, { amount: 1000, categoryId: "cat-tech", description: "Telefon alırsam ne olur?" });
+    expect(result.cards.length).toBeGreaterThan(0);
   });
 
   it("rejects receipt OCR when no document is provided", async () => {
@@ -86,6 +102,18 @@ describe("API feature services", () => {
     });
   });
 
+  it("rejects scanned receipt imports with invalid payment metadata", async () => {
+    const store = createTestStore();
+    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(qwenWith(receiptInvalidPaymentJson)), store);
+    const before = store.transactions.length;
+
+    await expectHttpException(receiptAgent.importReceipt(authUser.id, { imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" }), 400, {
+      code: "RECEIPT_INVALID_PAYMENT_METHOD",
+      message: "Fiş ödeme yöntemi geçersiz; işlem DB'ye yazılmadı."
+    });
+    expect(store.transactions.length).toBe(before);
+  });
+
   it("maps unknown document categories to cat-other instead of market", async () => {
     const store = createTestStore();
     const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(qwenWith(receiptUnknownCategoryJson)), store);
@@ -106,6 +134,23 @@ describe("API feature services", () => {
     expect(result.recurringSubscriptions.length).toBeGreaterThan(0);
     expect(result.transactions.every((transaction) => transaction.type === "expense")).toBe(true);
     expect(store.transactions.length).toBe(before + result.importedCount);
+  });
+
+  it("rejects invalid statement selections without marking the document imported", async () => {
+    const store = createTestStore();
+    const statementRepository = createTestStatementRepository();
+    const statementAgent = new StatementExpenseAgentService(createTestDocuments(qwenWith(statementJson)), store, statementRepository);
+    const preview = await statementAgent.previewStatement(authUser.id, { statementText: "StreamPlus 219 TL 2026-05-01" });
+
+    await expect(statementAgent.confirmStatement(authUser.id, { documentId: preview.documentId, selectedItemIndexes: [] })).rejects.toThrow(
+      "En az bir ekstre kalemi seçilmeli."
+    );
+    await expect(statementAgent.confirmStatement(authUser.id, { documentId: preview.documentId, selectedItemIndexes: [999] })).rejects.toThrow(
+      "selectedItemIndexes geçersiz kalem içeriyor: 999"
+    );
+
+    const result = await statementAgent.confirmStatement(authUser.id, { documentId: preview.documentId, skipDuplicates: false });
+    expect(result.importedCount).toBeGreaterThan(0);
   });
 
   it("rejects invalid manual and CSV transactions before writing dirty data", async () => {
@@ -234,6 +279,26 @@ describe("API feature services", () => {
       expect(next.positions.find((position) => position.symbol === "USD/TRY")?.isPriced).toBe(false);
       expect((await controller.symbols("akbank")).some((symbol) => symbol.symbol === "AKBNK")).toBe(true);
       await expect(controller.removeHolding(authUser, "missing-holding")).rejects.toThrow("Investment holding not found");
+      await expect(
+        controller.addHolding(authUser, {
+          symbol: "AKBNK",
+          assetType: "stock",
+          quantity: "abc" as unknown as number,
+          averageCost: 10,
+          costCurrency: "TRY",
+          marketCurrency: "TRY"
+        })
+      ).rejects.toThrow("quantity must be greater than zero");
+      await expect(
+        controller.addHolding(authUser, {
+          symbol: "AKBNK",
+          assetType: "stock",
+          quantity: 1,
+          averageCost: "" as unknown as number,
+          costCurrency: "TRY",
+          marketCurrency: "TRY"
+        })
+      ).rejects.toThrow("averageCost must be greater than zero");
     } finally {
       if (previousKey === undefined) {
         delete process.env.TWELVE_DATA_API_KEY;
@@ -504,6 +569,17 @@ const receiptUnknownCategoryJson = JSON.stringify({
   paymentMethod: "debit_card",
   confidence: 0.82,
   lineItems: [{ name: "Urun", amount: 429.9 }]
+});
+
+const receiptInvalidPaymentJson = JSON.stringify({
+  merchant: "Canli Market",
+  totalAmount: 1249.9,
+  taxAmount: 113.63,
+  occurredAt: "2026-05-08",
+  categoryName: "Market",
+  paymentMethod: "wire",
+  confidence: 0.91,
+  lineItems: [{ name: "Temel gida", amount: 1249.9 }]
 });
 
 const statementJson = JSON.stringify({

@@ -36,7 +36,7 @@ function BusinessOnboarding() {
       await createBusiness({
         name: name.trim(),
         sector: sector.trim(),
-        cashBalance: parseMoney(cashBalance)
+        cashBalance: parseOptionalMoney(cashBalance, "Başlangıç kasa bakiyesi")
       });
       setStatus({ tone: "ok", text: "İşletme oluşturuldu." });
       router.refresh();
@@ -138,7 +138,7 @@ function CashEventsPanel({ businessId, dashboard }: { businessId: string; dashbo
     try {
       await createBusinessCashEvent(businessId, {
         title: title.trim(),
-        amount: parseMoney(amount),
+        amount: parseRequiredMoney(amount, "Tutar"),
         type,
         dueAt
       });
@@ -219,10 +219,10 @@ function CustomersPanel({ businessId, customers, scores }: { businessId: string;
     try {
       await createBusinessCustomer(businessId, {
         name: name.trim(),
-        averageDelayDays: parseInteger(averageDelayDays),
-        invoicesPaid: parseInteger(invoicesPaid),
-        invoicesLate: parseInteger(invoicesLate),
-        outstandingAmount: parseMoney(outstandingAmount)
+        averageDelayDays: parseOptionalInteger(averageDelayDays, "Ortalama gecikme günü"),
+        invoicesPaid: parseOptionalInteger(invoicesPaid, "Ödenen fatura"),
+        invoicesLate: parseOptionalInteger(invoicesLate, "Geciken fatura"),
+        outstandingAmount: parseOptionalMoney(outstandingAmount, "Açık bakiye")
       });
       setName("");
       setAverageDelayDays("");
@@ -303,15 +303,30 @@ function formatTry(value: number) {
   return `${Math.round(value).toLocaleString("tr-TR")} TL`;
 }
 
-function parseMoney(value: string | number | undefined) {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const parsed = Number((value ?? "").replace(/\./g, "").replace(",", "."));
-  return Number.isFinite(parsed) ? parsed : 0;
+function parseOptionalMoney(value: string | number | undefined, field: string) {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) throw new Error(`${field} geçerli sıfır veya pozitif sayı olmalı.`);
+    return value;
+  }
+  const raw = (value ?? "").trim();
+  if (!raw) return undefined;
+  const parsed = Number(raw.replace(/\./g, "").replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`${field} geçerli sıfır veya pozitif sayı olmalı.`);
+  return parsed;
 }
 
-function parseInteger(value: string) {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+function parseRequiredMoney(value: string, field: string) {
+  const parsed = parseOptionalMoney(value, field);
+  if (parsed === undefined || parsed <= 0) throw new Error(`${field} pozitif sayı olmalı.`);
+  return parsed;
+}
+
+function parseOptionalInteger(value: string, field: string) {
+  const raw = value.trim();
+  if (!raw) return undefined;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${field} geçerli sıfır veya pozitif tam sayı olmalı.`);
+  return parsed;
 }
 
 function riskLabel(level: string) {

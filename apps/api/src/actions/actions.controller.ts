@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Inject, NotFoundException, Param, Post, UseGuards } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import type { ActionItem, SubscriptionReminderRequest, SubscriptionReminderResult } from "@fintwin/shared";
 import type { AuthUser } from "../auth/auth-user.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
@@ -35,7 +36,7 @@ export class ActionsController {
     const merchant = requiredText(body.merchant, "merchant");
     const amount = optionalPositiveNumber(body.amount, "amount");
     const action: ActionItem = {
-      id: `act-subscription-${Date.now()}`,
+      id: `act-subscription-${randomUUID()}`,
       userId: user.id,
       type: "calendar_bill",
       title: `${merchant} aboneliğini hatırlat`,
