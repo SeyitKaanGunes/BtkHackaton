@@ -1,26 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, Modal, PanResponder, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Animated, Dimensions, Modal, PanResponder, Platform, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import Tts from "react-native-tts";
 import {
   AlertTriangle,
+  BellRing,
   Bot,
   BriefcaseBusiness,
   Building2,
+  CalendarPlus,
   Check,
   CheckCircle2,
   ChevronRight,
   Clock3,
-  Edit3,
   FileScan,
+  FileUp,
   Landmark,
+  LogOut,
   Mic2,
   PauseCircle,
+  Plus,
   RefreshCcw,
   Search,
   Send,
   ShieldAlert,
   Target,
   ReceiptText,
+  UserPlus,
   WalletCards,
   X
 } from "lucide-react-native";
@@ -32,22 +37,44 @@ import type {
   BusinessCustomer,
   BusinessDashboard,
   CollectionScore,
+  Currency,
   DashboardPeriod,
   DashboardSummary,
   Goal,
   ScenarioCard,
   SpendingDna,
   SubscriptionLeak,
+  TransactionType,
   WhatIfResponse
 } from "@fintwin/shared";
-import { hasAuthToken, loadBusiness, loadMobileHome, login, register, sendAgentMessage, setAuthToken, simulateBusinessDecision, type AuthUserProfile } from "./src/api";
+import {
+  approveAction,
+  clearAuthToken,
+  createBusiness,
+  createBusinessCashEvent,
+  createBusinessCustomer,
+  createTransaction,
+  dismissAction,
+  hasAuthToken,
+  importTransactionsCsv,
+  loadBusiness,
+  loadMobileHome,
+  loadStoredAuthToken,
+  login,
+  persistAuthToken,
+  register,
+  saveFcmToken,
+  sendAgentMessage,
+  simulateBusinessDecision,
+  type AuthUserProfile
+} from "./src/api";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
 import { ScanScreen } from "./src/screens/ScanScreen";
 import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles } from "./src/ui";
 
-type Tab = "home" | "portfolio" | "business";
+type Tab = "home" | "portfolio" | "agent" | "scan" | "business";
 type HomeData = Awaited<ReturnType<typeof loadMobileHome>>;
-type BusinessData = Awaited<ReturnType<typeof loadBusiness>>;
+type BusinessData = NonNullable<Awaited<ReturnType<typeof loadBusiness>>>;
 
 const defaultQuestion = "Bugün 10.000 ₺ teknoloji harcaması yaparsam ne olur?";
 const dashboardPeriods: Array<{ value: DashboardPeriod; label: string }> = [
@@ -64,6 +91,7 @@ const periodNetCaptions: Record<DashboardPeriod, string> = {
 };
 
 export default function App() {
+  const [authReady, setAuthReady] = useState(() => hasAuthToken());
   const [authenticated, setAuthenticated] = useState(() => hasAuthToken());
   const [tab, setTab] = useState<Tab>("home");
   const [home, setHome] = useState<HomeData | null>(null);
@@ -74,7 +102,23 @@ export default function App() {
   const [period, setPeriod] = useState<DashboardPeriod>("monthly");
 
   useEffect(() => {
-    if (!authenticated) return;
+    if (hasAuthToken()) return;
+    let active = true;
+    void loadStoredAuthToken()
+      .then((token) => {
+        if (!active) return;
+        setAuthenticated(Boolean(token));
+      })
+      .finally(() => {
+        if (active) setAuthReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authReady || !authenticated) return;
     setLoadError(null);
     void loadMobileHome({ period })
       .then((data) => {
@@ -82,7 +126,27 @@ export default function App() {
         setBusiness(data.businessOverview);
       })
       .catch((error) => setLoadError(error instanceof Error ? error.message : "Veri yüklenemedi."));
-  }, [authenticated, period, refreshTick]);
+  }, [authReady, authenticated, period, refreshTick]);
+
+  async function logout() {
+    await clearAuthToken();
+    setAuthenticated(false);
+    setHome(null);
+    setBusiness(null);
+    setTab("home");
+  }
+
+  function refreshData() {
+    setRefreshTick((value) => value + 1);
+  }
+
+  if (!authReady) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <Loading />
+      </SafeAreaView>
+    );
+  }
 
   if (!authenticated) {
     return <AuthScreen onAuthenticated={() => setAuthenticated(true)} />;
@@ -100,7 +164,8 @@ export default function App() {
               onPeriodChange={setPeriod}
               onOpenPortfolio={() => setTab("portfolio")}
               onOpenBusiness={() => setTab("business")}
-              onImported={() => setRefreshTick((value) => value + 1)}
+              onLogout={logout}
+              onRefresh={refreshData}
             />
           ) : loadError ? (
             <LoadError message={loadError} />
@@ -108,7 +173,16 @@ export default function App() {
             <Loading />
           ))}
         {tab === "portfolio" && <PortfolioScreen />}
-        {tab === "business" && (business ? <BusinessScreen {...business} /> : loadError ? <LoadError message={loadError} /> : <Loading />)}
+        {tab === "agent" && <AgentScreen />}
+        {tab === "scan" && <ScanScreen onImported={refreshData} />}
+        {tab === "business" &&
+          (business ? (
+            <BusinessScreen {...business} onChanged={refreshData} />
+          ) : loadError ? (
+            <LoadError message={loadError} />
+          ) : (
+            <BusinessOnboardingScreen onCreated={refreshData} />
+          ))}
       </ScrollView>
       <View style={styles.tabBar}>
         <BottomTabButton
@@ -122,6 +196,18 @@ export default function App() {
           active={tab === "portfolio"}
           onPress={() => setTab("portfolio")}
           icon={<Landmark size={20} color={tab === "portfolio" ? palette.secondary : palette.darkMuted} />}
+        />
+        <BottomTabButton
+          label="Agent"
+          active={tab === "agent"}
+          onPress={() => setTab("agent")}
+          icon={<Bot size={20} color={tab === "agent" ? palette.secondary : palette.darkMuted} />}
+        />
+        <BottomTabButton
+          label="Belgeler"
+          active={tab === "scan"}
+          onPress={() => setTab("scan")}
+          icon={<FileScan size={20} color={tab === "scan" ? palette.secondary : palette.darkMuted} />}
         />
         <BottomTabButton
           label="KOBİ"
@@ -152,7 +238,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
         mode === "register"
           ? await register({ name: name.trim(), email: email.trim(), password })
           : await login({ email: email.trim(), password });
-      setAuthToken(result.token);
+      await persistAuthToken(result.token);
       onAuthenticated();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Oturum açılamadı.");
@@ -304,7 +390,8 @@ function HomeScreen({
   onPeriodChange,
   onOpenPortfolio,
   onOpenBusiness,
-  onImported
+  onLogout,
+  onRefresh
 }: {
   user: AuthUserProfile;
   dashboard: DashboardSummary;
@@ -318,7 +405,8 @@ function HomeScreen({
   onPeriodChange: (period: DashboardPeriod) => void;
   onOpenPortfolio: () => void;
   onOpenBusiness: () => void;
-  onImported: () => void;
+  onLogout: () => void;
+  onRefresh: () => void;
 }) {
   const monthlyLeak = leaks.reduce((total, leak) => total + leak.monthlyImpact, 0);
   const hasFinancialData =
@@ -333,7 +421,7 @@ function HomeScreen({
 
   return (
     <>
-      <FinancialHero user={user} dashboard={dashboard} simulation={simulation} hasFinancialData={hasFinancialData} />
+      <FinancialHero user={user} dashboard={dashboard} simulation={simulation} hasFinancialData={hasFinancialData} onLogout={onLogout} />
       <PeriodSwitcher activePeriod={activePeriod} periodLabel={dashboard.periodLabel} onChange={onPeriodChange} />
 
       <View style={styles.metricGrid}>
@@ -377,8 +465,9 @@ function HomeScreen({
       <SpendingDnaCard dna={dna} periodLabel={dashboard.periodLabel} />
       <CategoryRiskList dna={dna} periodLabel={dashboard.periodLabel} />
       <GoalsSection goals={dashboard.goals} />
-      <ActionCenter actions={dashboard.upcomingActions} />
-      <ScanScreen onImported={onImported} />
+      <ManualTransactionPanel onChanged={onRefresh} />
+      <NotificationTokenPanel />
+      <ActionCenter actions={dashboard.upcomingActions} onChanged={onRefresh} />
       <WhatIfPreview simulation={simulation} />
       <SubscriptionHunter leaks={leaks} />
     </>
@@ -423,12 +512,14 @@ function FinancialHero({
   user,
   dashboard,
   simulation,
-  hasFinancialData
+  hasFinancialData,
+  onLogout
 }: {
   user: AuthUserProfile;
   dashboard: DashboardSummary;
   simulation: WhatIfResponse;
   hasFinancialData: boolean;
+  onLogout: () => void;
 }) {
   const monthEnd = simulation.cards[0]?.monthEndBalance ?? dashboard.balance;
 
@@ -444,7 +535,12 @@ function FinancialHero({
               : "Gelir, gider, fiş veya ekstre eklediğinde finansal ikizin gerçek analiz üretmeye başlayacak."}
           </Text>
         </View>
-        <ScoreGauge score={dashboard.financialHealthScore} />
+        <View style={localStyles.heroActions}>
+          <IconButton onPress={onLogout} tone="muted">
+            <LogOut size={18} color={palette.ink} />
+          </IconButton>
+          <ScoreGauge score={dashboard.financialHealthScore} />
+        </View>
       </View>
       <View style={localStyles.balanceStrip}>
         <View>
@@ -496,10 +592,10 @@ function ModuleOverviewCards({
           <BriefcaseBusiness size={20} color={palette.primary} />
         </View>
         <View style={localStyles.alertCopy}>
-          <Text style={localStyles.cardTitle}>{businessOverview.business.name}</Text>
-          <Mono style={localStyles.moduleValue}>{money(businessOverview.dashboard.cashBalance)}</Mono>
+          <Text style={localStyles.cardTitle}>{businessOverview?.business.name ?? "KOBİ profili oluştur"}</Text>
+          <Mono style={localStyles.moduleValue}>{businessOverview ? money(businessOverview.dashboard.cashBalance) : "Kurulum"}</Mono>
           <Text style={styles.bodyMuted}>
-            {businessOverview.business.sector} · {riskLabel(businessOverview.dashboard.liquidityRisk)}
+            {businessOverview ? `${businessOverview.business.sector} · ${riskLabel(businessOverview.dashboard.liquidityRisk)}` : "İşletme, müşteri ve nakit akışı kaydı bekleniyor"}
           </Text>
         </View>
         <ChevronRight size={18} color={palette.ink} />
@@ -654,32 +750,174 @@ function GoalsSection({ goals }: { goals: Goal[] }) {
   );
 }
 
-function ActionCenter({ actions }: { actions: ActionItem[] }) {
+function ActionCenter({ actions, onChanged }: { actions: ActionItem[]; onChanged: () => void }) {
   return (
     <Panel>
       <SectionTitle title="Aksiyon Merkezi" meta={`Onay bekleyen ${actions.length} öneri`} />
-      {actions.length ? actions.map((action) => <ActionCard key={action.id} action={action} />) : <EmptyPanelMessage message="Onay bekleyen finansal aksiyon yok." />}
+      {actions.length ? actions.map((action) => <ActionCard key={action.id} action={action} onChanged={onChanged} />) : <EmptyPanelMessage message="Onay bekleyen finansal aksiyon yok." />}
     </Panel>
   );
 }
 
-function ActionCard({ action }: { action: ActionItem }) {
+function ActionCard({ action, onChanged }: { action: ActionItem; onChanged: () => void }) {
   const isDelay = action.type === "delay_purchase";
+  const [pending, setPending] = useState<"approve" | "dismiss" | null>(null);
+  const [status, setStatus] = useState(action.status);
+
+  async function update(next: "approve" | "dismiss") {
+    setPending(next);
+    try {
+      const updated = next === "approve" ? await approveAction(action.id) : await dismissAction(action.id);
+      setStatus(updated.status);
+      onChanged();
+    } finally {
+      setPending(null);
+    }
+  }
 
   return (
     <View style={localStyles.actionCard}>
       <View style={styles.rowBetween}>
-        <Badge label={isDelay ? "Emotional Delay" : "Hatırlatıcı"} tone={isDelay ? "primary" : "teal"} />
+        <Badge label={status === "approved" ? "Onaylandı" : status === "dismissed" ? "Reddedildi" : isDelay ? "Emotional Delay" : "Hatırlatıcı"} tone={status === "approved" ? "success" : status === "dismissed" ? "danger" : isDelay ? "primary" : "teal"} />
         <Text style={localStyles.actionMeta}>{action.dueAt ? formatShortDate(action.dueAt) : "aktivasyon bekliyor"}</Text>
       </View>
       <Text style={localStyles.cardTitle}>{action.title}</Text>
       <Text style={styles.bodyMuted}>{action.description}</Text>
-      <View style={localStyles.actionButtons}>
-        <Button label="Onayla" icon={<Check size={15} color={palette.surface} />} style={localStyles.actionButton} />
-        <Button label="Düzenle" variant="ghost" icon={<Edit3 size={15} color={palette.ink} />} style={localStyles.actionButton} />
-        <Button label="Reddet" variant="danger" icon={<X size={15} color={palette.danger} />} style={localStyles.actionButton} />
-      </View>
+      {status === "pending" ? (
+        <View style={localStyles.actionButtons}>
+          <Button label={pending === "approve" ? "Onaylanıyor" : "Onayla"} icon={<Check size={15} color={palette.surface} />} style={localStyles.actionButton} disabled={Boolean(pending)} onPress={() => void update("approve")} />
+          <Button label={pending === "dismiss" ? "Reddediliyor" : "Reddet"} variant="danger" icon={<X size={15} color={palette.danger} />} style={localStyles.actionButton} disabled={Boolean(pending)} onPress={() => void update("dismiss")} />
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
+  const [merchant, setMerchant] = useState("");
+  const [amount, setAmount] = useState("");
+  const [type, setType] = useState<TransactionType>("expense");
+  const [currency, setCurrency] = useState<Currency>("TRY");
+  const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [csv, setCsv] = useState("occurredAt,merchant,amount,categoryId,type\n");
+  const [pending, setPending] = useState<"manual" | "csv" | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function addManual() {
+    const parsedAmount = parseDecimalInput(amount);
+    if (!merchant.trim() || parsedAmount <= 0) {
+      setStatus("Satıcı ve tutar gerekli.");
+      return;
+    }
+    setPending("manual");
+    setStatus(null);
+    try {
+      await createTransaction({
+        merchant: merchant.trim(),
+        amount: parsedAmount,
+        type,
+        currency,
+        occurredAt: `${occurredAt}T12:00:00.000Z`,
+        paymentMethod: type === "income" ? "transfer" : "debit_card"
+      });
+      setMerchant("");
+      setAmount("");
+      setStatus("İşlem eklendi.");
+      onChanged();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "İşlem eklenemedi.");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function importCsv() {
+    if (csv.trim().split(/\r?\n/).length < 2) {
+      setStatus("CSV için başlık ve en az bir satır gerekli.");
+      return;
+    }
+    setPending("csv");
+    setStatus(null);
+    try {
+      const result = await importTransactionsCsv(csv);
+      setStatus(`${result.imported} işlem içe aktarıldı.`);
+      onChanged();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "CSV içe aktarılamadı.");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <Panel>
+      <SectionTitle title="Manuel İşlem" meta="gelir/gider" />
+      <View style={localStyles.formGrid}>
+        <TextInput value={merchant} onChangeText={setMerchant} placeholder="Satıcı veya açıklama" placeholderTextColor={palette.muted} style={[localStyles.authInput, localStyles.formInput]} />
+        <TextInput value={amount} onChangeText={setAmount} placeholder="Tutar" placeholderTextColor={palette.muted} keyboardType="decimal-pad" style={[localStyles.authInput, localStyles.formInput]} />
+      </View>
+      <View style={localStyles.segmentedInline}>
+        {(["expense", "income"] as const).map((item) => (
+          <Pressable key={item} onPress={() => setType(item)} style={[localStyles.segmentButton, type === item && localStyles.segmentButtonActive]}>
+            <Text style={[localStyles.segmentButtonText, type === item && localStyles.segmentButtonTextActive]}>{item === "expense" ? "Gider" : "Gelir"}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={localStyles.formGrid}>
+        <TextInput value={occurredAt} onChangeText={setOccurredAt} placeholder="YYYY-MM-DD" placeholderTextColor={palette.muted} style={[localStyles.authInput, localStyles.formInput]} />
+        <View style={[localStyles.segmentedInline, localStyles.formInput]}>
+          {(["TRY", "USD", "EUR"] as const).map((item) => (
+            <Pressable key={item} onPress={() => setCurrency(item)} style={[localStyles.segmentButton, currency === item && localStyles.segmentButtonActive]}>
+              <Text style={[localStyles.segmentButtonText, currency === item && localStyles.segmentButtonTextActive]}>{item}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+      <Button label={pending === "manual" ? "Ekleniyor" : "İşlem ekle"} onPress={() => void addManual()} disabled={Boolean(pending)} icon={<Plus size={15} color={palette.surface} />} />
+
+      <View style={styles.divider} />
+      <SectionTitle title="CSV İçe Aktar" meta="toplu işlem" />
+      <TextInput value={csv} onChangeText={setCsv} multiline textAlignVertical="top" style={[localStyles.authInput, localStyles.csvInput]} />
+      <Button label={pending === "csv" ? "Aktarılıyor" : "CSV aktar"} variant="secondary" onPress={() => void importCsv()} disabled={Boolean(pending)} icon={<FileUp size={15} color={palette.ink} />} />
+      {status ? <Text style={status.includes("gerekli") || status.includes("API") || status.includes("edilemedi") ? localStyles.authError : localStyles.formSuccess}>{status}</Text> : null}
+    </Panel>
+  );
+}
+
+function NotificationTokenPanel() {
+  const platform = Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "web";
+  const [token, setToken] = useState("");
+  const [pending, setPending] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function submit() {
+    if (!token.trim()) {
+      setStatus("Token gerekli.");
+      return;
+    }
+    setPending(true);
+    setStatus(null);
+    try {
+      await saveFcmToken({ token: token.trim(), platform });
+      setToken("");
+      setStatus("Bildirim tokenı kaydedildi.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Token kaydedilemedi.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Panel>
+      <SectionTitle title="Bildirim Bağlantısı" meta={platform.toUpperCase()} />
+      <View style={localStyles.agentInputShell}>
+        <BellRing size={20} color={palette.primary} />
+        <TextInput value={token} onChangeText={setToken} placeholder="FCM/APNs token" placeholderTextColor={palette.muted} style={[localStyles.authInput, localStyles.formInput]} />
+      </View>
+      <Button label={pending ? "Kaydediliyor" : "Token kaydet"} variant="secondary" onPress={() => void submit()} disabled={pending} />
+      {status ? <Text style={status.includes("gerekli") || status.includes("API") || status.includes("kaydedilemedi") ? localStyles.authError : localStyles.formSuccess}>{status}</Text> : null}
+    </Panel>
   );
 }
 
@@ -896,7 +1134,56 @@ function AgentResult({ response }: { response: AgentResponse }) {
   );
 }
 
-function BusinessScreen({ business, dashboard, customers, scores }: BusinessData) {
+function BusinessOnboardingScreen({ onCreated }: { onCreated: () => void }) {
+  const [name, setName] = useState("");
+  const [sector, setSector] = useState("");
+  const [cashBalance, setCashBalance] = useState("");
+  const [pending, setPending] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function submit() {
+    if (!name.trim() || !sector.trim()) {
+      setStatus("İşletme adı ve sektör gerekli.");
+      return;
+    }
+    setPending(true);
+    setStatus(null);
+    try {
+      await createBusiness({
+        name: name.trim(),
+        sector: sector.trim(),
+        cashBalance: parseDecimalInput(cashBalance)
+      });
+      setStatus("İşletme oluşturuldu.");
+      onCreated();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "İşletme oluşturulamadı.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <>
+      <ScreenHeader
+        eyebrow="KOBİ kurulumu"
+        title="İşletme profilini oluştur."
+        subtitle="Nakit projeksiyonu ve tahsilat skorları gerçek işletme kayıtlarından çalışır."
+        right={<Building2 size={28} color={palette.primary} />}
+      />
+      <Panel>
+        <SectionTitle title="Başlangıç bilgileri" meta="yeni kayıt" />
+        <TextInput value={name} onChangeText={setName} placeholder="İşletme adı" placeholderTextColor={palette.muted} style={localStyles.authInput} />
+        <TextInput value={sector} onChangeText={setSector} placeholder="Sektör" placeholderTextColor={palette.muted} style={localStyles.authInput} />
+        <TextInput value={cashBalance} onChangeText={setCashBalance} placeholder="Başlangıç kasa bakiyesi" placeholderTextColor={palette.muted} keyboardType="decimal-pad" style={localStyles.authInput} />
+        <Button label={pending ? "Oluşturuluyor" : "İşletme oluştur"} onPress={() => void submit()} disabled={pending} icon={<Building2 size={15} color={palette.surface} />} />
+        {status ? <Text style={status.includes("oluşturuldu") ? localStyles.formSuccess : localStyles.authError}>{status}</Text> : null}
+      </Panel>
+    </>
+  );
+}
+
+function BusinessScreen({ business, dashboard, customers, scores, onChanged }: BusinessData & { onChanged: () => void }) {
   const net30Days = dashboard.projected30Days - dashboard.cashBalance;
   const projectionBars = projectionBarHeights(dashboard);
   return (
@@ -941,9 +1228,117 @@ function BusinessScreen({ business, dashboard, customers, scores }: BusinessData
       </Panel>
 
       <CashEvents dashboard={dashboard} />
+      <BusinessCashEventForm businessId={business.id} onChanged={onChanged} />
       <CollectionScores customers={customers} scores={scores} />
+      <BusinessCustomerForm businessId={business.id} onChanged={onChanged} />
       <AiCfoSimulationPanel business={business} dashboard={dashboard} />
     </>
+  );
+}
+
+function BusinessCashEventForm({ businessId, onChanged }: { businessId: string; onChanged: () => void }) {
+  const [title, setTitle] = useState("");
+  const [amount, setAmount] = useState("");
+  const [type, setType] = useState<"inflow" | "outflow">("inflow");
+  const [dueAt, setDueAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [pending, setPending] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function submit() {
+    const parsedAmount = parseDecimalInput(amount);
+    if (!title.trim() || parsedAmount <= 0) {
+      setStatus("Başlık ve pozitif tutar gerekli.");
+      return;
+    }
+    setPending(true);
+    setStatus(null);
+    try {
+      await createBusinessCashEvent(businessId, { title: title.trim(), amount: parsedAmount, type, dueAt });
+      setTitle("");
+      setAmount("");
+      setStatus("Nakit olayı eklendi.");
+      onChanged();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Nakit olayı eklenemedi.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Panel>
+      <SectionTitle title="Nakit Olayı Ekle" meta={type === "inflow" ? "tahsilat" : "ödeme"} />
+      <TextInput value={title} onChangeText={setTitle} placeholder="Başlık" placeholderTextColor={palette.muted} style={localStyles.authInput} />
+      <View style={localStyles.formGrid}>
+        <TextInput value={amount} onChangeText={setAmount} placeholder="Tutar" placeholderTextColor={palette.muted} keyboardType="decimal-pad" style={[localStyles.authInput, localStyles.formInput]} />
+        <TextInput value={dueAt} onChangeText={setDueAt} placeholder="YYYY-MM-DD" placeholderTextColor={palette.muted} style={[localStyles.authInput, localStyles.formInput]} />
+      </View>
+      <View style={localStyles.segmentedInline}>
+        {(["inflow", "outflow"] as const).map((item) => (
+          <Pressable key={item} onPress={() => setType(item)} style={[localStyles.segmentButton, type === item && localStyles.segmentButtonActive]}>
+            <Text style={[localStyles.segmentButtonText, type === item && localStyles.segmentButtonTextActive]}>{item === "inflow" ? "Tahsilat" : "Ödeme"}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Button label={pending ? "Ekleniyor" : "Nakit olayı ekle"} onPress={() => void submit()} disabled={pending} icon={<CalendarPlus size={15} color={palette.surface} />} />
+      {status ? <Text style={status.includes("eklendi") ? localStyles.formSuccess : localStyles.authError}>{status}</Text> : null}
+    </Panel>
+  );
+}
+
+function BusinessCustomerForm({ businessId, onChanged }: { businessId: string; onChanged: () => void }) {
+  const [name, setName] = useState("");
+  const [averageDelayDays, setAverageDelayDays] = useState("");
+  const [invoicesPaid, setInvoicesPaid] = useState("");
+  const [invoicesLate, setInvoicesLate] = useState("");
+  const [outstandingAmount, setOutstandingAmount] = useState("");
+  const [pending, setPending] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function submit() {
+    if (!name.trim()) {
+      setStatus("Müşteri adı gerekli.");
+      return;
+    }
+    setPending(true);
+    setStatus(null);
+    try {
+      await createBusinessCustomer(businessId, {
+        name: name.trim(),
+        averageDelayDays: parseIntegerInput(averageDelayDays),
+        invoicesPaid: parseIntegerInput(invoicesPaid),
+        invoicesLate: parseIntegerInput(invoicesLate),
+        outstandingAmount: parseDecimalInput(outstandingAmount)
+      });
+      setName("");
+      setAverageDelayDays("");
+      setInvoicesPaid("");
+      setInvoicesLate("");
+      setOutstandingAmount("");
+      setStatus("Müşteri eklendi.");
+      onChanged();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Müşteri eklenemedi.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Panel>
+      <SectionTitle title="Müşteri Ekle" meta="tahsilat skoru" />
+      <TextInput value={name} onChangeText={setName} placeholder="Müşteri adı" placeholderTextColor={palette.muted} style={localStyles.authInput} />
+      <View style={localStyles.formGrid}>
+        <TextInput value={averageDelayDays} onChangeText={setAverageDelayDays} placeholder="Ort. gecikme günü" placeholderTextColor={palette.muted} keyboardType="number-pad" style={[localStyles.authInput, localStyles.formInput]} />
+        <TextInput value={outstandingAmount} onChangeText={setOutstandingAmount} placeholder="Açık bakiye" placeholderTextColor={palette.muted} keyboardType="decimal-pad" style={[localStyles.authInput, localStyles.formInput]} />
+      </View>
+      <View style={localStyles.formGrid}>
+        <TextInput value={invoicesPaid} onChangeText={setInvoicesPaid} placeholder="Ödenen fatura" placeholderTextColor={palette.muted} keyboardType="number-pad" style={[localStyles.authInput, localStyles.formInput]} />
+        <TextInput value={invoicesLate} onChangeText={setInvoicesLate} placeholder="Geciken fatura" placeholderTextColor={palette.muted} keyboardType="number-pad" style={[localStyles.authInput, localStyles.formInput]} />
+      </View>
+      <Button label={pending ? "Ekleniyor" : "Müşteri ekle"} onPress={() => void submit()} disabled={pending} icon={<UserPlus size={15} color={palette.surface} />} />
+      {status ? <Text style={status.includes("eklendi") ? localStyles.formSuccess : localStyles.authError}>{status}</Text> : null}
+    </Panel>
   );
 }
 
@@ -997,10 +1392,6 @@ function CollectionScores({ customers, scores }: { customers: BusinessCustomer[]
             </View>
             <ProgressBar value={score.score} tone={score.riskLevel === "critical" ? "danger" : "warn"} />
             <Text style={styles.bodyMuted}>{score.recommendation}</Text>
-            <View style={styles.row}>
-              <Button label="Hatırlatma" variant="secondary" />
-              <Button label="Plan" variant="ghost" />
-            </View>
           </View>
         );
       })}
@@ -1088,6 +1479,17 @@ function signedMoney(value: number) {
 function parseMoneyInput(value: string) {
   const parsed = Number(value.replace(/\D/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseDecimalInput(value: string) {
+  const normalized = value.trim().replace(/\./g, "").replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseIntegerInput(value: string) {
+  const parsed = Number(value.trim());
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
 }
 
 function projectionBarHeights(dashboard: BusinessDashboard) {
@@ -1219,6 +1621,12 @@ const localStyles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: "700"
   },
+  formSuccess: {
+    color: palette.success,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700"
+  },
   agentBubble: {
     position: "absolute",
     left: 0,
@@ -1284,6 +1692,10 @@ const localStyles = StyleSheet.create({
   heroCopy: {
     flex: 1,
     gap: 7
+  },
+  heroActions: {
+    alignItems: "flex-end",
+    gap: 10
   },
   overline: {
     color: palette.primary,
@@ -1500,6 +1912,44 @@ const localStyles = StyleSheet.create({
   actionButton: {
     flexGrow: 1,
     flexBasis: "30%"
+  },
+  formGrid: {
+    flexDirection: "row",
+    gap: 10
+  },
+  formInput: {
+    flex: 1
+  },
+  segmentedInline: {
+    flexDirection: "row",
+    gap: 4,
+    backgroundColor: palette.surface2,
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 4
+  },
+  segmentButton: {
+    flex: 1,
+    minHeight: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 6
+  },
+  segmentButtonActive: {
+    backgroundColor: palette.secondary
+  },
+  segmentButtonText: {
+    color: palette.muted,
+    fontSize: 12.5,
+    fontWeight: "800"
+  },
+  segmentButtonTextActive: {
+    color: palette.surface
+  },
+  csvInput: {
+    minHeight: 112,
+    lineHeight: 19
   },
   flexButton: {
     flexGrow: 1,

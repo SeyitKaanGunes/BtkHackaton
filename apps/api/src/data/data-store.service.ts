@@ -262,12 +262,20 @@ export class DataStoreService implements OnModuleInit {
   }
 
   async approveAction(id: string, userId: string) {
+    return this.updateActionStatus(id, userId, "approved");
+  }
+
+  async dismissAction(id: string, userId: string) {
+    return this.updateActionStatus(id, userId, "dismissed");
+  }
+
+  private async updateActionStatus(id: string, userId: string, status: ActionItem["status"]) {
     this.assertReady();
     const existing = this.actions.find((item) => item.id === id && item.userId === userId);
     if (!existing) return undefined;
     const updated = await this.prisma.actionItem.update({
       where: { id },
-      data: { status: "approved" }
+      data: { status }
     });
     const mapped = this.mapAction(updated);
     this.actions = this.actions.map((item) => (item.id === id ? mapped : item));

@@ -20,6 +20,11 @@ export class ActionsController {
     return (await this.store.approveAction(id, user.id)) ?? { error: "Action not found" };
   }
 
+  @Post(":id/dismiss")
+  async dismiss(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return (await this.store.dismissAction(id, user.id)) ?? { error: "Action not found" };
+  }
+
   @Post("subscription-reminder")
   async createSubscriptionReminder(@CurrentUser() user: AuthUser, @Body() body: SubscriptionReminderRequest): Promise<SubscriptionReminderResult> {
     const remindAt = normalizeReminderDate(body.remindAt);

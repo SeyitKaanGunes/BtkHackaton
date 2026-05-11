@@ -20,6 +20,8 @@ export default defineConfig({
       { find: /^react-native$/, replacement: "react-native-web" },
       { find: /^react-native-tts$/, replacement: stub("react-native-tts.ts") },
       { find: /^react-native-image-picker$/, replacement: stub("react-native-image-picker.ts") },
+      { find: /^react-native-document-picker$/, replacement: stub("react-native-document-picker.ts") },
+      { find: /^react-native-fs$/, replacement: stub("react-native-fs.ts") },
       { find: /^lucide-react-native$/, replacement: "lucide-react" },
       { find: "@fintwin/shared", replacement: path.resolve(here, "../../packages/shared/src/index.ts") }
     ]

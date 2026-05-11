@@ -1,10 +1,16 @@
 import type {
+  ActionItem,
   AgentResponse,
   AiCfoSimulation,
   Business,
+  BusinessCashEvent,
+  BusinessCashEventCreateRequest,
+  BusinessCreateRequest,
   BusinessCustomer,
+  BusinessCustomerCreateRequest,
   BusinessDashboard,
   CollectionScore,
+  Currency,
   DashboardPeriod,
   DashboardSummary,
   InvestmentHoldingCreateRequest,
@@ -18,12 +24,16 @@ import type {
   StatementPreviewResult,
   SubscriptionLeak,
   SubscriptionReminderResult,
+  Transaction,
+  TransactionType,
   WhatIfResponse
 } from "@fintwin/shared";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const runtimeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
 const apiUrl = requiredPublicEnv("EXPO_PUBLIC_API_URL").replace(/\/$/, "");
 let authToken = runtimeEnv.EXPO_PUBLIC_AUTH_TOKEN?.trim() || undefined;
+const authStorageKey = "fintwin_token";
 
 export interface AuthResponse {
   token: string;
@@ -93,6 +103,23 @@ export function setAuthToken(token: string) {
   authToken = token;
 }
 
+export async function persistAuthToken(token: string) {
+  setAuthToken(token);
+  await AsyncStorage.setItem(authStorageKey, token);
+}
+
+export async function loadStoredAuthToken() {
+  if (authToken) return authToken;
+  const stored = await AsyncStorage.getItem(authStorageKey);
+  authToken = stored?.trim() || undefined;
+  return authToken;
+}
+
+export async function clearAuthToken() {
+  authToken = undefined;
+  await AsyncStorage.removeItem(authStorageKey);
+}
+
 export function hasAuthToken() {
   return Boolean(authToken);
 }
@@ -160,7 +187,7 @@ export async function loadMobileHome(options: MobileHomeOptions = {}): Promise<{
   leaks: SubscriptionLeak[];
   simulation: WhatIfResponse;
   investmentPortfolio: InvestmentPortfolioSummary;
-  businessOverview: BusinessOverview;
+  businessOverview: BusinessOverview | null;
 }> {
   const query = periodQuery(options);
   const [user, dashboard, dna, campaign, leaks, simulation, investmentPortfolio, businessOverview] = await Promise.all([
@@ -174,7 +201,10 @@ export async function loadMobileHome(options: MobileHomeOptions = {}): Promise<{
       body: JSON.stringify({})
     }),
     loadInvestmentPortfolio(),
-    loadBusinessOverview()
+    loadBusinessOverview().catch((error) => {
+      if (error instanceof ApiRequestError && error.status === 404) return null;
+      throw error;
+    })
   ]);
   return { user, dashboard, dna, campaign, leaks, simulation, investmentPortfolio, businessOverview };
 }
@@ -224,12 +254,59 @@ export function createSubscriptionReminder(input: { merchant: string; amount?: n
   return request<SubscriptionReminderResult>("/actions/subscription-reminder", { method: "POST", body: JSON.stringify(input) });
 }
 
+export function loadActions(): Promise<ActionItem[]> {
+  return request<ActionItem[]>("/actions");
+}
+
+export function approveAction(id: string): Promise<ActionItem> {
+  return request<ActionItem>(`/actions/${encodeURIComponent(id)}/approve`, { method: "POST" });
+}
+
+export function dismissAction(id: string): Promise<ActionItem> {
+  return request<ActionItem>(`/actions/${encodeURIComponent(id)}/dismiss`, { method: "POST" });
+}
+
+export function createTransaction(input: {
+  merchant: string;
+  amount: number;
+  type?: TransactionType;
+  currency?: Currency;
+  categoryId?: string;
+  occurredAt?: string;
+  paymentMethod?: Transaction["paymentMethod"];
+}): Promise<Transaction> {
+  return request<Transaction>("/transactions", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function importTransactionsCsv(csv: string): Promise<{ imported: number; rows: Transaction[] }> {
+  return request<{ imported: number; rows: Transaction[] }>("/transactions/import-csv", { method: "POST", body: JSON.stringify({ csv }) });
+}
+
+export function saveFcmToken(input: { token: string; platform: "ios" | "android" | "web" }): Promise<{ saved: true; platform: string }> {
+  return request<{ saved: true; platform: string }>("/notifications/fcm-token", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function createBusiness(input: BusinessCreateRequest): Promise<Business> {
+  return request<Business>("/business", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function createBusinessCustomer(businessId: string, input: BusinessCustomerCreateRequest): Promise<BusinessCustomer> {
+  return request<BusinessCustomer>(`/business/${encodeURIComponent(businessId)}/customers`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function createBusinessCashEvent(businessId: string, input: BusinessCashEventCreateRequest): Promise<BusinessCashEvent> {
+  return request<BusinessCashEvent>(`/business/${encodeURIComponent(businessId)}/cash-events`, { method: "POST", body: JSON.stringify(input) });
+}
+
 export function loadBusinessOverview(): Promise<BusinessOverview> {
   return request<BusinessOverview>("/business/primary/overview");
 }
 
-export function loadBusiness(): Promise<BusinessOverview> {
-  return loadBusinessOverview();
+export function loadBusiness(): Promise<BusinessOverview | null> {
+  return loadBusinessOverview().catch((error) => {
+    if (error instanceof ApiRequestError && error.status === 404) return null;
+    throw error;
+  });
 }
 
 export function simulateBusinessDecision(businessId: string, input: { amount: number; decision?: string }): Promise<AiCfoSimulation> {
