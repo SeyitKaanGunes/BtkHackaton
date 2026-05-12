@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from "react-native";
 import * as RNFS from "react-native-fs";
 import Sound, { AVEncoderAudioQualityIOSType, type AudioSet, type RecordBackType } from "react-native-nitro-sound";
-import { Bot, Mic, Send, Shield, Sparkles, Volume2 } from "lucide-react-native";
+import { Mic, Send, Shield, Sparkles, Volume2 } from "lucide-react-native";
 import type { ActionItem, AgentResponse } from "@fintwin/shared";
 import { approveAction, dismissAction, sendAgentMessage, transcribeSpeech } from "../api";
 import { speakWithGemini } from "../audio";
@@ -32,8 +32,11 @@ const SUGGESTIONS = [
   "Bugün 10000 TL teknoloji harcaması yaparsam ne olur?"
 ];
 
+const agentPet = require("../assets/agent-pet.png");
+
 export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void }) {
   const p = usePalette();
+  const idleProgress = useRef(new Animated.Value(0)).current;
   const [message, setMessage] = useState(SUGGESTIONS[0]);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [response, setResponse] = useState<AgentResponse | null>(null);
@@ -43,6 +46,19 @@ export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void 
   const [error, setError] = useState<string | null>(null);
   const loading = busyMode !== null;
   const recording = busyMode === "record";
+  const idleTranslateY = idleProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -5] });
+  const idleScale = idleProgress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.035] });
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(idleProgress, { toValue: 1, duration: 550, useNativeDriver: true }),
+        Animated.timing(idleProgress, { toValue: 0, duration: 550, useNativeDriver: true })
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [idleProgress]);
 
   async function ask() {
     if (loading) return;
@@ -169,13 +185,29 @@ export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void 
       />
 
       <Card>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <View style={{ width: 36, height: 36, borderRadius: 99, backgroundColor: p.accentSoft, alignItems: "center", justifyContent: "center" }}>
-            <Bot color={p.accent} size={20} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View
+            style={{
+              width: 62,
+              height: 62,
+              borderRadius: 24,
+              borderColor: p.line,
+              borderWidth: 1,
+              backgroundColor: p.surface2,
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden"
+            }}
+          >
+            <Animated.Image
+              source={agentPet}
+              resizeMode="contain"
+              style={{ width: 58, height: 58, transform: [{ translateY: idleTranslateY }, { scale: idleScale }] }}
+            />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: p.ink, fontWeight: "900", fontSize: 14 }}>Fintwin Agent</Text>
-            <Text style={{ color: p.muted, fontSize: 12 }}>LLM Chat · OpenAI STT · Gemini TTS</Text>
+            <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>Money Crab yanında · OpenAI STT · Gemini TTS</Text>
           </View>
           <Chip label={busyLabel(busyMode)} tone={loading ? "accent" : "good"} small />
         </View>

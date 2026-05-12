@@ -11,8 +11,9 @@ export class DashboardController {
   constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
 
   @Get("personal")
-  personal(@CurrentUser() user: AuthUser, @Query() query: DashboardPeriodOptions) {
+  async personal(@CurrentUser() user: AuthUser, @Query() query: DashboardPeriodOptions) {
+    await this.store.ensureMonthlySalaryTransactions(user.id);
     const data = this.store.getPersonalData(user.id);
-    return calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets, query);
+    return calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets, query, data.categories);
   }
 }

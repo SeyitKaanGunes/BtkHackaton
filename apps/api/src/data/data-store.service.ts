@@ -20,11 +20,26 @@ import type {
   UserProfile
 } from "@fintwin/shared";
 import { PrismaService } from "../prisma/prisma.service.js";
+import {
+  AUTO_SALARY_TAG,
+  SALARY_MERCHANT,
+  isSalaryDueForMonth,
+  nextSalaryMonthKey,
+  parseReferenceDate,
+  salaryDueDateForMonth,
+  salaryMonthKey,
+  salaryMonthRange,
+  salaryTransactionId
+} from "../transactions/salary-scheduler.js";
 
 interface StoredUser extends UserProfile {
   passwordHash: string;
   googleSubject?: string;
 }
+
+type FinanceProfileUpdate = Partial<Pick<UserProfile, "monthlyIncome" | "payday" | "currency">>;
+
+const customCategoryColors = ["#0d9488", "#2563eb", "#9333ea", "#f97316", "#be123c", "#64748b", "#16a34a"];
 
 export class DataStoreNotReadyError extends Error {
   constructor() {
@@ -227,6 +242,62 @@ export class DataStoreService implements OnModuleInit {
     return mapped;
   }
 
+  async updateUserFinanceProfile(userId: string, input: FinanceProfileUpdate) {
+    this.assertReady();
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(input.monthlyIncome !== undefined ? { monthlyIncome: input.monthlyIncome } : {}),
+        ...(input.payday !== undefined ? { payday: input.payday } : {}),
+        ...(input.currency !== undefined ? { currency: input.currency } : {})
+      }
+    });
+    const mapped = this.mapUser(updated);
+    this.users = this.users.map((user) => (user.id === userId ? { ...mapped, passwordHash: user.passwordHash } : user));
+    if (!this.users.some((user) => user.id === userId)) this.users.push(mapped);
+    return this.users.find((user) => user.id === userId) ?? mapped;
+  }
+
+  getCategories(kind?: Transaction["type"]) {
+    this.assertReady();
+    const filtered = kind ? this.categories.filter((category) => category.kind === kind) : this.categories;
+    return [...filtered].sort((left, right) => left.name.localeCompare(right.name, "tr-TR"));
+  }
+
+  async ensureCategory(input: { name: string; kind: Transaction["type"]; color?: string }) {
+    this.assertReady();
+    const name = input.name.trim();
+    if (!name) throw new BadRequestException("categoryName zorunlu.");
+    const kind = input.kind;
+    const normalizedName = normalizeCategoryName(name);
+    const existing = this.categories.find((category) => category.kind === kind && normalizeCategoryName(category.name) === normalizedName);
+    if (existing) return existing;
+
+    const category: Category = {
+      id: `cat-custom-${kind}-${slugifyCategoryName(name)}`,
+      name,
+      kind,
+      color: input.color ?? customCategoryColor(name)
+    };
+    const created = await this.prisma.category.upsert({
+      where: { id: category.id },
+      update: {
+        name: category.name,
+        kind: category.kind,
+        color: category.color
+      },
+      create: category
+    });
+    const mapped: Category = {
+      id: created.id,
+      name: created.name,
+      kind: created.kind as Category["kind"],
+      color: created.color
+    };
+    this.categories = [mapped, ...this.categories.filter((item) => item.id !== mapped.id)];
+    return mapped;
+  }
+
   async addTransaction(transaction: Transaction) {
     this.assertReady();
     const balanceDelta = transaction.type === "income" ? transaction.amount : -transaction.amount;
@@ -254,6 +325,89 @@ export class DataStoreService implements OnModuleInit {
     ]);
     const mapped = this.mapTransaction(created);
     this.transactions.unshift(mapped);
+    this.accounts = this.accounts.map((account) =>
+      account.id === updatedAccount.id
+        ? {
+            ...account,
+            balance: Number(updatedAccount.balance),
+            creditLimit: updatedAccount.creditLimit === null ? undefined : Number(updatedAccount.creditLimit)
+          }
+        : account
+    );
+    return mapped;
+  }
+
+  async ensureMonthlySalaryTransactions(userId: string, referenceDateInput: Date | string = new Date()) {
+    this.assertReady();
+    const user = await this.findUserById(userId);
+    if (!user || user.monthlyIncome <= 0) return [];
+
+    const referenceDate = parseReferenceDate(referenceDateInput);
+    const currentMonthKey = salaryMonthKey(referenceDate);
+    const salaryCategory = await this.ensureCategory({ name: SALARY_MERCHANT, kind: "income", color: "#16a34a" });
+    const autoTransactions = this.transactions
+      .filter((transaction) => transaction.userId === userId && transaction.tags?.includes(AUTO_SALARY_TAG))
+      .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt));
+    const firstMonth = autoTransactions.length ? nextSalaryMonthKey(salaryMonthKey(autoTransactions.at(-1)!.occurredAt)) : currentMonthKey;
+    const monthKeys = Array.from(new Set([...salaryMonthRange(firstMonth, currentMonthKey), currentMonthKey]));
+    const touched: Transaction[] = [];
+
+    for (const monthKey of monthKeys) {
+      if (!isSalaryDueForMonth(monthKey, user.payday, referenceDate)) continue;
+      const dueDate = salaryDueDateForMonth(monthKey, user.payday);
+      const id = salaryTransactionId(userId, monthKey);
+      const existing =
+        this.transactions.find((transaction) => transaction.id === id) ??
+        this.transactions.find((transaction) => transaction.userId === userId && transaction.tags?.includes(AUTO_SALARY_TAG) && salaryMonthKey(transaction.occurredAt) === monthKey);
+      if (existing) {
+        if (monthKey === currentMonthKey && (existing.amount !== user.monthlyIncome || existing.currency !== user.currency || existing.categoryId !== salaryCategory.id)) {
+          touched.push(await this.updateSalaryTransaction(existing, user.monthlyIncome, user.currency, salaryCategory.id));
+        }
+        continue;
+      }
+
+      touched.push(
+        await this.addTransaction({
+          id,
+          userId,
+          accountId: this.accountIdFor(userId, "transfer"),
+          categoryId: salaryCategory.id,
+          merchant: SALARY_MERCHANT,
+          amount: Number(user.monthlyIncome.toFixed(2)),
+          currency: user.currency,
+          type: "income",
+          occurredAt: dueDate.toISOString(),
+          paymentMethod: "transfer",
+          tags: [AUTO_SALARY_TAG, "salary"],
+          recurring: true
+        })
+      );
+    }
+
+    return touched;
+  }
+
+  private async updateSalaryTransaction(existing: Transaction, amount: number, currency: Currency, categoryId: string) {
+    const normalizedAmount = Number(amount.toFixed(2));
+    const balanceDelta = normalizedAmount - existing.amount;
+    const [updated, updatedAccount] = await this.prisma.$transaction([
+      this.prisma.transaction.update({
+        where: { id: existing.id },
+        data: {
+          amount: normalizedAmount,
+          currency,
+          categoryId,
+          recurring: true,
+          tags: Array.from(new Set([...(existing.tags ?? []), AUTO_SALARY_TAG, "salary"]))
+        }
+      }),
+      this.prisma.account.update({
+        where: { id: existing.accountId },
+        data: { balance: { increment: balanceDelta } }
+      })
+    ]);
+    const mapped = this.mapTransaction(updated);
+    this.transactions = this.transactions.map((transaction) => (transaction.id === mapped.id ? mapped : transaction));
     this.accounts = this.accounts.map((account) =>
       account.id === updatedAccount.id
         ? {
@@ -651,4 +805,28 @@ export class DataStoreService implements OnModuleInit {
   private assertReady() {
     if (!this.ready) throw new DataStoreNotReadyError();
   }
+}
+
+function normalizeCategoryName(value: string) {
+  return value.trim().toLocaleLowerCase("tr-TR").replace(/\s+/g, " ");
+}
+
+function slugifyCategoryName(value: string) {
+  const slug = normalizeCategoryName(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "kategori";
+}
+
+function customCategoryColor(name: string) {
+  const charTotal = Array.from(name).reduce((total, char) => total + char.charCodeAt(0), 0);
+  return customCategoryColors[charTotal % customCategoryColors.length]!;
 }

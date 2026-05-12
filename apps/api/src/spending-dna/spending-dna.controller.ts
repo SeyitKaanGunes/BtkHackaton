@@ -11,8 +11,9 @@ export class SpendingDnaController {
   constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
 
   @Get()
-  get(@CurrentUser() user: AuthUser, @Query() query: DashboardPeriodOptions) {
+  async get(@CurrentUser() user: AuthUser, @Query() query: DashboardPeriodOptions) {
+    await this.store.ensureMonthlySalaryTransactions(user.id);
     const data = this.store.getPersonalData(user.id);
-    return { ...calculateSpendingDna(data.transactions, data.budgets, query), userId: user.id };
+    return { ...calculateSpendingDna(data.transactions, data.budgets, query, data.categories), userId: user.id };
   }
 }

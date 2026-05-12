@@ -40,6 +40,7 @@ export class AgentService {
   ) {}
 
   async chat(userId: string, message: string): Promise<AgentResponse> {
+    await this.store.ensureMonthlySalaryTransactions(userId);
     const data = this.store.getPersonalData(userId);
     const graph = new StateGraph(AgentState)
       .addNode("supervisor", async (state) => ({
@@ -47,7 +48,7 @@ export class AgentService {
         routedAgents: ["Supervisor Agent"]
       }))
       .addNode("twin", async () => {
-        const dna = calculateSpendingDna(data.transactions, data.budgets);
+        const dna = calculateSpendingDna(data.transactions, data.budgets, {}, data.categories);
         const topCategory = dna.categories[0];
         const topReason = topCategory?.reasons?.[0] ? ` Neden: ${topCategory.reasons[0]}` : "";
         return {
@@ -72,6 +73,7 @@ export class AgentService {
             accounts: data.accounts,
             actions: data.actions,
             budgets: data.budgets,
+            categories: data.categories,
             goals: data.goals,
             subscriptions: data.subscriptions,
             user: data.user,
@@ -136,8 +138,8 @@ export class AgentService {
       .compile();
 
     const result = await graph.invoke({ message });
-    const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets);
-    const readiness = calculateCampaignReadiness(data.transactions, data.budgets);
+    const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets, {}, data.categories);
+    const readiness = calculateCampaignReadiness(data.transactions, data.budgets, {}, data.categories);
     const suggestedActions = await this.persistSuggestedActions(result.suggestedActions);
     return {
       answer:
@@ -149,6 +151,7 @@ export class AgentService {
         accounts: data.accounts,
         actions: data.actions,
         budgets: data.budgets,
+        categories: data.categories,
         goals: data.goals,
         transactions: data.transactions
       }),
@@ -203,8 +206,8 @@ export class AgentService {
 
   private async assistantAnswer(userId: string, message: string): Promise<string> {
     const data = this.store.getPersonalData(userId);
-    const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets);
-    const dna = calculateSpendingDna(data.transactions, data.budgets);
+    const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets, {}, data.categories);
+    const dna = calculateSpendingDna(data.transactions, data.budgets, {}, data.categories);
     const leaks = detectSubscriptionLeakage(data.subscriptions);
 
     if (!this.qwen.isConfigured()) {

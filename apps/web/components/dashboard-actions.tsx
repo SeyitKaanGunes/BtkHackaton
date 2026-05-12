@@ -1,38 +1,51 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Check, Plus, X } from "lucide-react";
-import type { ActionItem, Currency, TransactionType } from "@fintwin/shared";
-import { approveAction, createTransaction, dismissAction } from "../lib/api";
+import { Bell, CalendarClock, Check, Plus, Wallet, X } from "lucide-react";
+import type { ActionItem, Category, Currency, TransactionType } from "@fintwin/shared";
+import { approveAction, createTransaction, dismissAction, getCategories, updateFinanceProfile, type AuthUserProfile } from "../lib/api";
 
-const expenseTransactionCategories = [
-  { id: "cat-market", label: "Market" },
-  { id: "cat-food", label: "Yemek" },
-  { id: "cat-transport", label: "Ulaşım" },
-  { id: "cat-tech", label: "Teknoloji" },
-  { id: "cat-clothes", label: "Giyim" },
-  { id: "cat-subscription", label: "Abonelik" },
-  { id: "cat-rent", label: "Kira" },
-  { id: "cat-other", label: "Diğer" }
+const fallbackCategories: Category[] = [
+  { id: "cat-salary", name: "Maaş", kind: "income", color: "#16a34a" },
+  { id: "cat-market", name: "Market", kind: "expense", color: "#f59e0b" },
+  { id: "cat-food", name: "Yemek", kind: "expense", color: "#ef4444" },
+  { id: "cat-transport", name: "Ulaşım", kind: "expense", color: "#0891b2" },
+  { id: "cat-tech", name: "Teknoloji", kind: "expense", color: "#4f46e5" },
+  { id: "cat-clothes", name: "Giyim", kind: "expense", color: "#db2777" },
+  { id: "cat-subscription", name: "Abonelik", kind: "expense", color: "#7c3aed" },
+  { id: "cat-rent", name: "Kira", kind: "expense", color: "#64748b" },
+  { id: "cat-other", name: "Diğer", kind: "expense", color: "#71717a" }
 ];
-
-const incomeTransactionCategories = [{ id: "cat-salary", label: "Maaş" }];
 const currencies: Currency[] = ["TRY", "USD", "EUR"];
 
 type Status = { tone: "ok" | "error"; text: string } | null;
 
-export function ManualTransactionPanel() {
+export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserProfile }) {
   const router = useRouter();
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<TransactionType>("expense");
   const [categoryId, setCategoryId] = useState("cat-other");
+  const [newCategoryName, setNewCategoryName] = useState("");
   const [currency, setCurrency] = useState<Currency>("TRY");
   const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [recurring, setRecurring] = useState(false);
+  const [categories, setCategories] = useState<Category[]>(fallbackCategories);
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<Status>(null);
-  const categoryOptions = type === "income" ? incomeTransactionCategories : expenseTransactionCategories;
+  const [salaryAmount, setSalaryAmount] = useState(initialUser.monthlyIncome > 0 ? String(initialUser.monthlyIncome) : "");
+  const [payday, setPayday] = useState(String(initialUser.payday));
+  const [salaryCurrency, setSalaryCurrency] = useState<Currency>(initialUser.currency as Currency);
+  const [salaryPending, setSalaryPending] = useState(false);
+  const [salaryStatus, setSalaryStatus] = useState<Status>(null);
+  const categoryOptions = useMemo(() => categories.filter((category) => category.kind === type), [categories, type]);
+
+  useEffect(() => {
+    void getCategories()
+      .then((items) => setCategories(items.length ? items : fallbackCategories))
+      .catch(() => setCategories(fallbackCategories));
+  }, []);
 
   useEffect(() => {
     if (!categoryOptions.some((option) => option.id === categoryId)) {
@@ -40,11 +53,38 @@ export function ManualTransactionPanel() {
     }
   }, [categoryId, categoryOptions]);
 
+  async function submitSalary(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const parsedSalary = parseMoneyInput(salaryAmount);
+    const parsedPayday = Number(payday);
+    if (parsedSalary === undefined || parsedSalary < 0 || !Number.isInteger(parsedPayday) || parsedPayday < 1 || parsedPayday > 31) {
+      setSalaryStatus({ tone: "error", text: "Maaş sıfır veya pozitif, ödeme günü 1-31 arasında olmalı." });
+      return;
+    }
+
+    setSalaryPending(true);
+    setSalaryStatus(null);
+    try {
+      await updateFinanceProfile({
+        monthlyIncome: parsedSalary,
+        payday: parsedPayday,
+        currency: salaryCurrency
+      });
+      setSalaryStatus({ tone: "ok", text: "Maaş planı kaydedildi. Günü geldiyse bakiye güncellendi." });
+      router.refresh();
+    } catch (error) {
+      setSalaryStatus({ tone: "error", text: error instanceof Error ? error.message : "Maaş planı kaydedilemedi." });
+    } finally {
+      setSalaryPending(false);
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const parsedAmount = parseMoneyInput(amount);
-    if (!merchant.trim() || parsedAmount === undefined || parsedAmount <= 0) {
-      setStatus({ tone: "error", text: "Satıcı/açıklama ve pozitif tutar gerekli." });
+    const customCategory = newCategoryName.trim();
+    if (!merchant.trim() || parsedAmount === undefined || parsedAmount <= 0 || (!categoryId && !customCategory)) {
+      setStatus({ tone: "error", text: "Açıklama, kategori ve pozitif tutar gerekli." });
       return;
     }
 
@@ -55,14 +95,21 @@ export function ManualTransactionPanel() {
         merchant: merchant.trim(),
         amount: parsedAmount,
         type,
-        categoryId,
+        categoryId: customCategory ? undefined : categoryId,
+        categoryName: customCategory || undefined,
         currency,
         occurredAt: `${occurredAt}T12:00:00.000Z`,
-        paymentMethod: type === "income" ? "transfer" : "debit_card"
+        paymentMethod: type === "income" ? "transfer" : "debit_card",
+        recurring
       });
       setMerchant("");
       setAmount("");
+      setNewCategoryName("");
+      setRecurring(false);
       setStatus({ tone: "ok", text: "İşlem eklendi." });
+      if (customCategory) {
+        void getCategories().then((items) => setCategories(items.length ? items : fallbackCategories));
+      }
       router.refresh();
     } catch (error) {
       setStatus({ tone: "error", text: error instanceof Error ? error.message : "İşlem eklenemedi." });
@@ -74,51 +121,91 @@ export function ManualTransactionPanel() {
   return (
     <div className="panel manual-transaction-panel">
       <div className="section-title">
-        <span>Manuel işlem</span>
-        <strong>gelir / gider</strong>
+        <span>Gelir ve gider akışı</span>
+        <strong>maaş / manuel işlem</strong>
       </div>
-      <form className="manual-transaction-form" onSubmit={submit}>
-        <label className="field">
-          <span>Satıcı veya açıklama</span>
-          <input value={merchant} onChange={(event) => setMerchant(event.target.value)} required placeholder="Migros, maaş, kira" />
-        </label>
-        <label className="field">
-          <span>Tutar</span>
-          <input value={amount} onChange={(event) => setAmount(event.target.value)} required inputMode="decimal" placeholder="1250" />
-        </label>
-        <div className="segmented-tabs transaction-kind-tabs" aria-label="İşlem tipi">
-          {(["expense", "income"] as const).map((item) => (
-            <button className={type === item ? "active" : ""} key={item} onClick={() => setType(item)} type="button">
-              {item === "expense" ? "Gider" : "Gelir"}
-            </button>
-          ))}
-        </div>
-        <label className="field">
-          <span>Tarih</span>
-          <input value={occurredAt} onChange={(event) => setOccurredAt(event.target.value)} required type="date" />
-        </label>
-        <label className="field">
-          <span>Para birimi</span>
-          <select value={currency} onChange={(event) => setCurrency(event.target.value as Currency)}>
-            {currencies.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
+      <div className="manual-panel-grid">
+        <form className="salary-profile-form" onSubmit={submitSalary}>
+          <div className="mini-form-heading">
+            <Wallet size={17} />
+            <span>Aylık maaş</span>
+          </div>
+          <label className="field">
+            <span>Maaş tutarı</span>
+            <input value={salaryAmount} onChange={(event) => setSalaryAmount(event.target.value)} inputMode="decimal" placeholder="45000" />
+          </label>
+          <label className="field">
+            <span>Her ay günü</span>
+            <input value={payday} onChange={(event) => setPayday(event.target.value)} inputMode="numeric" placeholder="5" />
+          </label>
+          <label className="field">
+            <span>Para birimi</span>
+            <select value={salaryCurrency} onChange={(event) => setSalaryCurrency(event.target.value as Currency)}>
+              {currencies.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="secondary-button" type="submit" disabled={salaryPending}>
+            <CalendarClock size={16} />
+            {salaryPending ? "Kaydediliyor" : "Maaşı kaydet"}
+          </button>
+          {salaryStatus ? <p className={`form-message ${salaryStatus.tone === "error" ? "danger" : "success-message"}`}>{salaryStatus.text}</p> : null}
+        </form>
+
+        <form className="manual-transaction-form" onSubmit={submit}>
+          <label className="field">
+            <span>Satıcı veya açıklama</span>
+            <input value={merchant} onChange={(event) => setMerchant(event.target.value)} required placeholder="Migros, kira, fatura" />
+          </label>
+          <label className="field">
+            <span>Tutar</span>
+            <input value={amount} onChange={(event) => setAmount(event.target.value)} required inputMode="decimal" placeholder="1250" />
+          </label>
+          <div className="segmented-tabs transaction-kind-tabs" aria-label="İşlem tipi">
+            {(["expense", "income"] as const).map((item) => (
+              <button className={type === item ? "active" : ""} key={item} onClick={() => setType(item)} type="button">
+                {item === "expense" ? "Gider" : "Gelir"}
+              </button>
             ))}
-          </select>
-        </label>
-        <div className="category-picker" aria-label="Kategori">
-          {categoryOptions.map((item) => (
-            <button className={categoryId === item.id ? "active" : ""} key={item.id} onClick={() => setCategoryId(item.id)} type="button">
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <button className="secondary-button manual-transaction-submit" type="submit" disabled={pending}>
-          <Plus size={16} />
-          {pending ? "Ekleniyor" : "İşlem ekle"}
-        </button>
-      </form>
+          </div>
+          <label className="field">
+            <span>Tarih</span>
+            <input value={occurredAt} onChange={(event) => setOccurredAt(event.target.value)} required type="date" />
+          </label>
+          <label className="field">
+            <span>Para birimi</span>
+            <select value={currency} onChange={(event) => setCurrency(event.target.value as Currency)}>
+              {currencies.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="category-picker" aria-label="Kategori">
+            {categoryOptions.map((item) => (
+              <button className={categoryId === item.id && !newCategoryName.trim() ? "active" : ""} key={item.id} onClick={() => setCategoryId(item.id)} type="button">
+                {item.name}
+              </button>
+            ))}
+          </div>
+          <label className="field custom-category-field">
+            <span>Yeni kategori</span>
+            <input value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="Örn. okul, spor" />
+          </label>
+          <label className="inline-toggle recurring-toggle">
+            <input checked={recurring} onChange={(event) => setRecurring(event.target.checked)} type="checkbox" />
+            <span>Tekrar eden işlem</span>
+          </label>
+          <button className="secondary-button manual-transaction-submit" type="submit" disabled={pending}>
+            <Plus size={16} />
+            {pending ? "Ekleniyor" : "İşlem ekle"}
+          </button>
+        </form>
+      </div>
       {status ? <p className={`form-message ${status.tone === "error" ? "danger" : "success-message"}`}>{status.text}</p> : null}
     </div>
   );

@@ -1,4 +1,4 @@
-import { categories } from "./category-catalog.js";
+import { categories as defaultCategories } from "./category-catalog.js";
 import { buildFinancialMetadata, type DataConfidence, type FinancialDataAvailability } from "./financial-metadata.js";
 import { calculatePaydayReflexScore, detectPayday, type PaydayTransactionInput } from "./payday-detector.js";
 import { isLocalNight, isLocalWeekend, isLocalWeekendNight, resolveTimeZone } from "./timezone.js";
@@ -12,6 +12,7 @@ import type {
   BusinessDashboard,
   BusinessCashEvent,
   BusinessCustomer,
+  Category,
   CollectionScore,
   DashboardPeriod,
   DashboardPeriodOptions,
@@ -146,27 +147,27 @@ function positiveAmount(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
-export function getCategoryName(categoryId: string): string {
-  return categories.find((category) => category.id === categoryId)?.name ?? "Diğer";
+export function getCategoryName(categoryId: string, categoryCatalog: Category[] = defaultCategories): string {
+  return categoryCatalog.find((category) => category.id === categoryId)?.name ?? "Diğer";
 }
 
-function isMandatoryCategory(categoryId?: string) {
-  const name = categoryId ? getCategoryName(categoryId) : "";
+function isMandatoryCategory(categoryId?: string, categoryCatalog: Category[] = defaultCategories) {
+  const name = categoryId ? getCategoryName(categoryId, categoryCatalog) : "";
   const text = `${categoryId ?? ""} ${name}`.toLocaleLowerCase("tr-TR");
   return categoryId === "cat-rent" || mandatoryCategoryTerms.some((term) => text.includes(term));
 }
 
-function isDiscretionaryTransaction(transaction: Transaction) {
-  return transaction.type === "expense" && !isMandatoryCategory(transaction.categoryId);
+function isDiscretionaryTransaction(transaction: Transaction, categoryCatalog: Category[] = defaultCategories) {
+  return transaction.type === "expense" && !isMandatoryCategory(transaction.categoryId, categoryCatalog);
 }
 
-function toPaydayInput(transaction: Transaction): PaydayTransactionInput {
+function toPaydayInput(transaction: Transaction, categoryCatalog: Category[] = defaultCategories): PaydayTransactionInput {
   return {
     id: transaction.id,
     amount: transaction.amount,
     type: transaction.type,
     categoryId: transaction.categoryId,
-    category: getCategoryName(transaction.categoryId),
+    category: getCategoryName(transaction.categoryId, categoryCatalog),
     description: transaction.merchant,
     merchant: transaction.merchant,
     occurredAt: transaction.occurredAt
@@ -257,7 +258,8 @@ export function summarizePeriod(
 export function calculateSpendingDna(
   sourceTransactions: Transaction[],
   sourceBudgets: Budget[],
-  options: DashboardPeriodOptions = {}
+  options: DashboardPeriodOptions = {},
+  categoryCatalog: Category[] = defaultCategories
 ): SpendingDna {
   const period = normalizeDashboardPeriod(options.period);
   const timeZone = resolveTimeZone(options.timeZone);
@@ -298,13 +300,13 @@ export function calculateSpendingDna(
   }
 
   const referenceMonth = summary.periodStart.slice(0, 7);
-  const categoryRisks = categories
+  const categoryRisks = categoryCatalog
     .filter((category) => category.kind === "expense")
     .map((category): SpendingDnaCategory => {
       const categorySpend = sum(expenseTransactions.filter((transaction) => transaction.categoryId === category.id).map((transaction) => transaction.amount));
       const budget = sourceBudgets.find((item) => item.categoryId === category.id);
       const periodLimit = budget ? budget.monthlyLimit * budgetMultiplier : undefined;
-      const mandatory = isMandatoryCategory(category.id);
+      const mandatory = isMandatoryCategory(category.id, categoryCatalog);
       const hasBudget = periodLimit !== undefined;
       const historicalAverage = historicalMonthlyAverage(sourceTransactions, category.id, referenceMonth);
       let riskScore = 0;
@@ -350,8 +352,8 @@ export function calculateSpendingDna(
   const nightTransactions = expenseTransactions.filter((transaction) => isLocalNight(transaction.occurredAt, timeZone));
   const weekendTransactions = expenseTransactions.filter((transaction) => isLocalWeekend(transaction.occurredAt, timeZone));
   const weekendNightTransactions = expenseTransactions.filter((transaction) => isLocalWeekendNight(transaction.occurredAt, timeZone));
-  const paydayReflex = calculatePaydayReflexScore({ transactions: sourceTransactions.map(toPaydayInput) });
-  const discretionaryTransactions = expenseTransactions.filter(isDiscretionaryTransaction);
+  const paydayReflex = calculatePaydayReflexScore({ transactions: sourceTransactions.map((transaction) => toPaydayInput(transaction, categoryCatalog)) });
+  const discretionaryTransactions = expenseTransactions.filter((transaction) => isDiscretionaryTransaction(transaction, categoryCatalog));
   const campaignTransactions = discretionaryTransactions.filter((transaction) => transaction.tags?.includes("campaign"));
   const totalExpense = Math.max(sum(expenseTransactions.map((transaction) => transaction.amount)), 1);
   const incomeBase = Math.max(summary.income, totalExpense, 1);
@@ -448,11 +450,12 @@ export function calculateDashboardSummary(
   sourceGoals: Goal[],
   sourceActions: ActionItem[],
   sourceBudgets: Budget[],
-  options: DashboardPeriodOptions = {}
+  options: DashboardPeriodOptions = {},
+  categoryCatalog: Category[] = defaultCategories
 ): DashboardSummary {
   const summary = summarizePeriod(sourceTransactions, options);
   const expenseTransactions = summary.periodTransactions.filter((transaction) => transaction.type === "expense");
-  const categoryBreakdown = categories
+  const categoryBreakdown = categoryCatalog
     .filter((category) => category.kind === "expense")
     .map((category) => ({
       categoryId: category.id,
@@ -461,7 +464,7 @@ export function calculateDashboardSummary(
       color: category.color
     }))
     .filter((item) => item.value > 0);
-  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, options);
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, options, categoryCatalog);
   const accountBalance = sum(sourceAccounts.map((account) => account.balance));
   const savingsRate = summary.income > 0 ? ((summary.income - summary.expenses) / summary.income) * 100 : 0;
   const hasFinancialActivity = sourceTransactions.length > 0 || accountBalance !== 0 || sourceGoals.length > 0 || sourceActions.length > 0;
@@ -496,7 +499,8 @@ export function calculateDashboardSummary(
 export function calculateCampaignReadiness(
   sourceTransactions: Transaction[],
   sourceBudgets: Budget[],
-  options: DashboardPeriodOptions = {}
+  options: DashboardPeriodOptions = {},
+  categoryCatalog: Category[] = defaultCategories
 ) {
   const period = normalizeDashboardPeriod(options.period);
   const summary = summarizePeriod(sourceTransactions, { ...options, period });
@@ -510,7 +514,7 @@ export function calculateCampaignReadiness(
     };
   }
 
-  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, { ...options, period });
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, { ...options, period }, categoryCatalog);
   const highestCategoryRisk = dna.categories[0]?.riskScore ?? 0;
   const score = clamp(100 - dna.campaignSensitivity * 0.45 - highestCategoryRisk * 0.3 + dna.savingDiscipline * 0.25);
   const totalExpense = sum(expenseTransactions.map((transaction) => transaction.amount));
@@ -534,6 +538,7 @@ type PersonalFinanceData = {
   accounts?: Account[];
   actions?: ActionItem[];
   budgets?: Budget[];
+  categories?: Category[];
   goals?: Goal[];
   subscriptions?: Subscription[];
   user?: Pick<UserProfile, "payday">;
@@ -567,10 +572,11 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
   const sourceGoals = source.goals ?? [];
   const sourceTransactions = source.transactions ?? [];
   const sourceSubscriptions = source.subscriptions ?? [];
+  const categoryCatalog = source.categories ?? defaultCategories;
   const timeZone = resolveTimeZone(input.timeZone);
   const referenceDate = resolveReferenceDate(sourceTransactions, input.decisionDate);
-  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets, { timeZone, referenceDate: dateKey(referenceDate) });
-  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, { timeZone, referenceDate: dateKey(referenceDate) });
+  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets, { timeZone, referenceDate: dateKey(referenceDate) }, categoryCatalog);
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, { timeZone, referenceDate: dateKey(referenceDate) }, categoryCatalog);
   const hasFinancialActivity = sourceTransactions.length > 0 || dashboard.balance !== 0 || sourceBudgets.length > 0 || sourceGoals.length > 0 || sourceActions.length > 0;
   const requestedAmount = positiveAmount(input.amount);
   const emptyMetadata = buildFinancialMetadata(
@@ -610,7 +616,7 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
     sourceTransactions,
     referenceDate,
     monthEnd,
-    (transaction) => transaction.type === "expense" && (transaction.recurring === true || isMandatoryCategory(transaction.categoryId))
+    (transaction) => transaction.type === "expense" && (transaction.recurring === true || isMandatoryCategory(transaction.categoryId, categoryCatalog))
   );
   const debtPaymentsDue = 0;
   const plannedSavings = 0;
@@ -619,7 +625,7 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
   const safeLimit = Math.max(0, Math.round(Math.min(categoryBudgetRemaining ?? Number.POSITIVE_INFINITY, Math.max(0, availableCash) * safeCashSafetyFactor) / 100) * 100);
   const balancedAmount = Math.max(0, Math.round(Math.min(amount * whatIfBalancedMultiplier, Math.max(0, availableCash) * balancedCashFactor) / 100) * 100);
   const currentSavingsGap = sum(sourceGoals.map((goal) => Math.max(goal.targetAmount - goal.currentAmount, 0)));
-  const detection = detectPayday(sourceTransactions.map(toPaydayInput));
+  const detection = detectPayday(sourceTransactions.map((transaction) => toPaydayInput(transaction, categoryCatalog)));
   const nextIncomeDay = detection.paydayDayOfMonth
     ? new Date(Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth() + (referenceDate.getUTCDate() > detection.paydayDayOfMonth ? 1 : 0), detection.paydayDayOfMonth))
     : undefined;
@@ -660,7 +666,7 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
       recommendation,
       riskLevel,
       reasons: [
-        `${getCategoryName(resolvedCategoryId)} kategorisi için güvenli limit ${safeLimit.toLocaleString("tr-TR")} TL.`,
+        `${getCategoryName(resolvedCategoryId, categoryCatalog)} kategorisi için güvenli limit ${safeLimit.toLocaleString("tr-TR")} TL.`,
         `Harcanabilir nakit ${availableCash.toLocaleString("tr-TR")} TL olarak hesaplandı.`,
         categoryBudgetRemaining !== undefined ? `Kategori bütçesinde kalan tutar ${categoryBudgetRemaining.toLocaleString("tr-TR")} TL.` : "Bu kategori için bütçe tanımlı değil.",
         currentSavingsGap > 0 ? `Aktif hedeflerin kalan tutarına etkisi yaklaşık %${savingsImpactPercent}.` : undefined
@@ -671,7 +677,7 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
 
   return {
     scenarioId: responseScenarioId,
-    question: input.description ?? `${getCategoryName(resolvedCategoryId)} kategorisinde ${amount.toLocaleString("tr-TR")} TL harcarsam ne olur?`,
+    question: input.description ?? `${getCategoryName(resolvedCategoryId, categoryCatalog)} kategorisinde ${amount.toLocaleString("tr-TR")} TL harcarsam ne olur?`,
     safeLimit,
     emotionalDelayMinutes: categoryRisk >= 65 || amount > safeLimit ? 10 : 0,
     cards: [
@@ -689,7 +695,7 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
     dataConfidenceLevel,
     missingData,
     resolvedCategoryId,
-    resolvedCategoryName: getCategoryName(resolvedCategoryId),
+    resolvedCategoryName: getCategoryName(resolvedCategoryId, categoryCatalog),
     metadata: { ...metadata, missingData, assumptions: [...new Set(metadata.assumptions)] },
     cashflow: {
       currentBalance,
@@ -738,8 +744,9 @@ export function buildAgentEvidence(source: PersonalFinanceData = {}): AgentEvide
   const sourceBudgets = source.budgets ?? [];
   const sourceGoals = source.goals ?? [];
   const sourceTransactions = source.transactions ?? [];
-  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets);
-  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets);
+  const categoryCatalog = source.categories ?? defaultCategories;
+  const dashboard = calculateDashboardSummary(sourceAccounts, sourceTransactions, sourceGoals, sourceActions, sourceBudgets, {}, categoryCatalog);
+  const dna = calculateSpendingDna(sourceTransactions, sourceBudgets, {}, categoryCatalog);
   return [
     { label: `${dashboard.periodLabel} gelir`, value: `${dashboard.income.toLocaleString("tr-TR")} TL`, source: "transaction" },
     { label: `${dashboard.periodLabel} gider`, value: `${dashboard.expenses.toLocaleString("tr-TR")} TL`, source: "transaction" },

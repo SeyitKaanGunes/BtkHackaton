@@ -141,6 +141,26 @@ input {
   max-width: 240px;
 }
 
+.agent-pet,
+.agent-nav-pet {
+  display: inline-block;
+  flex: 0 0 auto;
+  background-image: url("/agent-pet.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  image-rendering: pixelated;
+}
+
+.agent-nav-pet {
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(16, 24, 21, 0.1);
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: 0 5px 12px rgba(16, 24, 21, 0.1);
+}
+
 .agent-fab {
   position: fixed;
   right: 22px;
@@ -160,15 +180,32 @@ input {
   box-shadow: var(--shadow);
   touch-action: none;
   user-select: none;
+  overflow: hidden;
 }
 
 .agent-fab:active {
   cursor: grabbing;
 }
 
-.agent-fab span {
-  font-size: 11px;
-  font-weight: 900;
+.agent-fab-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.agent-pet-fab {
+  position: absolute;
+  inset: 3px;
+  width: auto;
+  height: auto;
+  border-radius: 999px;
+  background-color: transparent;
+  background-position: center;
+  background-size: 96%;
+  filter: drop-shadow(0 8px 12px rgba(16, 24, 21, 0.28));
 }
 
 .agent-modal-backdrop {
@@ -876,11 +913,14 @@ h1 {
 .field {
   display: grid;
   gap: 7px;
+  min-width: 0;
 }
 
 .field input,
 .field select,
 .search-input {
+  width: 100%;
+  box-sizing: border-box;
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -969,6 +1009,32 @@ h1 {
   align-content: start;
 }
 
+.manual-panel-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.salary-profile-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.55fr) minmax(120px, 0.55fr) auto;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.48);
+  padding: 12px;
+}
+
+.mini-form-heading {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .manual-transaction-form {
   display: grid;
   grid-template-columns: minmax(200px, 1.2fr) minmax(140px, 0.7fr) minmax(190px, 0.9fr) minmax(140px, 0.65fr) minmax(120px, 0.55fr);
@@ -1009,6 +1075,28 @@ h1 {
 .manual-transaction-submit {
   width: 100%;
   min-height: 40px;
+}
+
+.custom-category-field {
+  grid-column: span 2;
+}
+
+.inline-toggle {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.46);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 0 12px;
+}
+
+.inline-toggle input {
+  accent-color: var(--accent);
 }
 
 .dashboard-action-card {
@@ -1205,11 +1293,78 @@ h1 {
   padding: 0;
 }
 
+.agent-pet-intro {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 14px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(237, 243, 239, 0.86)),
+    radial-gradient(circle at 8% 12%, rgba(37, 87, 214, 0.14), transparent 12rem);
+}
+
+.agent-pet-intro strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1.08;
+}
+
+.agent-pet-intro p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.agent-pet-hero {
+  --agent-pet-frame-w: 112px;
+  --agent-pet-frame-h: calc(var(--agent-pet-frame-w) * 208 / 192);
+  width: var(--agent-pet-frame-w);
+  height: var(--agent-pet-frame-h);
+  border: 1px solid rgba(16, 24, 21, 0.1);
+  border-radius: 28px;
+  background-color: #fff;
+  background-image: url("/agent-pet-sprite.png");
+  background-position: 0 0;
+  background-size: calc(var(--agent-pet-frame-w) * 6) var(--agent-pet-frame-h);
+  box-shadow: 0 18px 34px rgba(16, 24, 21, 0.12);
+  overflow: hidden;
+  position: relative;
+  animation: moneyCrabSprite 1100ms steps(6) infinite;
+  will-change: background-position;
+}
+
+@keyframes moneyCrabSprite {
+  to {
+    background-position: calc(var(--agent-pet-frame-w) * -6) 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-pet-hero {
+    animation: none;
+  }
+}
+
 .agent-input {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 44px;
   gap: 12px;
   align-items: start;
+}
+
+.agent-pet-input {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background-color: #fff;
+  box-shadow: 0 8px 18px rgba(16, 24, 21, 0.08);
 }
 
 .agent-input textarea {
@@ -1703,6 +1858,7 @@ h1 {
   .split-layout,
   .business-form,
   .business-form.compact,
+  .salary-profile-form,
   .manual-transaction-form,
   .dashboard-action-card,
   .ai-cfo-form,
@@ -1795,6 +1951,14 @@ h1 {
 
   .agent-input {
     grid-template-columns: 1fr;
+  }
+
+  .agent-pet-intro {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-pet-hero {
+    --agent-pet-frame-w: 92px;
   }
 
   .agent-button-stack {
@@ -2273,6 +2437,7 @@ h1 {
 }
 
 .manual-transaction-form,
+.salary-profile-form,
 .business-form,
 .business-form.compact,
 .ai-cfo-form {
@@ -2773,6 +2938,16 @@ h1 {
 
   .health-card.panel {
     display: grid;
+  }
+
+  .salary-profile-form,
+  .manual-transaction-form {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-category-field,
+  .category-picker {
+    grid-column: auto;
   }
 
   .position-row {

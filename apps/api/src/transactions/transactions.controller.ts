@@ -11,25 +11,30 @@ const PAYMENT_METHODS = new Set<Transaction["paymentMethod"]>(["cash", "debit_ca
 const TRANSACTION_TYPES = new Set<Transaction["type"]>(["income", "expense"]);
 const CSV_HEADERS = ["occurredAt", "merchant", "amount", "categoryId", "type", "paymentMethod", "currency", "accountId", "tags", "recurring"];
 
+interface TransactionCreateBody extends Partial<Transaction> {
+  categoryName?: unknown;
+}
+
 @Controller("transactions")
 @UseGuards(JwtAuthGuard)
 export class TransactionsController {
   constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
 
   @Get()
-  list(@CurrentUser() user: AuthUser) {
+  async list(@CurrentUser() user: AuthUser) {
+    await this.store.ensureMonthlySalaryTransactions(user.id);
     return this.store.getPersonalData(user.id).transactions;
   }
 
   @Post()
-  async create(@CurrentUser() user: AuthUser, @Body() body: Partial<Transaction>) {
-    const transaction = this.toTransaction(user.id, body, `tx-${randomUUID()}`);
+  async create(@CurrentUser() user: AuthUser, @Body() body: TransactionCreateBody) {
+    const transaction = await this.toTransaction(user.id, body, `tx-${randomUUID()}`);
     return this.store.addTransaction(transaction);
   }
 
   @Post("import-csv")
   async importCsv(@CurrentUser() user: AuthUser, @Body() body: { csv: string }) {
-    const parsedRows = parseCsv(body.csv).map((row) => this.toTransaction(user.id, row, `tx-csv-${randomUUID()}`));
+    const parsedRows = await Promise.all(parseCsv(body.csv).map((row) => this.toTransaction(user.id, row, `tx-csv-${randomUUID()}`)));
     const rows: Transaction[] = [];
     for (const row of parsedRows) {
       rows.push(await this.store.addTransaction(row));
@@ -37,11 +42,11 @@ export class TransactionsController {
     return { imported: rows.length, rows };
   }
 
-  private toTransaction(userId: string, body: Partial<Transaction>, id: string): Transaction {
+  private async toTransaction(userId: string, body: TransactionCreateBody, id: string): Promise<Transaction> {
     const type = requireTransactionType(body.type);
     const paymentMethod = requirePaymentMethod(body.paymentMethod);
     const currency = requireCurrency(body.currency);
-    const categoryId = this.requireCategory(body.categoryId, type);
+    const categoryId = await this.resolveCategory(body, type);
     return {
       id,
       userId,
@@ -58,14 +63,22 @@ export class TransactionsController {
     };
   }
 
-  private requireCategory(categoryId: unknown, type: Transaction["type"]) {
-    const id = requireText(categoryId, "categoryId");
-    const category = this.store.categories.find((item) => item.id === id);
+  private async resolveCategory(body: TransactionCreateBody, type: Transaction["type"]) {
+    const categoryName = requireOptionalText(body.categoryName, "categoryName");
+    const categoryId = requireOptionalText(body.categoryId, "categoryId");
+    if (!categoryId && categoryName) {
+      const category = await this.store.ensureCategory({ name: categoryName, kind: type });
+      return category.id;
+    }
+    if (!categoryId) {
+      throw new BadRequestException("categoryId veya categoryName zorunlu.");
+    }
+    const category = this.store.categories.find((item) => item.id === categoryId);
     if (!category) {
-      throw new BadRequestException(`categoryId geçersiz: ${id}`);
+      throw new BadRequestException(`categoryId geçersiz: ${categoryId}`);
     }
     if (category.kind !== type) {
-      throw new BadRequestException(`categoryId ${id} ${type} işlemiyle uyumlu değil.`);
+      throw new BadRequestException(`categoryId ${categoryId} ${type} işlemiyle uyumlu değil.`);
     }
     return category.id;
   }

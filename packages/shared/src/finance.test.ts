@@ -7,7 +7,7 @@ import {
   detectSubscriptionLeakage
 } from "./finance.js";
 import { accounts, actions, budgets, businessCustomers, goals, subscriptions, transactions } from "./demo-data.js";
-import type { Account, Budget, Goal, Transaction } from "./types.js";
+import type { Account, Budget, Category, Goal, Transaction } from "./types.js";
 
 describe("Fintwin finance engines", () => {
   it("calculates a personal dashboard with a health score", () => {
@@ -41,6 +41,16 @@ describe("Fintwin finance engines", () => {
     const dna = calculateSpendingDna(transactions, budgets);
     expect(dna.categories[0]?.riskScore).toBeGreaterThan(0);
     expect(dna.patterns.length).toBeGreaterThan(0);
+  });
+
+  it("includes user-created categories in dashboard and Spending DNA calculations", () => {
+    const customCategories: Category[] = [{ id: "cat-custom-expense-spor", name: "Spor", kind: "expense", color: "#0d9488" }];
+    const customTransactions = [expense("tx-sport", "cat-custom-expense-spor", 800, "2026-05-10")];
+    const dashboard = calculateDashboardSummary([], customTransactions, [], [], [], { referenceDate: "2026-05-10" }, customCategories);
+    const dna = calculateSpendingDna(customTransactions, [], { referenceDate: "2026-05-10" }, customCategories);
+
+    expect(dashboard.categoryBreakdown).toEqual([{ categoryId: "cat-custom-expense-spor", name: "Spor", value: 800, color: "#0d9488" }]);
+    expect(dna.categories[0]?.categoryName).toBe("Spor");
   });
 
   it("calculates Spending DNA time scores in the user's local timezone", () => {

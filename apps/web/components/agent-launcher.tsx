@@ -1,8 +1,7 @@
 "use client";
 
 import { PointerEvent, useRef, useState } from "react";
-import { Bot, X } from "lucide-react";
-import { AgentConsole } from "./agent-console";
+import { useRouter } from "next/navigation";
 
 const bubbleSize = 64;
 const edgePadding = 16;
@@ -17,7 +16,7 @@ type DragState = {
 };
 
 export function AgentLauncher() {
-  const [open, setOpen] = useState(false);
+  const router = useRouter();
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const dragRef = useRef<DragState | null>(null);
 
@@ -58,7 +57,7 @@ export function AgentLauncher() {
   function onPointerUp(event: PointerEvent<HTMLButtonElement>) {
     const drag = dragRef.current;
     dragRef.current = null;
-    if (drag && !drag.moved) setOpen(true);
+    if (drag && !drag.moved) router.push("/agent");
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -77,28 +76,12 @@ export function AgentLauncher() {
         onPointerCancel={() => {
           dragRef.current = null;
         }}
-        aria-label="Finansal ikiz panelini aç"
+        aria-label="Agent sayfasına git"
         type="button"
       >
-        <Bot size={22} />
-        <span>İkiz</span>
+        <span className="agent-pet agent-pet-fab" aria-hidden="true" />
+        <span className="agent-fab-label">İkiz</span>
       </button>
-      {open ? (
-        <div className="agent-modal-backdrop" role="dialog" aria-modal="true" aria-label="Finansal ikiz agent">
-          <div className="agent-modal-sheet">
-            <div className="agent-modal-header">
-              <div>
-                <span className="eyebrow">Finansal ikiz</span>
-                <strong>Agent paneli</strong>
-              </div>
-              <button className="ghost-icon" type="button" onClick={() => setOpen(false)} aria-label="Agent panelini kapat">
-                <X size={16} />
-              </button>
-            </div>
-            <AgentConsole compact />
-          </div>
-        </div>
-      ) : null}
     </>
   );
 }

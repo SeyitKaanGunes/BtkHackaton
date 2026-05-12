@@ -7,6 +7,8 @@ import {
   type ActionItem,
   type BusinessCashEvent,
   type BusinessCustomer,
+  type Category,
+  type Currency,
   type InvestmentHolding,
   type Transaction
 } from "@fintwin/shared";
@@ -30,6 +32,7 @@ import { ActionsController } from "../src/actions/actions.controller.js";
 import { AuthService } from "../src/auth/auth.service.js";
 import type { GoogleOAuthService } from "../src/auth/google-oauth.service.js";
 import { BusinessController } from "../src/business/business.controller.js";
+import { CategoriesController } from "../src/categories/categories.controller.js";
 import { DataStoreService } from "../src/data/data-store.service.js";
 import { DocumentsService } from "../src/documents/documents.service.js";
 import { PdfExtractorService } from "../src/documents/pdf-extractor.service.js";
@@ -42,6 +45,7 @@ import { TwelveDataService } from "../src/investments/twelve-data.service.js";
 import { NotificationsController } from "../src/notifications/notifications.controller.js";
 import { SimulationsController } from "../src/simulations/simulations.controller.js";
 import { TransactionsController } from "../src/transactions/transactions.controller.js";
+import { isSalaryDueForMonth, salaryDueDateForMonth, salaryMonthRange, salaryTransactionId } from "../src/transactions/salary-scheduler.js";
 
 type TestUser = typeof demoUser & { passwordHash: string; googleSubject?: string };
 
@@ -113,17 +117,17 @@ describe("API feature services", () => {
     expect(store.users.find((user) => user.email === "google.user@example.com")?.googleSubject).toBe("google-subject-1");
   });
 
-  it("rejects invalid agent and what-if request bodies before defaulting", () => {
+  it("rejects invalid agent and what-if request bodies before defaulting", async () => {
     const store = createTestStore();
     const agentController = new AgentController(new AgentService(store, new QwenService()));
     const simulationsController = new SimulationsController(store);
 
     expect(() => agentController.chat(authUser, { message: "   " })).toThrow("message is required");
-    expect(() => simulationsController.whatIf(authUser, { amount: "abc" })).toThrow("amount must be a positive number");
-    expect(() => simulationsController.whatIf(authUser, { amount: -1 })).toThrow("amount must be a positive number");
-    expect(() => simulationsController.whatIf(authUser, { decisionDate: "2026-02-30" })).toThrow("decisionDate must be a valid date");
+    await expect(simulationsController.whatIf(authUser, { amount: "abc" })).rejects.toThrow("amount must be a positive number");
+    await expect(simulationsController.whatIf(authUser, { amount: -1 })).rejects.toThrow("amount must be a positive number");
+    await expect(simulationsController.whatIf(authUser, { decisionDate: "2026-02-30" })).rejects.toThrow("decisionDate must be a valid date");
 
-    const result = simulationsController.whatIf(authUser, { amount: 1000, categoryId: "cat-tech", description: "Telefon alırsam ne olur?" });
+    const result = await simulationsController.whatIf(authUser, { amount: 1000, categoryId: "cat-tech", description: "Telefon alırsam ne olur?" });
     expect(result.cards.length).toBeGreaterThan(0);
     expect(result.scenarioId).toBeTruthy();
     expect(new Set(result.cards.map((card) => card.scenarioId)).size).toBe(3);
@@ -253,6 +257,49 @@ describe("API feature services", () => {
     expect(result.rows[0]?.occurredAt).toBe("2026-05-10T12:00:00.000Z");
     expect(result.rows[0]?.tags).toEqual(["manual", "csv"]);
     expect(store.accounts.find((account) => account.id === "acc-main")?.balance).toBe((initialBalance ?? 0) - 100.5);
+  });
+
+  it("creates custom categories for manual transactions and exposes them from the category API", async () => {
+    const store = createTestStore();
+    const transactionsController = new TransactionsController(store);
+    const categoriesController = new CategoriesController(store);
+    const result = await transactionsController.create(authUser, {
+      merchant: "Spor salonu",
+      amount: 750,
+      categoryName: "Spor",
+      type: "expense",
+      currency: "TRY",
+      paymentMethod: "debit_card",
+      occurredAt: "2026-05-11",
+      recurring: true
+    });
+
+    expect(result.categoryId).toBe("cat-custom-expense-spor");
+    expect(result.recurring).toBe(true);
+    expect(categoriesController.list("expense").some((category) => category.id === result.categoryId && category.name === "Spor")).toBe(true);
+  });
+
+  it("updates salary profile and schedules deterministic monthly salary IDs", async () => {
+    const store = createTestStore();
+    const google = { isConfigured: () => false, verifyIdToken: vi.fn() } as unknown as GoogleOAuthService;
+    const auth = new AuthService(store, new JwtService({ secret: "test-secret" }), google);
+
+    const updated = await auth.updateFinanceProfile(authUser.id, {
+      monthlyIncome: 45000,
+      payday: 5,
+      currency: "TRY"
+    });
+
+    expect(updated.monthlyIncome).toBe(45000);
+    expect(updated.payday).toBe(5);
+    expect(store.transactions.some((transaction) => transaction.id === salaryTransactionId(authUser.id, "2026-05"))).toBe(true);
+  });
+
+  it("calculates salary due dates deterministically across month lengths", () => {
+    expect(salaryDueDateForMonth("2026-02", 31).toISOString()).toBe("2026-02-28T09:00:00.000Z");
+    expect(isSalaryDueForMonth("2026-05", 12, "2026-05-11T23:00:00.000Z")).toBe(false);
+    expect(isSalaryDueForMonth("2026-05", 12, "2026-05-12T09:00:00.000Z")).toBe(true);
+    expect(salaryMonthRange("2026-05", "2026-07")).toEqual(["2026-05", "2026-06", "2026-07"]);
   });
 
   it("rejects statement previews with a clear error when Qwen is not configured", async () => {
@@ -448,6 +495,9 @@ function createTestStore(): DataStoreService {
     getDemoUser() {
       return this.users[0]!;
     },
+    async findUserById(id: string) {
+      return this.users.find((user) => user.id === id);
+    },
     async findUserByEmail(email: string) {
       return this.users.find((user) => user.email.toLowerCase() === email.toLowerCase());
     },
@@ -468,6 +518,53 @@ function createTestStore(): DataStoreService {
         { id: `acc-save-${user.id}`, userId: user.id, name: "Birikim", type: "savings", balance: 0, currency: user.currency }
       );
       return user;
+    },
+    async updateUserFinanceProfile(userId: string, input: { monthlyIncome?: number; payday?: number; currency?: Currency }) {
+      const existing = this.users.find((user) => user.id === userId);
+      if (!existing) throw new Error("User not found");
+      Object.assign(existing, input);
+      return existing;
+    },
+    getCategories(kind?: Transaction["type"]) {
+      return (kind ? this.categories.filter((category) => category.kind === kind) : this.categories).sort((left, right) => left.name.localeCompare(right.name, "tr-TR"));
+    },
+    async ensureCategory(input: { name: string; kind: Transaction["type"]; color?: string }) {
+      const normalized = input.name.trim().toLocaleLowerCase("tr-TR");
+      const existing = this.categories.find((category) => category.kind === input.kind && category.name.toLocaleLowerCase("tr-TR") === normalized);
+      if (existing) return existing;
+      const created: Category = {
+        id: `cat-custom-${input.kind}-${normalized.replace(/[^a-z0-9çğıöşü]+/gi, "-").replace(/^-+|-+$/g, "").replace("ı", "i")}`,
+        name: input.name.trim(),
+        kind: input.kind,
+        color: input.color ?? "#0d9488"
+      };
+      this.categories.unshift(created);
+      return created;
+    },
+    async ensureMonthlySalaryTransactions(userId: string) {
+      const user = this.users.find((item) => item.id === userId);
+      if (!user || user.monthlyIncome <= 0) return [];
+      const monthKey = "2026-05";
+      if (!isSalaryDueForMonth(monthKey, user.payday, "2026-05-12T12:00:00.000Z")) return [];
+      const salaryId = salaryTransactionId(userId, monthKey);
+      if (this.transactions.some((transaction) => transaction.id === salaryId)) return [];
+      const category = await this.ensureCategory({ name: "Maaş", kind: "income", color: "#16a34a" });
+      const transaction: Transaction = {
+        id: salaryId,
+        userId,
+        accountId: this.accountIdFor(userId, "transfer"),
+        categoryId: category.id,
+        merchant: "Maaş",
+        amount: user.monthlyIncome,
+        currency: user.currency,
+        type: "income",
+        occurredAt: salaryDueDateForMonth(monthKey, user.payday).toISOString(),
+        paymentMethod: "transfer",
+        tags: ["auto_salary", "salary"],
+        recurring: true
+      };
+      await this.addTransaction(transaction);
+      return [transaction];
     },
     getBusinessesForUser(userId: string) {
       return this.businesses.filter((item) => item.ownerUserId === userId);

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, Modal, PanResponder, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Animated, Dimensions, Image, Modal, PanResponder, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   AlertTriangle,
-  Bot,
   BriefcaseBusiness,
   Building2,
   CalendarPlus,
@@ -28,6 +27,7 @@ import type {
   Business,
   BusinessCustomer,
   BusinessDashboard,
+  Category,
   CollectionScore,
   Currency,
   DashboardPeriod,
@@ -50,12 +50,14 @@ import {
   getBiometricAuthLabel,
   hasAuthToken,
   loadBusiness,
+  loadCategories,
   loadMobileHome,
   loadStoredAuthToken,
   login,
   persistAuthToken,
   register,
   simulateBusinessDecision,
+  updateFinanceProfile,
   type AuthUserProfile
 } from "./src/api";
 import { AgentScreen } from "./src/screens/AgentScreen";
@@ -66,6 +68,8 @@ import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, Metric
 type Tab = "home" | "portfolio" | "scan" | "agent" | "business";
 type HomeData = Awaited<ReturnType<typeof loadMobileHome>>;
 type BusinessData = NonNullable<Awaited<ReturnType<typeof loadBusiness>>>;
+
+const agentPet = require("./src/assets/agent-pet.png");
 
 const dashboardPeriods: Array<{ value: DashboardPeriod; label: string }> = [
   { value: "daily", label: "Günlük" },
@@ -79,17 +83,17 @@ const periodNetCaptions: Record<DashboardPeriod, string> = {
   monthly: "aylık net durum",
   yearly: "yıllık net durum"
 };
-const expenseTransactionCategories = [
-  { id: "cat-market", label: "Market" },
-  { id: "cat-food", label: "Yemek" },
-  { id: "cat-transport", label: "Ulaşım" },
-  { id: "cat-tech", label: "Teknoloji" },
-  { id: "cat-clothes", label: "Giyim" },
-  { id: "cat-subscription", label: "Abonelik" },
-  { id: "cat-rent", label: "Kira" },
-  { id: "cat-other", label: "Diğer" }
+const fallbackTransactionCategories: Category[] = [
+  { id: "cat-salary", name: "Maaş", kind: "income", color: "#16a34a" },
+  { id: "cat-market", name: "Market", kind: "expense", color: "#f59e0b" },
+  { id: "cat-food", name: "Yemek", kind: "expense", color: "#ef4444" },
+  { id: "cat-transport", name: "Ulaşım", kind: "expense", color: "#0891b2" },
+  { id: "cat-tech", name: "Teknoloji", kind: "expense", color: "#4f46e5" },
+  { id: "cat-clothes", name: "Giyim", kind: "expense", color: "#db2777" },
+  { id: "cat-subscription", name: "Abonelik", kind: "expense", color: "#7c3aed" },
+  { id: "cat-rent", name: "Kira", kind: "expense", color: "#64748b" },
+  { id: "cat-other", name: "Diğer", kind: "expense", color: "#71717a" }
 ];
-const incomeTransactionCategories = [{ id: "cat-salary", label: "Maaş" }];
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(() => hasAuthToken());
@@ -183,7 +187,7 @@ export default function App() {
           label="Agent"
           active={tab === "agent"}
           onPress={() => setTab("agent")}
-          icon={<Bot size={20} color={tab === "agent" ? palette.secondary : palette.darkMuted} />}
+          icon={<Image source={agentPet} resizeMode="contain" style={[localStyles.agentTabPet, tab === "agent" && localStyles.agentTabPetActive]} />}
         />
         <BottomTabButton
           label="KOBİ"
@@ -398,7 +402,7 @@ function DraggableAgentBubble({ onOpen }: { onOpen: () => void }) {
   return (
     <Animated.View style={[localStyles.agentBubble, { transform: position.getTranslateTransform() }]} {...panResponder.panHandlers}>
       <View style={localStyles.agentBubbleInner}>
-        <Bot size={28} color={palette.surface} />
+        <Image source={agentPet} resizeMode="contain" style={localStyles.agentBubblePet} />
         <Text style={localStyles.agentBubbleLabel}>İkiz</Text>
       </View>
     </Animated.View>
@@ -516,7 +520,7 @@ function HomeScreen({
       <SpendingDnaCard dna={dna} periodLabel={dashboard.periodLabel} />
       <CategoryRiskList dna={dna} periodLabel={dashboard.periodLabel} />
       <GoalsSection goals={dashboard.goals} />
-      <ManualTransactionPanel onChanged={onRefresh} />
+      <ManualTransactionPanel user={user} onChanged={onRefresh} />
       <ActionCenter actions={dashboard.upcomingActions} onChanged={onRefresh} />
       <WhatIfPreview simulation={simulation} />
       <SubscriptionHunter leaks={leaks} />
@@ -845,16 +849,29 @@ function ActionCard({ action, onChanged }: { action: ActionItem; onChanged: () =
   );
 }
 
-function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
+function ManualTransactionPanel({ user, onChanged }: { user: AuthUserProfile; onChanged: () => void }) {
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<TransactionType>("expense");
   const [categoryId, setCategoryId] = useState("cat-other");
+  const [newCategoryName, setNewCategoryName] = useState("");
   const [currency, setCurrency] = useState<Currency>("TRY");
   const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [recurring, setRecurring] = useState(false);
+  const [categories, setCategories] = useState<Category[]>(fallbackTransactionCategories);
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const categoryOptions = type === "income" ? incomeTransactionCategories : expenseTransactionCategories;
+  const [salaryAmount, setSalaryAmount] = useState(user.monthlyIncome > 0 ? String(user.monthlyIncome) : "");
+  const [payday, setPayday] = useState(String(user.payday));
+  const [salaryPending, setSalaryPending] = useState(false);
+  const [salaryStatus, setSalaryStatus] = useState<string | null>(null);
+  const categoryOptions = useMemo(() => categories.filter((category) => category.kind === type), [categories, type]);
+
+  useEffect(() => {
+    void loadCategories()
+      .then((items) => setCategories(items.length ? items : fallbackTransactionCategories))
+      .catch(() => setCategories(fallbackTransactionCategories));
+  }, []);
 
   useEffect(() => {
     if (!categoryOptions.some((option) => option.id === categoryId)) {
@@ -862,10 +879,35 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
     }
   }, [categoryId, categoryOptions]);
 
+  async function saveSalary() {
+    const parsedSalary = parseDecimalInput(salaryAmount);
+    const parsedPayday = Number(payday);
+    if (parsedSalary === undefined || parsedSalary < 0 || !Number.isInteger(parsedPayday) || parsedPayday < 1 || parsedPayday > 31) {
+      setSalaryStatus("Maaş sıfır veya pozitif, gün 1-31 arasında olmalı.");
+      return;
+    }
+    setSalaryPending(true);
+    setSalaryStatus(null);
+    try {
+      await updateFinanceProfile({
+        monthlyIncome: parsedSalary,
+        payday: parsedPayday,
+        currency
+      });
+      setSalaryStatus("Maaş planı kaydedildi.");
+      onChanged();
+    } catch (error) {
+      setSalaryStatus(error instanceof Error ? error.message : "Maaş planı kaydedilemedi.");
+    } finally {
+      setSalaryPending(false);
+    }
+  }
+
   async function addManual() {
     const parsedAmount = parseDecimalInput(amount);
-    if (!merchant.trim() || parsedAmount === undefined || parsedAmount <= 0) {
-      setStatus("Satıcı ve geçerli pozitif tutar gerekli.");
+    const customCategory = newCategoryName.trim();
+    if (!merchant.trim() || parsedAmount === undefined || parsedAmount <= 0 || (!categoryId && !customCategory)) {
+      setStatus("Açıklama, kategori ve geçerli pozitif tutar gerekli.");
       return;
     }
     setPending(true);
@@ -875,14 +917,21 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
         merchant: merchant.trim(),
         amount: parsedAmount,
         type,
-        categoryId,
+        categoryId: customCategory ? undefined : categoryId,
+        categoryName: customCategory || undefined,
         currency,
         occurredAt: `${occurredAt}T12:00:00.000Z`,
-        paymentMethod: type === "income" ? "transfer" : "debit_card"
+        paymentMethod: type === "income" ? "transfer" : "debit_card",
+        recurring
       });
       setMerchant("");
       setAmount("");
+      setNewCategoryName("");
+      setRecurring(false);
       setStatus("İşlem eklendi.");
+      if (customCategory) {
+        void loadCategories().then((items) => setCategories(items.length ? items : fallbackTransactionCategories));
+      }
       onChanged();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "İşlem eklenemedi.");
@@ -893,7 +942,16 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
 
   return (
     <Panel>
-      <SectionTitle title="Manuel İşlem" meta="gelir/gider" />
+      <SectionTitle title="Gelir ve Gider Akışı" meta="maaş/manuel" />
+      <View style={localStyles.salaryBox}>
+        <Text style={localStyles.cardTitle}>Aylık maaş</Text>
+        <View style={localStyles.formGrid}>
+          <TextInput value={salaryAmount} onChangeText={setSalaryAmount} placeholder="Maaş tutarı" placeholderTextColor={palette.muted} keyboardType="decimal-pad" style={[localStyles.authInput, localStyles.formInput]} />
+          <TextInput value={payday} onChangeText={setPayday} placeholder="Her ay günü" placeholderTextColor={palette.muted} keyboardType="number-pad" style={[localStyles.authInput, localStyles.formInput]} />
+        </View>
+        <Button label={salaryPending ? "Kaydediliyor" : "Maaşı kaydet"} onPress={() => void saveSalary()} disabled={salaryPending} icon={<CalendarPlus size={15} color={palette.surface} />} />
+        {salaryStatus ? <Text style={salaryStatus.includes("kaydedildi") ? localStyles.formSuccess : localStyles.authError}>{salaryStatus}</Text> : null}
+      </View>
       <View style={localStyles.formGrid}>
         <TextInput value={merchant} onChangeText={setMerchant} placeholder="Satıcı veya açıklama" placeholderTextColor={palette.muted} style={[localStyles.authInput, localStyles.formInput]} />
         <TextInput value={amount} onChangeText={setAmount} placeholder="Tutar" placeholderTextColor={palette.muted} keyboardType="decimal-pad" style={[localStyles.authInput, localStyles.formInput]} />
@@ -917,11 +975,15 @@ function ManualTransactionPanel({ onChanged }: { onChanged: () => void }) {
       </View>
       <View style={localStyles.segmentedWrap}>
         {categoryOptions.map((item) => (
-          <Pressable key={item.id} onPress={() => setCategoryId(item.id)} style={[localStyles.segmentButton, localStyles.segmentWrapButton, categoryId === item.id && localStyles.segmentButtonActive]}>
-            <Text style={[localStyles.segmentButtonText, categoryId === item.id && localStyles.segmentButtonTextActive]}>{item.label}</Text>
+          <Pressable key={item.id} onPress={() => setCategoryId(item.id)} style={[localStyles.segmentButton, localStyles.segmentWrapButton, categoryId === item.id && !newCategoryName.trim() && localStyles.segmentButtonActive]}>
+            <Text style={[localStyles.segmentButtonText, categoryId === item.id && !newCategoryName.trim() && localStyles.segmentButtonTextActive]}>{item.name}</Text>
           </Pressable>
         ))}
       </View>
+      <TextInput value={newCategoryName} onChangeText={setNewCategoryName} placeholder="Yeni kategori yaz (isteğe bağlı)" placeholderTextColor={palette.muted} style={localStyles.authInput} />
+      <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: recurring }} onPress={() => setRecurring((current) => !current)} style={[localStyles.recurringToggle, recurring && localStyles.recurringToggleActive]}>
+        <Text style={[localStyles.segmentButtonText, recurring && localStyles.segmentButtonTextActive]}>Tekrar eden işlem</Text>
+      </Pressable>
       <Button label={pending ? "Ekleniyor" : "İşlem ekle"} onPress={() => void addManual()} disabled={pending} icon={<Plus size={15} color={palette.surface} />} />
       {status ? <Text style={status.includes("gerekli") || status.includes("zorunlu") || status.includes("olmalı") || status.includes("edilemedi") ? localStyles.authError : localStyles.formSuccess}>{status}</Text> : null}
     </Panel>
@@ -1597,6 +1659,26 @@ const localStyles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: "700"
   },
+  salaryBox: {
+    gap: 10,
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.54)",
+    padding: 12
+  },
+  agentTabPet: {
+    width: 24,
+    height: 24,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    backgroundColor: "rgba(255,255,255,0.16)"
+  },
+  agentTabPetActive: {
+    borderColor: "rgba(13,121,102,0.18)",
+    backgroundColor: palette.surface
+  },
   agentBubble: {
     position: "absolute",
     left: 0,
@@ -1614,17 +1696,24 @@ const localStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 2,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.24,
     shadowRadius: 20,
     shadowOffset: { height: 12, width: 0 },
     elevation: 18
   },
+  agentBubblePet: {
+    position: "absolute",
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: "transparent"
+  },
   agentBubbleLabel: {
-    color: palette.surface,
-    fontFamily: typefaces.body,
-    fontSize: 10,
-    fontWeight: "800"
+    opacity: 0,
+    width: 1,
+    height: 1
   },
   agentModalBackdrop: {
     flex: 1,
@@ -1962,6 +2051,20 @@ const localStyles = StyleSheet.create({
   },
   segmentButtonTextActive: {
     color: palette.surface
+  },
+  recurringToggle: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderColor: "rgba(16,24,21,0.08)",
+    borderWidth: 1,
+    borderRadius: 18,
+    backgroundColor: "rgba(16,24,21,0.04)",
+    paddingHorizontal: 12
+  },
+  recurringToggleActive: {
+    backgroundColor: palette.secondary,
+    borderColor: palette.secondary
   },
   flexButton: {
     flexGrow: 1,

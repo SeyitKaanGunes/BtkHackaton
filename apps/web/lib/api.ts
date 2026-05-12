@@ -9,6 +9,7 @@ import type {
   BusinessCustomer,
   BusinessCustomerCreateRequest,
   BusinessDashboard,
+  Category,
   CollectionScore,
   Currency,
   DashboardPeriod,
@@ -197,6 +198,22 @@ export function loginWithGoogle(input: { idToken: string; nonce?: string }) {
 
 export function getCurrentUser(options?: AuthOptions) {
   return request<AuthUserProfile>("/auth/me", undefined, options);
+}
+
+export function updateFinanceProfile(input: Partial<Pick<AuthUserProfile, "monthlyIncome" | "payday" | "currency">>, options?: AuthOptions) {
+  return request<AuthUserProfile>(
+    "/auth/me",
+    {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
+export function getCategories(options?: AuthOptions & { kind?: TransactionType }) {
+  const query = options?.kind ? `?kind=${encodeURIComponent(options.kind)}` : "";
+  return request<Category[]>(`/categories${query}`, undefined, options);
 }
 
 export function getPersonalDashboard(options?: DashboardRequestOptions) {
@@ -441,9 +458,11 @@ export function createTransaction(
     amount: number;
     type: TransactionType;
     currency: Currency;
-    categoryId: string;
+    categoryId?: string;
+    categoryName?: string;
     occurredAt: string;
     paymentMethod: Transaction["paymentMethod"];
+    recurring?: boolean;
   },
   options?: AuthOptions
 ): Promise<Transaction> {

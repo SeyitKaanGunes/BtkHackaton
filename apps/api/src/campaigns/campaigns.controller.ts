@@ -11,8 +11,9 @@ export class CampaignsController {
   constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
 
   @Get("readiness")
-  readiness(@CurrentUser() user: AuthUser, @Query() query: DashboardPeriodOptions) {
+  async readiness(@CurrentUser() user: AuthUser, @Query() query: DashboardPeriodOptions) {
+    await this.store.ensureMonthlySalaryTransactions(user.id);
     const data = this.store.getPersonalData(user.id);
-    return calculateCampaignReadiness(data.transactions, data.budgets, query);
+    return calculateCampaignReadiness(data.transactions, data.budgets, query, data.categories);
   }
 }

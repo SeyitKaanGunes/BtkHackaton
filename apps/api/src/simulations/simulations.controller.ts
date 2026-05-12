@@ -11,13 +11,15 @@ export class SimulationsController {
   constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
 
   @Post("what-if")
-  whatIf(@CurrentUser() user: AuthUser, @Body() body: unknown) {
+  async whatIf(@CurrentUser() user: AuthUser, @Body() body: unknown) {
     const input = normalizeWhatIfRequest(body);
+    await this.store.ensureMonthlySalaryTransactions(user.id);
     const data = this.store.getPersonalData(user.id);
     return buildWhatIfScenarios(input, {
       accounts: data.accounts,
       actions: data.actions,
       budgets: data.budgets,
+      categories: data.categories,
       goals: data.goals,
       subscriptions: data.subscriptions,
       user: data.user,

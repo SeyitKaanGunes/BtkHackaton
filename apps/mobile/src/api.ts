@@ -9,6 +9,7 @@ import type {
   BusinessCustomer,
   BusinessCustomerCreateRequest,
   BusinessDashboard,
+  Category,
   CollectionScore,
   Currency,
   DashboardPeriod,
@@ -241,6 +242,18 @@ export function getCurrentUser() {
   return request<AuthUserProfile>("/auth/me");
 }
 
+export function updateFinanceProfile(input: Partial<Pick<AuthUserProfile, "monthlyIncome" | "payday" | "currency">>) {
+  return request<AuthUserProfile>("/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify(input)
+  });
+}
+
+export function loadCategories(kind?: TransactionType): Promise<Category[]> {
+  const query = kind ? `?kind=${encodeURIComponent(kind)}` : "";
+  return request<Category[]>(`/categories${query}`);
+}
+
 function periodQuery(options: MobileHomeOptions = {}) {
   const params = new URLSearchParams();
   if (options.period) params.set("period", options.period);
@@ -350,9 +363,11 @@ export function createTransaction(input: {
   amount: number;
   type: TransactionType;
   currency: Currency;
-  categoryId: string;
+  categoryId?: string;
+  categoryName?: string;
   occurredAt: string;
   paymentMethod: Transaction["paymentMethod"];
+  recurring?: boolean;
 }): Promise<Transaction> {
   return request<Transaction>("/transactions", { method: "POST", body: JSON.stringify(input) });
 }

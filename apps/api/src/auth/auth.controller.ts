@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
-import { IsEmail, IsJWT, IsOptional, IsString, MinLength } from "class-validator";
+import { Body, Controller, Get, Inject, Patch, Post, UseGuards } from "@nestjs/common";
+import { IsEmail, IsJWT, IsNumber, IsOptional, IsString, Max, Min, MinLength } from "class-validator";
 import type { AuthUser } from "./auth-user.js";
 import { AuthService } from "./auth.service.js";
 import { CurrentUser } from "./current-user.decorator.js";
@@ -34,6 +34,23 @@ class GoogleLoginDto {
   nonce?: string;
 }
 
+class UpdateFinanceProfileDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  monthlyIncome?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(31)
+  payday?: number;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+}
+
 @Controller("auth")
 export class AuthController {
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}
@@ -57,5 +74,11 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async me(@CurrentUser() user: AuthUser) {
     return this.auth.me(user.id);
+  }
+
+  @Patch("me")
+  @UseGuards(JwtAuthGuard)
+  async updateMe(@CurrentUser() user: AuthUser, @Body() body: UpdateFinanceProfileDto) {
+    return this.auth.updateFinanceProfile(user.id, body);
   }
 }

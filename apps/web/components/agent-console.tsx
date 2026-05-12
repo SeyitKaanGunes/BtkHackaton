@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Check, CheckCircle2, Mic, Send, Sparkles, Volume2, X } from "lucide-react";
+import { Check, CheckCircle2, Mic, Send, Sparkles, Volume2, X } from "lucide-react";
 import type { ActionItem, AgentResponse } from "@fintwin/shared";
 import { approveAction, dismissAction, postAgentMessage, synthesizeSpeech, transcribeSpeech } from "../lib/api";
 
@@ -145,8 +145,19 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
 
   return (
     <div className={compact ? "agent-console compact-agent-console" : "agent-console"}>
+      {!compact ? (
+        <div className="agent-pet-intro">
+          <span className="agent-pet agent-pet-hero" aria-hidden="true" />
+          <div>
+            <span className="eyebrow">Money Crab</span>
+            <strong>Finansal ikizin hazır.</strong>
+            <p>Harcamayı, portföyü veya karar simülasyonunu sor; agent deterministik finans verisini okuyup cevaplar.</p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="agent-input">
-        <Bot size={20} />
+        <span className="agent-pet agent-pet-input" aria-hidden="true" />
         <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Finansal ikizine bir karar, harcama veya portföy sorusu sor." />
         <div className="agent-button-stack">
           <button className="icon-button" onClick={() => void sendText()} disabled={loading || voiceBusy} title="Agent'a gönder" type="button">

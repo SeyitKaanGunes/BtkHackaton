@@ -113,7 +113,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         />
       </section>
 
-      <ManualTransactionPanel />
+      <ManualTransactionPanel initialUser={user} />
     </AppShell>
   );
 }

@@ -13,6 +13,7 @@ import { GoogleOAuthService } from "./auth/google-oauth.service.js";
 import { JwtAuthGuard } from "./auth/jwt-auth.guard.js";
 import { BusinessController } from "./business/business.controller.js";
 import { CampaignsController } from "./campaigns/campaigns.controller.js";
+import { CategoriesController } from "./categories/categories.controller.js";
 import { getJwtSecret, validateApiEnvironment } from "./config/env.js";
 import { DataStoreService } from "./data/data-store.service.js";
 import { DashboardController } from "./dashboard/dashboard.controller.js";
@@ -56,6 +57,7 @@ import { TransactionsController } from "./transactions/transactions.controller.j
     AuthController,
     BusinessController,
     CampaignsController,
+    CategoriesController,
     DashboardController,
     DocumentsController,
     InvestmentsController,

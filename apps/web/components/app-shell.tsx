@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, Bot, Brain, Building2, Clock3, LayoutDashboard, ListChecks, Repeat2, ShieldCheck, TrendingUp, WandSparkles } from "lucide-react";
+import { BarChart3, Brain, Building2, Clock3, LayoutDashboard, ListChecks, Repeat2, ShieldCheck, TrendingUp, WandSparkles } from "lucide-react";
 import { AgentLauncher } from "./agent-launcher";
 import { LogoutButton } from "./logout-button";
 
@@ -12,7 +12,6 @@ const nav = [
   { href: "/actions", label: "Aksiyon Merkezi", icon: ListChecks },
   { href: "/subscriptions", label: "Abonelik Avcısı", icon: Repeat2 },
   { href: "/portfolio", label: "Portföy", icon: TrendingUp },
-  { href: "/agent", label: "Agent", icon: Bot },
   { href: "/business", label: "KOBİ", icon: Building2 }
 ];
 
