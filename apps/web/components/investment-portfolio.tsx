@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import type { Currency, InvestmentAssetType, InvestmentPortfolioSummary, MarketSymbolResult } from "@fintwin/shared";
 import { addInvestmentHolding, deleteInvestmentHolding, searchMarketSymbols } from "../lib/api";
-import { StatementUploader } from "./statement-uploader";
 
 const assetTypes: Array<{ value: InvestmentAssetType; label: string }> = [
   { value: "stock", label: "Hisse" },
@@ -293,7 +292,6 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
           {message ? <p className="form-message">{message}</p> : null}
         </div>
 
-        <StatementUploader />
       </div>
     </section>
   );

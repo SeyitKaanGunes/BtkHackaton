@@ -1436,7 +1436,6 @@ h1 {
   text-align: center;
   gap: 8px;
   padding: 24px;
-  cursor: pointer;
 }
 
 .upload-zone input {
@@ -1446,6 +1445,18 @@ h1 {
 .upload-zone span {
   color: var(--muted);
   max-width: 520px;
+}
+
+.upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.upload-actions .secondary-button {
+  width: auto;
 }
 
 .facts {
@@ -2399,6 +2410,29 @@ h1 {
   align-content: start;
 }
 
+.panel-copy {
+  margin: 0;
+  max-width: 720px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.category-ingest-panel {
+  gap: 16px;
+}
+
+.category-ingest-panel .receipt-grid {
+  max-width: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.category-ingest-panel .receipt-result,
+.category-ingest-panel .statement-preview,
+.category-ingest-panel .statement-error,
+.category-ingest-panel .form-message {
+  grid-column: 1 / -1;
+}
+
 .scenario-list.detailed {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -2721,7 +2755,8 @@ h1 {
   .insight-grid.four,
   .scenario-list.detailed,
   .cashflow-grid,
-  .cashflow-grid.compact {
+  .cashflow-grid.compact,
+  .category-ingest-panel .receipt-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2766,7 +2801,8 @@ h1 {
   .insight-grid.four,
   .scenario-list.detailed,
   .cashflow-grid,
-  .cashflow-grid.compact {
+  .cashflow-grid.compact,
+  .category-ingest-panel .receipt-grid {
     grid-template-columns: 1fr;
   }
 

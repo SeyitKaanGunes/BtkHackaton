@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, RotateCcw, Upload } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle2, FileUp, RotateCcw, Upload } from "lucide-react";
 import { statementErrorMessage, type StatementConfirmResult, type StatementPreviewResult } from "@fintwin/shared";
 import { postStatementConfirm, postStatementPreview, postSubscriptionReminder, StatementApiError } from "../lib/api";
 
@@ -30,6 +30,8 @@ function inferMimeType(file: File) {
 
 export function StatementUploader() {
   const router = useRouter();
+  const statementFileInputRef = useRef<HTMLInputElement | null>(null);
+  const statementCameraInputRef = useRef<HTMLInputElement | null>(null);
   const [state, setState] = useState<UploaderState>({ phase: "idle" });
   const [statementTab, setStatementTab] = useState<"transactions" | "subscriptions">("transactions");
   const [reminderDates, setReminderDates] = useState<Record<string, string>>({});
@@ -283,12 +285,40 @@ export function StatementUploader() {
   }
 
   return (
-    <label className="upload-zone statement-upload-zone">
+    <div className="upload-zone statement-upload-zone">
       {state.phase === "uploading" ? <CheckCircle2 size={32} /> : <Upload size={32} />}
       <strong>{state.phase === "uploading" ? "Ekstre önizlemesi hazırlanıyor" : "Ay sonu ekstresini yükle"}</strong>
       <span>PDF veya görsel ekstreyi yükle; kalemleri kontrol edip seçtiklerini giderlere aktar.</span>
-      <input type="file" accept="image/*,.pdf" onChange={(event) => onStatementFile(event.target.files?.[0])} />
-    </label>
+      <div className="upload-actions">
+        <button className="secondary-button" type="button" onClick={() => statementFileInputRef.current?.click()} disabled={state.phase === "uploading"}>
+          <FileUp size={16} />
+          Mevcut dosya yükle
+        </button>
+        <button className="secondary-button voice-button" type="button" onClick={() => statementCameraInputRef.current?.click()} disabled={state.phase === "uploading"}>
+          <Camera size={16} />
+          Görsel / kamera seç
+        </button>
+      </div>
+      <input
+        ref={statementFileInputRef}
+        type="file"
+        accept="image/*,.pdf"
+        onChange={(event) => {
+          void onStatementFile(event.target.files?.[0]);
+          event.currentTarget.value = "";
+        }}
+      />
+      <input
+        ref={statementCameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(event) => {
+          void onStatementFile(event.target.files?.[0]);
+          event.currentTarget.value = "";
+        }}
+      />
+    </div>
   );
 }
 

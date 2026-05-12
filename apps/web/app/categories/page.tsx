@@ -2,6 +2,7 @@ import type { DashboardPeriod } from "@fintwin/shared";
 import { BarChart3 } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { CategoryDistributionDetailPanel } from "../../components/insight-detail-panels";
+import { ReceiptScanner } from "../../components/receipt-scanner";
 import { getPersonalDashboard } from "../../lib/api";
 import { requireAuthSession } from "../../lib/server-auth";
 
@@ -39,6 +40,17 @@ export default async function CategoriesPage({ searchParams }: CategoriesPagePro
 
       <PeriodTabs active={period} />
       <CategoryDistributionDetailPanel dashboard={dashboard} />
+
+      <section className="panel category-ingest-panel">
+        <div className="section-title">
+          <span>Kategori verisini besle</span>
+          <strong>fiş / ekstre</strong>
+        </div>
+        <p className="panel-copy">
+          Fiş okutunca tek bir gider kaydı, banka ekstresi yükleyince seçtiğin satırlar kategori dağılımına otomatik yansır.
+        </p>
+        <ReceiptScanner />
+      </section>
     </AppShell>
   );
 }
