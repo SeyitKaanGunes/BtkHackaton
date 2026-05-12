@@ -60,7 +60,7 @@ import {
 } from "./src/api";
 import { AgentScreen } from "./src/screens/AgentScreen";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
-import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles } from "./src/ui";
+import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles, typefaces } from "./src/ui";
 
 type Tab = "home" | "portfolio" | "agent" | "business";
 type HomeData = Awaited<ReturnType<typeof loadMobileHome>>;
@@ -570,8 +570,8 @@ function FinancialHero({
       <View style={styles.rowBetween}>
         <View style={localStyles.heroCopy}>
           <Text style={localStyles.overline}>Kişisel · {dashboard.periodLabel}</Text>
-          <Text style={localStyles.heroTitle}>Merhaba, {user.name}</Text>
-          <Text style={localStyles.heroSubtitle}>
+          <Text style={[localStyles.heroTitle, localStyles.heroTitleLight]}>Merhaba, {user.name}</Text>
+          <Text style={[localStyles.heroSubtitle, localStyles.heroSubtitleLight]}>
             {hasFinancialData
               ? "Finansal ikizin bu dönemki gelir, gider, risk ve aksiyon sinyallerini gerçek kayıtlarından izliyor."
               : "Gelir, gider, fiş veya ekstre eklediğinde finansal ikizin gerçek analiz üretmeye başlayacak."}
@@ -581,7 +581,9 @@ function FinancialHero({
           <IconButton onPress={onLogout} tone="muted">
             <LogOut size={18} color={palette.ink} />
           </IconButton>
-          <ScoreGauge score={dashboard.financialHealthScore} />
+          <View style={localStyles.heroGauge}>
+            <ScoreGauge score={dashboard.financialHealthScore} />
+          </View>
         </View>
       </View>
       <View style={localStyles.balanceStrip}>
@@ -1457,79 +1459,86 @@ const localStyles = StyleSheet.create({
   authScroll: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 18
+    padding: 18,
+    backgroundColor: palette.bg
   },
   authPanel: {
-    gap: 16
+    gap: 18,
+    borderRadius: 30,
+    padding: 22
   },
   authBrand: {
     gap: 8
   },
   authMark: {
-    width: 46,
-    height: 46,
-    borderRadius: 8,
-    backgroundColor: palette.ink,
+    width: 54,
+    height: 54,
+    borderRadius: 19,
+    backgroundColor: palette.secondary,
     alignItems: "center",
     justifyContent: "center"
   },
   authMarkText: {
     color: palette.surface,
+    fontFamily: typefaces.display,
     fontSize: 16,
-    fontWeight: "900"
+    fontWeight: "700"
   },
   authSwitch: {
     flexDirection: "row",
-    gap: 4,
-    backgroundColor: palette.surface2,
-    borderColor: palette.line,
+    gap: 5,
+    backgroundColor: "rgba(16,24,21,0.06)",
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 4
+    borderRadius: 999,
+    padding: 5
   },
   authSwitchButton: {
     flex: 1,
     minHeight: 40,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 6
+    borderRadius: 999
   },
   authSwitchActive: {
-    backgroundColor: palette.surface
+    backgroundColor: palette.secondary
   },
   authSwitchText: {
     color: palette.muted,
+    fontFamily: typefaces.body,
     fontSize: 13,
-    fontWeight: "800"
+    fontWeight: "700"
   },
   authSwitchTextActive: {
-    color: palette.ink
+    color: palette.surface
   },
   authInput: {
-    minHeight: 48,
-    borderColor: palette.line,
+    minHeight: 52,
+    borderColor: "rgba(16,24,21,0.1)",
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderRadius: 18,
+    paddingHorizontal: 14,
     color: palette.ink,
-    backgroundColor: "#FBFCFA",
-    fontSize: 14
+    backgroundColor: "rgba(255,255,255,0.62)",
+    fontFamily: typefaces.body,
+    fontSize: 14,
+    fontWeight: "600"
   },
   biometricCard: {
     minHeight: 76,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    borderColor: palette.line,
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    backgroundColor: palette.surface2,
+    borderRadius: 22,
+    backgroundColor: "rgba(37,87,214,0.07)",
     padding: 12
   },
   biometricIcon: {
     width: 42,
     height: 42,
-    borderRadius: 8,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: palette.primarySoft
@@ -1540,21 +1549,23 @@ const localStyles = StyleSheet.create({
   },
   biometricTitle: {
     color: palette.ink,
+    fontFamily: typefaces.display,
     fontSize: 14,
-    fontWeight: "900"
+    fontWeight: "700"
   },
   biometricCaption: {
     color: palette.muted,
+    fontFamily: typefaces.body,
     fontSize: 12,
     lineHeight: 16,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   biometricRetry: {
     minHeight: 36,
     minWidth: 54,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8,
+    borderRadius: 16,
     backgroundColor: palette.surface,
     borderColor: palette.line,
     borderWidth: 1,
@@ -1562,8 +1573,9 @@ const localStyles = StyleSheet.create({
   },
   biometricRetryText: {
     color: palette.primary,
+    fontFamily: typefaces.body,
     fontSize: 12,
-    fontWeight: "900"
+    fontWeight: "800"
   },
   authError: {
     color: palette.danger,
@@ -1585,9 +1597,9 @@ const localStyles = StyleSheet.create({
     elevation: 18
   },
   agentBubbleInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: palette.primary,
     borderWidth: 3,
     borderColor: palette.surface,
@@ -1595,15 +1607,16 @@ const localStyles = StyleSheet.create({
     justifyContent: "center",
     gap: 2,
     shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    shadowOffset: { height: 8, width: 0 },
+    shadowOpacity: 0.24,
+    shadowRadius: 20,
+    shadowOffset: { height: 12, width: 0 },
     elevation: 18
   },
   agentBubbleLabel: {
     color: palette.surface,
+    fontFamily: typefaces.body,
     fontSize: 10,
-    fontWeight: "900"
+    fontWeight: "800"
   },
   agentModalBackdrop: {
     flex: 1,
@@ -1613,9 +1626,9 @@ const localStyles = StyleSheet.create({
   agentModalSheet: {
     maxHeight: "92%",
     backgroundColor: palette.bg,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    paddingTop: 12,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 14,
     shadowColor: "#000",
     shadowOpacity: 0.18,
     shadowRadius: 18,
@@ -1636,8 +1649,11 @@ const localStyles = StyleSheet.create({
     gap: 14
   },
   hero: {
-    backgroundColor: "#FBFCFF",
-    borderColor: "#D8E2F5"
+    backgroundColor: palette.secondary,
+    borderColor: palette.secondary,
+    borderRadius: 30,
+    padding: 22,
+    overflow: "hidden"
   },
   heroCopy: {
     flex: 1,
@@ -1647,25 +1663,42 @@ const localStyles = StyleSheet.create({
     alignItems: "flex-end",
     gap: 10
   },
+  heroGauge: {
+    borderRadius: 999,
+    backgroundColor: palette.surface,
+    padding: 8
+  },
   overline: {
-    color: palette.primary,
+    color: palette.teal,
+    fontFamily: typefaces.body,
     fontSize: 12,
-    fontWeight: "700"
+    fontWeight: "800",
+    letterSpacing: 0,
+    textTransform: "uppercase"
   },
   heroTitle: {
     color: palette.ink,
-    fontSize: 28,
-    lineHeight: 32,
-    fontWeight: "900"
+    fontFamily: typefaces.display,
+    fontSize: 31,
+    lineHeight: 36,
+    fontWeight: "700",
+    letterSpacing: 0
+  },
+  heroTitleLight: {
+    color: palette.surface
   },
   heroSubtitle: {
     color: palette.muted,
+    fontFamily: typefaces.body,
     fontSize: 13.5,
     lineHeight: 20
   },
+  heroSubtitleLight: {
+    color: "#C9D7D0"
+  },
   balanceStrip: {
-    backgroundColor: palette.secondary,
-    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 22,
     padding: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -1673,21 +1706,23 @@ const localStyles = StyleSheet.create({
     gap: 12
   },
   balanceLabel: {
-    color: palette.muted,
+    color: palette.darkMuted,
+    fontFamily: typefaces.body,
     fontSize: 12,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   balanceValue: {
     color: palette.surface,
+    fontFamily: typefaces.display,
     fontSize: 22,
-    lineHeight: 28,
-    fontWeight: "900",
+    lineHeight: 30,
+    fontWeight: "700",
     marginTop: 4
   },
   balanceDivider: {
     width: 1,
     alignSelf: "stretch",
-    backgroundColor: "#263346"
+    backgroundColor: "rgba(255,255,255,0.16)"
   },
   periodPanel: {
     gap: 12
@@ -1697,67 +1732,70 @@ const localStyles = StyleSheet.create({
   },
   periodControl: {
     flexDirection: "row",
-    gap: 6,
-    backgroundColor: palette.surface2,
-    borderColor: palette.line,
+    gap: 5,
+    backgroundColor: "rgba(16,24,21,0.06)",
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 4
+    borderRadius: 999,
+    padding: 5
   },
   periodButton: {
     flex: 1,
     minHeight: 44,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 6
+    borderRadius: 999
   },
   periodButtonActive: {
     backgroundColor: palette.secondary
   },
   periodButtonText: {
     color: palette.muted,
+    fontFamily: typefaces.body,
     fontSize: 12.5,
-    fontWeight: "800"
+    fontWeight: "700"
   },
   periodButtonTextActive: {
     color: palette.surface
   },
   moduleCard: {
-    minHeight: 86,
-    borderColor: palette.line,
+    minHeight: 104,
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 22,
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#FBFCFA"
+    backgroundColor: "rgba(255,255,255,0.52)"
   },
   moduleIcon: {
     width: 42,
     height: 42,
-    borderRadius: 8,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: palette.primarySoft
   },
   moduleValue: {
     color: palette.ink,
+    fontFamily: typefaces.display,
     fontSize: 18,
-    lineHeight: 23,
-    fontWeight: "900"
+    lineHeight: 25,
+    fontWeight: "700"
   },
   alertCard: {
-    borderColor: palette.line,
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    gap: 10
+    borderRadius: 22,
+    padding: 14,
+    gap: 10,
+    backgroundColor: "rgba(255,255,255,0.5)"
   },
   alertIcon: {
     width: 34,
     height: 34,
-    borderRadius: 8,
+    borderRadius: 16,
     backgroundColor: palette.surface2,
     alignItems: "center",
     justifyContent: "center"
@@ -1769,7 +1807,7 @@ const localStyles = StyleSheet.create({
   chevronPill: {
     width: 34,
     height: 34,
-    borderRadius: 8,
+    borderRadius: 16,
     backgroundColor: palette.surface2,
     alignItems: "center",
     justifyContent: "center"
@@ -1780,9 +1818,10 @@ const localStyles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
+    fontFamily: typefaces.display,
     fontSize: 14.5,
-    lineHeight: 20,
-    fontWeight: "800"
+    lineHeight: 21,
+    fontWeight: "700"
   },
   dnaGrid: {
     flexDirection: "row",
@@ -1793,66 +1832,70 @@ const localStyles = StyleSheet.create({
     flexBasis: "47%",
     flexGrow: 1,
     borderWidth: 1,
-    borderColor: palette.line,
-    borderRadius: 8,
+    borderColor: "rgba(16,24,21,0.08)",
+    borderRadius: 20,
     padding: 12,
     gap: 6,
-    backgroundColor: "#FBFCFA"
+    backgroundColor: "rgba(255,255,255,0.52)"
   },
   miniFact: {
     flexBasis: "47%",
     flexGrow: 1,
     borderWidth: 1,
-    borderColor: palette.line,
-    borderRadius: 8,
+    borderColor: "rgba(16,24,21,0.08)",
+    borderRadius: 20,
     padding: 12,
     gap: 6,
-    backgroundColor: "#FBFCFA"
+    backgroundColor: "rgba(255,255,255,0.52)"
   },
   miniLabel: {
     color: palette.muted,
+    fontFamily: typefaces.body,
     fontSize: 12,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   miniValue: {
     color: palette.ink,
+    fontFamily: typefaces.display,
     fontSize: 18,
-    lineHeight: 23,
-    fontWeight: "900"
+    lineHeight: 25,
+    fontWeight: "700"
   },
   patternCard: {
     borderLeftColor: palette.primary,
-    borderLeftWidth: 3,
+    borderLeftWidth: 4,
     backgroundColor: palette.primarySoft,
-    borderRadius: 8,
-    padding: 12
+    borderRadius: 20,
+    padding: 14
   },
   emptyMessage: {
-    borderColor: palette.line,
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: "#FBFCFA"
+    borderRadius: 20,
+    padding: 14,
+    backgroundColor: "rgba(255,255,255,0.46)"
   },
   goalCard: {
-    borderColor: palette.line,
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    gap: 10
+    borderRadius: 20,
+    padding: 14,
+    gap: 10,
+    backgroundColor: "rgba(255,255,255,0.46)"
   },
   actionCard: {
-    borderColor: palette.line,
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 20,
+    padding: 14,
     gap: 10,
-    backgroundColor: "#FBFCFA"
+    backgroundColor: "rgba(255,255,255,0.52)"
   },
   actionMeta: {
     color: palette.muted,
+    fontFamily: typefaces.body,
     fontSize: 12,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   actionButtons: {
     flexDirection: "row",
@@ -1872,29 +1915,29 @@ const localStyles = StyleSheet.create({
   },
   segmentedInline: {
     flexDirection: "row",
-    gap: 4,
-    backgroundColor: palette.surface2,
-    borderColor: palette.line,
+    gap: 5,
+    backgroundColor: "rgba(16,24,21,0.06)",
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 4
+    borderRadius: 999,
+    padding: 5
   },
   segmentedWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 4,
-    backgroundColor: palette.surface2,
-    borderColor: palette.line,
+    backgroundColor: "rgba(16,24,21,0.06)",
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 4
+    borderRadius: 20,
+    padding: 5
   },
   segmentButton: {
     flex: 1,
     minHeight: 42,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 6
+    borderRadius: 999
   },
   segmentWrapButton: {
     flexGrow: 1,
@@ -1905,8 +1948,9 @@ const localStyles = StyleSheet.create({
   },
   segmentButtonText: {
     color: palette.muted,
+    fontFamily: typefaces.body,
     fontSize: 12.5,
-    fontWeight: "800"
+    fontWeight: "700"
   },
   segmentButtonTextActive: {
     color: palette.surface
@@ -1917,56 +1961,64 @@ const localStyles = StyleSheet.create({
   },
   quote: {
     color: palette.ink,
-    fontSize: 18,
-    lineHeight: 25,
-    fontWeight: "800"
+    fontFamily: typefaces.display,
+    fontSize: 21,
+    lineHeight: 30,
+    fontWeight: "700",
+    letterSpacing: 0
   },
   scenarioCard: {
-    borderColor: palette.line,
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    gap: 8
+    borderRadius: 20,
+    padding: 14,
+    gap: 9,
+    backgroundColor: "rgba(255,255,255,0.46)"
   },
   scenarioSelected: {
     borderColor: palette.danger,
-    backgroundColor: "#FFF8F9"
+    backgroundColor: palette.dangerSoft
   },
   scenarioAmount: {
+    fontFamily: typefaces.display,
     fontSize: 18,
-    fontWeight: "900"
+    fontWeight: "700"
   },
   delayCard: {
     backgroundColor: palette.primarySoft,
-    borderRadius: 8,
-    padding: 12
+    borderRadius: 20,
+    padding: 14
   },
   timer: {
     color: palette.primary,
+    fontFamily: typefaces.display,
     fontSize: 20,
-    fontWeight: "900"
+    fontWeight: "700"
   },
   leakTotal: {
     color: palette.primary,
+    fontFamily: typefaces.display,
     fontSize: 22,
-    fontWeight: "900"
+    fontWeight: "700"
   },
   leakCard: {
-    borderColor: palette.line,
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 20,
+    padding: 14,
     gap: 10
   },
   negativeValue: {
     color: palette.danger,
+    fontFamily: typefaces.body,
     fontSize: 15,
-    fontWeight: "900"
+    fontWeight: "800"
   },
   positiveValue: {
     color: palette.success,
+    fontFamily: typefaces.body,
     fontSize: 15,
-    fontWeight: "900"
+    fontWeight: "800"
   },
   agentInputShell: {
     flexDirection: "row",
@@ -1976,12 +2028,13 @@ const localStyles = StyleSheet.create({
   agentInput: {
     flex: 1,
     minHeight: 112,
-    borderColor: palette.line,
+    borderColor: "rgba(16,24,21,0.1)",
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 20,
     padding: 12,
     color: palette.ink,
-    backgroundColor: "#FBFCFA",
+    backgroundColor: "rgba(255,255,255,0.6)",
+    fontFamily: typefaces.body,
     fontSize: 14,
     lineHeight: 20
   },
@@ -1992,13 +2045,15 @@ const localStyles = StyleSheet.create({
   },
   agentLatency: {
     color: palette.muted,
+    fontFamily: typefaces.body,
     fontSize: 12,
-    fontWeight: "800"
+    fontWeight: "700"
   },
   agentAnswer: {
     color: palette.ink,
+    fontFamily: typefaces.display,
     fontSize: 18,
-    lineHeight: 27,
+    lineHeight: 28,
     fontWeight: "600"
   },
   evidenceGrid: {
@@ -2009,20 +2064,22 @@ const localStyles = StyleSheet.create({
   evidenceItem: {
     flexBasis: "47%",
     flexGrow: 1,
-    backgroundColor: palette.surface2,
-    borderRadius: 8,
+    backgroundColor: "rgba(16,24,21,0.06)",
+    borderRadius: 18,
     padding: 10,
     gap: 5
   },
   evidenceLabel: {
     color: palette.muted,
+    fontFamily: typefaces.body,
     fontSize: 12,
-    fontWeight: "700"
+    fontWeight: "600"
   },
   evidenceValue: {
     color: palette.ink,
+    fontFamily: typefaces.body,
     fontSize: 13.5,
-    fontWeight: "900"
+    fontWeight: "800"
   },
   suggestedAction: {
     borderTopColor: palette.line,
@@ -2032,19 +2089,23 @@ const localStyles = StyleSheet.create({
   },
   cfoHero: {
     backgroundColor: palette.secondary,
-    borderColor: palette.secondary
+    borderColor: palette.secondary,
+    borderRadius: 30,
+    overflow: "hidden"
   },
   cfoCash: {
     color: palette.surface,
+    fontFamily: typefaces.display,
     fontSize: 30,
-    lineHeight: 36,
-    fontWeight: "900",
+    lineHeight: 38,
+    fontWeight: "700",
     marginTop: 4
   },
   cfoDelta: {
     color: "#A7F3D0",
+    fontFamily: typefaces.body,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
     marginTop: 4
   },
   sparkline: {
@@ -2056,14 +2117,15 @@ const localStyles = StyleSheet.create({
   },
   sparkBar: {
     flex: 1,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    backgroundColor: palette.primary
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    backgroundColor: "#71E0BD"
   },
   sparkLabel: {
     color: palette.darkMuted,
+    fontFamily: typefaces.body,
     fontSize: 11,
-    fontWeight: "800"
+    fontWeight: "700"
   },
   cashRow: {
     flexDirection: "row",
@@ -2075,28 +2137,31 @@ const localStyles = StyleSheet.create({
     paddingTop: 12
   },
   collectionCard: {
-    borderColor: palette.line,
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    gap: 10
+    borderRadius: 20,
+    padding: 14,
+    gap: 10,
+    backgroundColor: "rgba(255,255,255,0.46)"
   },
   collectionScore: {
+    fontFamily: typefaces.display,
     fontSize: 32,
-    fontWeight: "900"
+    fontWeight: "700"
   },
   simInput: {
-    borderColor: palette.line,
+    borderColor: "rgba(16,24,21,0.08)",
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 20,
+    padding: 14,
     gap: 6,
-    backgroundColor: "#FBFCFA"
+    backgroundColor: "rgba(255,255,255,0.52)"
   },
   simAmountInput: {
     color: palette.ink,
+    fontFamily: typefaces.display,
     fontSize: 22,
-    fontWeight: "900",
+    fontWeight: "700",
     paddingVertical: 0
   },
   loading: {

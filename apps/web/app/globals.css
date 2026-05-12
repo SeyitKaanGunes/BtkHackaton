@@ -16,6 +16,8 @@
   --success: #15803d;
   --success-soft: #dcfce7;
   --shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+  --font-body: "Avenir Next", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
 }
 
 * {
@@ -28,7 +30,7 @@ body {
   min-height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-body);
   letter-spacing: 0;
 }
 
@@ -364,8 +366,10 @@ input {
 h1 {
   margin: 0;
   max-width: 620px;
+  font-family: var(--font-display);
   font-size: clamp(28px, 3vw, 38px);
   line-height: 1.05;
+  font-weight: 650;
   letter-spacing: 0;
 }
 
@@ -406,8 +410,10 @@ h1 {
 
 .health-card h2 {
   margin: 0 0 6px;
+  font-family: var(--font-display);
   font-size: 20px;
   line-height: 1.1;
+  font-weight: 650;
 }
 
 .health-card p {
@@ -495,8 +501,10 @@ h1 {
 }
 
 .metric strong {
+  font-family: var(--font-display);
   font-size: 22px;
   line-height: 1.1;
+  font-weight: 650;
 }
 
 .metric small {
@@ -594,8 +602,10 @@ h1 {
 
 .module-card strong {
   color: var(--ink);
+  font-family: var(--font-display);
   font-size: 21px;
   line-height: 1.12;
+  font-weight: 650;
 }
 
 .chart-grid,
@@ -1782,5 +1792,634 @@ h1 {
 
   .chat-bubble {
     max-width: 100%;
+  }
+}
+
+/* Premium product redesign: graphite instrument desk */
+:root {
+  --bg: #eef1ea;
+  --surface: #fbfcf7;
+  --surface-2: #edf3ef;
+  --surface-3: #101916;
+  --ink: #101815;
+  --muted: #66756d;
+  --muted-2: #94a098;
+  --line: rgba(16, 24, 21, 0.1);
+  --line-strong: rgba(16, 24, 21, 0.18);
+  --accent: #2557d6;
+  --accent-soft: #dfe9ff;
+  --accent-2: #0d7966;
+  --teal-soft: #d8f3ea;
+  --warn: #b56a19;
+  --warn-soft: #faecd6;
+  --danger: #c12b4e;
+  --danger-soft: #fde3e9;
+  --success: #168353;
+  --success-soft: #dff5e9;
+  --shadow: 0 28px 80px rgba(16, 24, 21, 0.12);
+  --shadow-soft: 0 16px 44px rgba(16, 24, 21, 0.08);
+  --radius-lg: 28px;
+  --radius-md: 18px;
+  --radius-sm: 12px;
+  --font-body: "Avenir Next", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
+}
+
+html,
+body {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(37, 87, 214, 0.12), transparent 32rem),
+    radial-gradient(circle at 92% 10%, rgba(13, 121, 102, 0.14), transparent 30rem),
+    linear-gradient(135deg, #eef1ea 0%, #f8f7ef 52%, #e6eee9 100%);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(16, 24, 21, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 24, 21, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+}
+
+button,
+a,
+.module-card,
+.panel,
+.metric,
+.alert-card,
+.position-row,
+.dashboard-action-card,
+.suggested-action,
+.scenario,
+.upload-zone {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-shell {
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.sidebar {
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(251, 252, 247, 0.72);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(24px) saturate(140%);
+}
+
+.brand {
+  min-width: max-content;
+}
+
+.brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(255, 255, 255, 0.22), transparent 34%),
+    linear-gradient(135deg, #101815, #263e36);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  letter-spacing: 0;
+}
+
+.brand strong {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.brand small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.nav-list {
+  gap: 8px;
+}
+
+.nav-item {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: #66756d;
+  padding: 10px 14px;
+}
+
+.nav-item.active {
+  border-color: rgba(37, 87, 214, 0.18);
+  background: linear-gradient(135deg, rgba(37, 87, 214, 0.13), rgba(13, 121, 102, 0.08));
+  color: var(--ink);
+}
+
+.nav-item:hover {
+  background: rgba(16, 24, 21, 0.06);
+  color: var(--ink);
+}
+
+.logout-button,
+.ghost-icon {
+  border-radius: 14px;
+}
+
+.trust-note {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.52);
+  padding: 12px;
+  max-width: none;
+}
+
+.workspace {
+  width: min(100%, 1240px);
+  padding: 28px 20px 72px;
+  gap: 22px;
+}
+
+.workspace-header {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 34px;
+  background:
+    linear-gradient(135deg, rgba(251, 252, 247, 0.92), rgba(232, 240, 235, 0.86)),
+    radial-gradient(circle at 90% 0%, rgba(37, 87, 214, 0.18), transparent 30rem);
+  box-shadow: var(--shadow-soft);
+  padding: clamp(22px, 4vw, 48px);
+}
+
+.workspace-header::after {
+  content: "";
+  position: absolute;
+  right: -120px;
+  bottom: -150px;
+  width: 360px;
+  height: 360px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at center, rgba(13, 121, 102, 0.2), transparent 62%),
+    conic-gradient(from 120deg, rgba(37, 87, 214, 0.18), rgba(13, 121, 102, 0.2), rgba(181, 106, 25, 0.16), rgba(37, 87, 214, 0.18));
+  filter: blur(3px);
+}
+
+.workspace-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.eyebrow {
+  color: var(--accent-2);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1 {
+  max-width: 980px;
+  font-family: var(--font-display);
+  font-size: clamp(34px, 4vw, 62px);
+  line-height: 0.95;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.header-subtitle {
+  max-width: 720px;
+  color: #53625a;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.health-score,
+.metric,
+.panel,
+.upload-zone,
+.agent-console,
+.auth-panel {
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: var(--radius-lg);
+  background: rgba(251, 252, 247, 0.78);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px) saturate(126%);
+}
+
+.panel {
+  padding: clamp(18px, 2vw, 26px);
+  gap: 18px;
+}
+
+.health-card.panel {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(16, 24, 21, 0.78);
+  background:
+    radial-gradient(circle at 82% 0%, rgba(37, 87, 214, 0.32), transparent 26rem),
+    linear-gradient(135deg, #101815, #21342e);
+  color: #f8fff9;
+  padding: clamp(22px, 3vw, 34px);
+}
+
+.health-card.panel h2,
+.health-card.panel strong {
+  color: #f8fff9;
+}
+
+.health-card.panel p,
+.health-card.panel .eyebrow {
+  color: rgba(248, 255, 249, 0.72);
+}
+
+.score-ring {
+  width: 126px;
+  height: 126px;
+  background:
+    radial-gradient(circle at center, #101815 58%, transparent 59%),
+    conic-gradient(#71e0bd calc(var(--score) * 1%), rgba(255, 255, 255, 0.16) 0);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.score-ring span,
+.score-ring small {
+  color: rgba(248, 255, 249, 0.58);
+}
+
+.metric-grid,
+.module-grid,
+.chart-grid,
+.split-layout,
+.risk-alert-grid,
+.portfolio-grid,
+.allocation-strip,
+.scenario-list {
+  grid-auto-flow: dense;
+}
+
+.metric-grid {
+  gap: 14px;
+}
+
+.metric {
+  position: relative;
+  min-height: 148px;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, 0.72);
+  padding: 18px;
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    border-color 220ms ease;
+}
+
+.metric::after {
+  content: "";
+  position: absolute;
+  right: -46px;
+  top: -46px;
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  background: rgba(37, 87, 214, 0.08);
+}
+
+.metric:hover,
+.module-card:hover,
+.dashboard-action-card:hover,
+.position-row:hover,
+.scenario:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+}
+
+.metric-icon,
+.module-icon,
+.dashboard-action-icon,
+.alertIcon,
+.ghost-icon {
+  border-radius: 16px;
+}
+
+.metric strong,
+.module-card strong {
+  font-family: var(--font-display);
+  font-size: clamp(21px, 2vw, 30px);
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.period-tabs,
+.segmented-tabs,
+.transaction-kind-tabs,
+.category-picker {
+  border-color: rgba(16, 24, 21, 0.08);
+  border-radius: 999px;
+  background: rgba(16, 24, 21, 0.06);
+  padding: 5px;
+}
+
+.period-tabs a,
+.segmented-tabs button {
+  border-radius: 999px;
+}
+
+.period-tabs a.active,
+.segmented-tabs button.active,
+.category-picker button.active {
+  background: var(--surface-3);
+  color: #f8fff9;
+  box-shadow: 0 8px 24px rgba(16, 24, 21, 0.18);
+}
+
+.module-card {
+  min-height: 132px;
+  border-color: rgba(255, 255, 255, 0.76);
+  border-radius: 28px;
+  background: rgba(251, 252, 247, 0.78);
+  padding: 22px;
+  box-shadow: var(--shadow-soft);
+}
+
+.module-icon {
+  width: 54px;
+  height: 54px;
+  background: linear-gradient(135deg, var(--accent-soft), rgba(13, 121, 102, 0.14));
+}
+
+.alert-card,
+.portfolio-summary div,
+.allocation-strip div,
+.dashboard-action-card,
+.suggested-action,
+.scenario,
+.action-row,
+.score-row,
+.goalCard,
+.position-row,
+.symbol-results button,
+.mini-fact,
+.ai-cfo-result,
+.chat-bubble,
+.evidence-item,
+.agent-meta span,
+.agent-assumptions span,
+.statement-summary div,
+.transaction-row,
+.subscription-row {
+  border-color: var(--line);
+  border-radius: var(--radius-md);
+}
+
+.alert-card {
+  background: rgba(251, 252, 247, 0.72);
+  box-shadow: none;
+}
+
+.alert-card.warn {
+  border-color: rgba(181, 106, 25, 0.18);
+  background: linear-gradient(135deg, rgba(250, 236, 214, 0.9), rgba(251, 252, 247, 0.82));
+}
+
+.alert-card.danger {
+  border-color: rgba(193, 43, 78, 0.16);
+  background: linear-gradient(135deg, rgba(253, 227, 233, 0.92), rgba(251, 252, 247, 0.82));
+}
+
+.portfolio-summary div,
+.allocation-strip div,
+.mini-fact,
+.statement-summary div {
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.position-row {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.56);
+  padding: 14px;
+}
+
+.field input,
+.field select,
+.search-input,
+.agent-input textarea,
+.subscription-row input {
+  min-height: 50px;
+  border-color: rgba(16, 24, 21, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.field input:focus,
+.field select:focus,
+.search-input:focus-within,
+.agent-input textarea:focus {
+  outline: 2px solid rgba(37, 87, 214, 0.18);
+  border-color: rgba(37, 87, 214, 0.34);
+}
+
+.icon-button,
+.secondary-button {
+  min-height: 46px;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 22% 0%, rgba(255, 255, 255, 0.2), transparent 38%),
+    linear-gradient(135deg, #101815, #263e36);
+  color: #f8fff9;
+  box-shadow: 0 14px 28px rgba(16, 24, 21, 0.16);
+  font-weight: 900;
+}
+
+.voice-button,
+.danger-button {
+  box-shadow: none;
+}
+
+.voice-button {
+  background: rgba(16, 24, 21, 0.07);
+  color: var(--ink);
+}
+
+.danger-button {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.chip {
+  min-height: 26px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.manual-transaction-form,
+.business-form,
+.business-form.compact,
+.ai-cfo-form {
+  gap: 12px;
+}
+
+.category-picker {
+  border: 1px solid var(--line);
+  border-radius: 22px;
+}
+
+.category-picker button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.dashboard-action-card {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.52);
+  padding: 14px;
+}
+
+.agent-fab {
+  width: 68px;
+  height: 68px;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.2), transparent 36%),
+    linear-gradient(135deg, #2557d6, #0d7966);
+  box-shadow: 0 20px 42px rgba(37, 87, 214, 0.28);
+}
+
+.agent-modal-backdrop {
+  background: rgba(16, 24, 21, 0.38);
+}
+
+.agent-modal-sheet {
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(37, 87, 214, 0.08), transparent 18rem),
+    var(--surface);
+}
+
+.agent-console {
+  border-radius: 28px;
+}
+
+.chat-bubble.user {
+  background: linear-gradient(135deg, rgba(37, 87, 214, 0.14), rgba(13, 121, 102, 0.08));
+  border-color: rgba(37, 87, 214, 0.18);
+}
+
+.chat-bubble.agent {
+  background: rgba(16, 24, 21, 0.06);
+}
+
+.upload-zone {
+  min-height: 260px;
+  border-style: solid;
+  background:
+    linear-gradient(135deg, rgba(251, 252, 247, 0.8), rgba(223, 233, 255, 0.36)),
+    radial-gradient(circle at 80% 0%, rgba(13, 121, 102, 0.12), transparent 16rem);
+}
+
+.empty-state {
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.auth-shell {
+  background:
+    radial-gradient(circle at 12% 12%, rgba(37, 87, 214, 0.16), transparent 28rem),
+    radial-gradient(circle at 88% 20%, rgba(13, 121, 102, 0.16), transparent 28rem);
+}
+
+.auth-panel {
+  width: min(100%, 980px);
+  border-radius: 36px;
+  padding: clamp(24px, 4vw, 44px);
+}
+
+.auth-input {
+  min-height: 52px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+@media (min-width: 1100px) {
+  .app-shell {
+    display: grid;
+    grid-template-columns: 286px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 20px;
+    align-self: start;
+    min-height: calc(100vh - 40px);
+    margin: 20px 0 20px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px;
+    border-radius: 30px;
+    padding: 18px;
+  }
+
+  .nav-list {
+    display: grid;
+    justify-content: stretch;
+  }
+
+  .nav-item {
+    justify-content: flex-start;
+  }
+
+  .workspace {
+    grid-column: 2;
+    padding: 32px 28px 80px;
+  }
+}
+
+@media (max-width: 980px) {
+  .workspace-header {
+    border-radius: 28px;
+  }
+
+  .health-card.panel {
+    display: grid;
+  }
+
+  .position-row {
+    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(90px, auto)) 40px;
+  }
+}
+
+@media (max-width: 640px) {
+  .workspace,
+  .sidebar {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .sidebar {
+    border-radius: 0 0 24px 24px;
+    margin: 0;
+  }
+
+  h1 {
+    font-size: 34px;
+    line-height: 0.98;
+  }
+
+  .panel,
+  .metric,
+  .module-card,
+  .auth-panel {
+    border-radius: 24px;
   }
 }

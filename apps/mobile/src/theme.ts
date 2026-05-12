@@ -24,24 +24,24 @@ export type ThemePalette = {
 };
 
 export const lightPalette: ThemePalette = {
-  bg: "#DCE6F8",
-  surface: "#FFFFFF",
-  surface2: "#C9D6EF",
-  ink: "#070C1C",
-  muted: "#4F5B7A",
-  line: "#B5C2DD",
-  accent: "#1D4ED8",
-  accentSoft: "#DBE7FB",
-  accent2: "#0B1438",
-  accent2Soft: "#C7D2EE",
+  bg: "#EEF1EA",
+  surface: "#FBFCF7",
+  surface2: "#E8EEE9",
+  ink: "#101815",
+  muted: "#66756D",
+  line: "#D9E1DB",
+  accent: "#2557D6",
+  accentSoft: "#DFE9FF",
+  accent2: "#0D7966",
+  accent2Soft: "#D8F3EA",
   warn: "#B45309",
-  warnSoft: "#FBF1E2",
-  danger: "#BE123C",
-  dangerSoft: "#FBE6EC",
-  good: "#1D4ED8",
-  goodSoft: "#DBE7FB",
+  warnSoft: "#FAECD6",
+  danger: "#C12B4E",
+  dangerSoft: "#FDE3E9",
+  good: "#168353",
+  goodSoft: "#DFF5E9",
   onAccent: "#FFFFFF",
-  scrim: "rgba(7,12,28,0.6)"
+  scrim: "rgba(16,24,21,0.6)"
 };
 
 export const darkPalette: ThemePalette = {
@@ -70,7 +70,7 @@ export const palettes: Record<ThemeMode, ThemePalette> = {
   dark: darkPalette
 };
 
-export const radius = { sm: 8, md: 12, lg: 14, pill: 999 };
+export const radius = { sm: 12, md: 18, lg: 24, pill: 999 };
 export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 7: 32 };
 export const fontSize = { xs: 11, sm: 12, base: 13, md: 14, lg: 16, xl: 18, h3: 22, h2: 28, h1: 34 };
 
