@@ -146,19 +146,65 @@ input {
   z-index: 30;
   width: 64px;
   height: 64px;
+  border: 0;
   border-radius: 999px;
   background: var(--ink);
   color: var(--surface);
+  cursor: grab;
   display: grid;
   place-items: center;
   align-content: center;
   gap: 1px;
   box-shadow: var(--shadow);
+  touch-action: none;
+  user-select: none;
+}
+
+.agent-fab:active {
+  cursor: grabbing;
 }
 
 .agent-fab span {
   font-size: 11px;
   font-weight: 900;
+}
+
+.agent-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(6px);
+}
+
+.agent-modal-sheet {
+  width: min(100%, 540px);
+  max-height: 100%;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+.agent-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.agent-modal-header > div {
+  display: grid;
+  gap: 2px;
 }
 
 .workspace {
@@ -610,6 +656,12 @@ h1 {
   gap: 16px;
 }
 
+.portfolio-side {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
 .investment-panel,
 .investment-form {
   display: grid;
@@ -845,6 +897,138 @@ h1 {
   min-height: 42px;
 }
 
+.manual-transaction-panel {
+  align-content: start;
+}
+
+.manual-transaction-form {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.2fr) minmax(140px, 0.7fr) minmax(190px, 0.9fr) minmax(140px, 0.65fr) minmax(120px, 0.55fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.transaction-kind-tabs {
+  width: 100%;
+  align-self: end;
+}
+
+.category-picker {
+  grid-column: 1 / -2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.category-picker button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 8px 10px;
+}
+
+.category-picker button.active,
+.category-picker button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.manual-transaction-submit {
+  width: 100%;
+  min-height: 40px;
+}
+
+.dashboard-action-card {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.dashboard-action-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.dashboard-action-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-action-card p {
+  margin: 6px 0 3px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.dashboard-action-card small {
+  color: var(--muted);
+}
+
+.dashboard-action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-cfo-panel {
+  align-content: start;
+}
+
+.ai-cfo-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.ai-cfo-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mini-fact {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+}
+
+.mini-fact span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ai-cfo-result {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.ai-cfo-result p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .positive-text {
   color: var(--success);
 }
@@ -947,6 +1131,12 @@ h1 {
   gap: 18px;
 }
 
+.compact-agent-console {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
 .agent-input {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 44px;
@@ -962,6 +1152,11 @@ h1 {
   border-radius: 8px;
   padding: 12px;
   background: #fbfcfa;
+}
+
+.agent-button-stack {
+  display: grid;
+  gap: 8px;
 }
 
 .icon-button,
@@ -982,6 +1177,21 @@ h1 {
   height: 44px;
 }
 
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.voice-button {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.voice-button.recording {
+  background: var(--danger);
+  color: #fff;
+}
+
 .secondary-button {
   width: max-content;
   padding: 11px 14px;
@@ -992,9 +1202,85 @@ h1 {
   opacity: 0.55;
 }
 
+.small-button {
+  min-height: 36px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.danger-button {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.success-message {
+  color: var(--success);
+}
+
+.voice-status {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  padding: 9px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.recording-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--danger);
+  box-shadow: 0 0 0 6px var(--danger-soft);
+}
+
+.chat-turns {
+  display: grid;
+  gap: 8px;
+}
+
+.chat-bubble {
+  max-width: 86%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.chat-bubble.user {
+  justify-self: end;
+  background: var(--accent-soft);
+  border-color: #bfdbfe;
+}
+
+.chat-bubble.agent {
+  justify-self: start;
+  background: var(--surface-2);
+}
+
 .agent-result {
   display: grid;
   gap: 14px;
+}
+
+.agent-answer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.agent-answer-header .ghost-icon {
+  margin-left: auto;
 }
 
 .agent-result p {
@@ -1015,6 +1301,49 @@ h1 {
   background: var(--surface-2);
   padding: 9px 10px;
   border-radius: 8px;
+}
+
+.agent-assumptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.agent-assumptions span {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 8px 9px;
+}
+
+.agent-suggestions {
+  display: grid;
+  gap: 10px;
+}
+
+.suggested-action {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.suggested-action > div:first-child {
+  display: grid;
+  gap: 6px;
+}
+
+.suggested-action p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.suggested-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .empty-state {
@@ -1295,10 +1624,21 @@ h1 {
   .split-layout,
   .business-form,
   .business-form.compact,
+  .manual-transaction-form,
+  .dashboard-action-card,
+  .ai-cfo-form,
   .risk-alert-grid,
   .subscription-row {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .category-picker {
+    grid-column: auto;
+  }
+
+  .dashboard-action-buttons {
+    justify-content: flex-start;
   }
 
   .metric-grid {
@@ -1330,6 +1670,7 @@ h1 {
   .form-grid,
   .business-form,
   .business-form.compact,
+  .ai-cfo-preview,
   .scenario-list,
   .facts,
   .statement-summary {
@@ -1363,5 +1704,25 @@ h1 {
     height: 58px;
     right: 16px;
     bottom: 16px;
+  }
+
+  .agent-modal-backdrop {
+    padding: 10px;
+  }
+
+  .agent-modal-sheet {
+    width: 100%;
+  }
+
+  .agent-input {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-button-stack {
+    grid-template-columns: repeat(2, 44px);
+  }
+
+  .chat-bubble {
+    max-width: 100%;
   }
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import type { Currency, InvestmentAssetType, InvestmentPortfolioSummary, MarketSymbolResult } from "@fintwin/shared";
 import { addInvestmentHolding, deleteInvestmentHolding, searchMarketSymbols } from "../lib/api";
+import { StatementUploader } from "./statement-uploader";
 
 const assetTypes: Array<{ value: InvestmentAssetType; label: string }> = [
   { value: "stock", label: "Hisse" },
@@ -189,106 +190,110 @@ export function InvestmentPortfolio({ initialPortfolio }: { initialPortfolio: In
         <p className="market-note">Piyasa fiyatlari backend cache ile gunde bir kez yenilenir. Nakit ve mevduat pozisyonlari gunluk faiz projeksiyonuna dahil edilir.</p>
       </div>
 
-      <div className="panel investment-form">
-        <div className="section-title">
-          <span>Varlik Ekle</span>
-          <strong>{isCash ? "Banka bakiyesi" : selected?.symbol ?? "Sembol ara"}</strong>
-        </div>
-
-        <label className="field">
-          <span>{isCash ? "Banka / hesap adi" : "Sembol"}</span>
-          <div className="search-input">
-            <Search size={16} />
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setSelected(null);
-              }}
-              placeholder={isCash ? "Vadeli mevduat, vadesiz hesap" : "THYAO, XAU, USD/TRY"}
-            />
+      <div className="portfolio-side">
+        <div className="panel investment-form">
+          <div className="section-title">
+            <span>Varlik Ekle</span>
+            <strong>{isCash ? "Banka bakiyesi" : selected?.symbol ?? "Sembol ara"}</strong>
           </div>
-        </label>
 
-        {!isCash && results.length > 0 ? (
-          <div className="symbol-results">
-            {results.map((item) => (
-              <button
-                type="button"
-                key={`${item.symbol}-${item.exchange ?? "none"}-${item.micCode ?? "none"}`}
-                onClick={() => {
-                  setSelected(item);
-                  setQuery(item.symbol);
-                  setForm((current) => ({
-                    ...current,
-                    assetType: item.assetType,
-                    costCurrency: (item.currency === "USD" || item.currency === "EUR" ? item.currency : "TRY") as Currency
-                  }));
-                }}
-                className={selected?.symbol === item.symbol ? "selected" : ""}
-              >
-                <strong>{item.symbol}</strong>
-                <span>{item.name}</span>
-                <small>{[item.exchange, item.currency].filter(Boolean).join(" / ") || item.assetType}</small>
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="form-grid">
           <label className="field">
-            <span>Tur</span>
-            <select
-              value={form.assetType}
-              onChange={(event) => {
-                const nextType = event.target.value as InvestmentAssetType;
-                setForm((current) => ({ ...current, assetType: nextType, averageCost: nextType === "cash" ? "" : current.averageCost }));
-                if (nextType === "cash") {
+            <span>{isCash ? "Banka / hesap adi" : "Sembol"}</span>
+            <div className="search-input">
+              <Search size={16} />
+              <input
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
                   setSelected(null);
-                  setResults([]);
-                }
-              }}
-            >
-              {assetTypes.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
+                }}
+                placeholder={isCash ? "Vadeli mevduat, vadesiz hesap" : "THYAO, XAU, USD/TRY"}
+              />
+            </div>
+          </label>
+
+          {!isCash && results.length > 0 ? (
+            <div className="symbol-results">
+              {results.map((item) => (
+                <button
+                  type="button"
+                  key={`${item.symbol}-${item.exchange ?? "none"}-${item.micCode ?? "none"}`}
+                  onClick={() => {
+                    setSelected(item);
+                    setQuery(item.symbol);
+                    setForm((current) => ({
+                      ...current,
+                      assetType: item.assetType,
+                      costCurrency: (item.currency === "USD" || item.currency === "EUR" ? item.currency : "TRY") as Currency
+                    }));
+                  }}
+                  className={selected?.symbol === item.symbol ? "selected" : ""}
+                >
+                  <strong>{item.symbol}</strong>
+                  <span>{item.name}</span>
+                  <small>{[item.exchange, item.currency].filter(Boolean).join(" / ") || item.assetType}</small>
+                </button>
               ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>{isCash ? "Tutar" : "Adet / miktar"}</span>
-            <input value={form.quantity} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, quantity: event.target.value }))} />
-          </label>
-          {!isCash ? (
-            <label className="field">
-              <span>Alis fiyati</span>
-              <input value={form.averageCost} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, averageCost: event.target.value }))} />
-            </label>
+            </div>
           ) : null}
-          <label className="field">
-            <span>{isCash ? "Para birimi" : "Maliyet para birimi"}</span>
-            <select value={form.costCurrency} onChange={(event) => setForm((current) => ({ ...current, costCurrency: event.target.value as Currency }))}>
-              {currencies.map((currency) => (
-                <option key={currency} value={currency}>
-                  {currency}
-                </option>
-              ))}
-            </select>
-          </label>
-          {isCash ? (
+
+          <div className="form-grid">
             <label className="field">
-              <span>Yillik faiz orani (%)</span>
-              <input value={form.annualInterestRate} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, annualInterestRate: event.target.value }))} />
+              <span>Tur</span>
+              <select
+                value={form.assetType}
+                onChange={(event) => {
+                  const nextType = event.target.value as InvestmentAssetType;
+                  setForm((current) => ({ ...current, assetType: nextType, averageCost: nextType === "cash" ? "" : current.averageCost }));
+                  if (nextType === "cash") {
+                    setSelected(null);
+                    setResults([]);
+                  }
+                }}
+              >
+                {assetTypes.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
             </label>
-          ) : null}
+            <label className="field">
+              <span>{isCash ? "Tutar" : "Adet / miktar"}</span>
+              <input value={form.quantity} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, quantity: event.target.value }))} />
+            </label>
+            {!isCash ? (
+              <label className="field">
+                <span>Alis fiyati</span>
+                <input value={form.averageCost} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, averageCost: event.target.value }))} />
+              </label>
+            ) : null}
+            <label className="field">
+              <span>{isCash ? "Para birimi" : "Maliyet para birimi"}</span>
+              <select value={form.costCurrency} onChange={(event) => setForm((current) => ({ ...current, costCurrency: event.target.value as Currency }))}>
+                {currencies.map((currency) => (
+                  <option key={currency} value={currency}>
+                    {currency}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {isCash ? (
+              <label className="field">
+                <span>Yillik faiz orani (%)</span>
+                <input value={form.annualInterestRate} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, annualInterestRate: event.target.value }))} />
+              </label>
+            ) : null}
+          </div>
+
+          <button className="secondary-button portfolio-submit" type="button" onClick={() => void submit()} disabled={isBusy}>
+            <Plus size={18} />
+            Ekle
+          </button>
+          {message ? <p className="form-message">{message}</p> : null}
         </div>
 
-        <button className="secondary-button portfolio-submit" type="button" onClick={() => void submit()} disabled={isBusy}>
-          <Plus size={18} />
-          Ekle
-        </button>
-        {message ? <p className="form-message">{message}</p> : null}
+        <StatementUploader />
       </div>
     </section>
   );

@@ -1,8 +1,9 @@
 import type { CSSProperties } from "react";
 import type { DashboardPeriod } from "@fintwin/shared";
-import { AlertTriangle, Bell, Brain, BriefcaseBusiness, Landmark, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
+import { AlertTriangle, Brain, BriefcaseBusiness, Landmark, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
 import { AppShell } from "../components/app-shell";
 import { SpendingCharts } from "../components/dashboard-charts";
+import { ActionCenterPanel, ManualTransactionPanel } from "../components/dashboard-actions";
 import { ApiRequestError, getBusinessOverview, getCampaignReadiness, getInvestmentPortfolio, getPersonalDashboard, getSpendingDna, getSubscriptionLeaks, getWhatIf } from "../lib/api";
 import { requireAuthSession } from "../lib/server-auth";
 
@@ -117,6 +118,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         />
       </section>
 
+      <ManualTransactionPanel />
+
       <SpendingCharts dashboard={dashboard} dna={dna} />
 
       <section className="risk-alert-grid">
@@ -180,25 +183,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </section>
 
       <section className="split-layout">
-        <div className="panel">
-          <div className="section-title">
-            <span>Finansal Aksiyon Merkezi</span>
-            <span className="chip warn">{dashboard.upcomingActions.length} açık aksiyon</span>
-          </div>
-          {dashboard.upcomingActions.length ? (
-            <div className="action-list">
-              {dashboard.upcomingActions.map((action) => (
-                <div className="action-row" key={action.id}>
-                  <Bell size={18} />
-                  <span>{action.title}</span>
-                  <small>{action.status}</small>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyState message="Onay bekleyen finansal aksiyon yok." />
-          )}
-        </div>
+        <ActionCenterPanel initialActions={dashboard.upcomingActions} />
         <div className="panel">
           <div className="section-title">
             <span>Akıllı Abonelik Avcısı</span>

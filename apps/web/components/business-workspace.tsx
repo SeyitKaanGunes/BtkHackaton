@@ -2,9 +2,9 @@
 
 import { FormEvent, ReactNode, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CalendarPlus, CircleDollarSign, Clock3, Landmark, UserPlus } from "lucide-react";
-import type { Business, BusinessCustomer, BusinessDashboard, CollectionScore } from "@fintwin/shared";
-import { createBusiness, createBusinessCashEvent, createBusinessCustomer } from "../lib/api";
+import { Building2, CalendarPlus, CircleDollarSign, Clock3, Landmark, Sparkles, UserPlus } from "lucide-react";
+import type { AiCfoSimulation, Business, BusinessCustomer, BusinessDashboard, CollectionScore } from "@fintwin/shared";
+import { createBusiness, createBusinessCashEvent, createBusinessCustomer, simulateBusinessDecision } from "../lib/api";
 
 export type BusinessWorkspaceData = {
   business: Business;
@@ -118,6 +118,8 @@ function BusinessDashboardView({ data }: { data: BusinessWorkspaceData }) {
         <CashEventsPanel businessId={business.id} dashboard={dashboard} />
         <CustomersPanel businessId={business.id} customers={customers} scores={scores} />
       </section>
+
+      <AiCfoSimulationPanel business={business} dashboard={dashboard} />
     </>
   );
 }
@@ -289,6 +291,86 @@ function CustomersPanel({ businessId, customers, scores }: { businessId: string;
   );
 }
 
+function AiCfoSimulationPanel({ business, dashboard }: { business: Business; dashboard: BusinessDashboard }) {
+  const [amount, setAmount] = useState("75000");
+  const [result, setResult] = useState<AiCfoSimulation | null>(null);
+  const [pending, setPending] = useState(false);
+  const [status, setStatus] = useState<Status>(null);
+  const previewAmount = parsePreviewMoney(amount) ?? 0;
+
+  async function runSimulation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setStatus(null);
+    let parsedAmount: number;
+    try {
+      parsedAmount = parseRequiredMoney(amount, "Simülasyon tutarı");
+    } catch (error) {
+      setStatus({ tone: "error", text: error instanceof Error ? error.message : "Pozitif tutar gerekli." });
+      return;
+    }
+
+    setPending(true);
+    try {
+      setResult(await simulateBusinessDecision(business.id, { amount: parsedAmount, decision: "Web CFO simülasyonu" }));
+    } catch (error) {
+      setStatus({ tone: "error", text: error instanceof Error ? error.message : "Simülasyon çalıştırılamadı." });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <section className="panel ai-cfo-panel">
+      <div className="section-title">
+        <span>KOBİ karar simülasyonu</span>
+        <strong>AI CFO</strong>
+      </div>
+      <form className="ai-cfo-form" onSubmit={runSimulation}>
+        <label className="field">
+          <span>Yeni yatırım / ödeme tutarı</span>
+          <input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder="75000" />
+        </label>
+        <button className="secondary-button" type="submit" disabled={pending}>
+          <Sparkles size={16} />
+          {pending ? "Hesaplanıyor" : "Simülasyonu çalıştır"}
+        </button>
+      </form>
+      <div className="ai-cfo-preview">
+        <MiniFact label="30 gün sonrası" value={formatTry(dashboard.projected30Days - previewAmount)} />
+        <MiniFact label="Mevcut likidite" value={riskLabel(dashboard.liquidityRisk)} />
+        {result ? <MiniFact label="Simülasyon riski" value={riskLabel(result.riskLevel)} /> : null}
+      </div>
+      {result ? (
+        <div className="ai-cfo-result">
+          <strong>{result.summary}</strong>
+          <p>{result.recommendedPlan}</p>
+          {result.evidence.length ? (
+            <div className="evidence-list">
+              {result.evidence.map((item) => (
+                <div className="evidence-item" key={`${item.label}-${item.value}`}>
+                  <Sparkles size={15} />
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {status ? <p className={`form-message ${status.tone === "error" ? "danger" : ""}`}>{status.text}</p> : null}
+    </section>
+  );
+}
+
+function MiniFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="mini-fact">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
 function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="metric">
@@ -319,6 +401,13 @@ function parseRequiredMoney(value: string, field: string) {
   const parsed = parseOptionalMoney(value, field);
   if (parsed === undefined || parsed <= 0) throw new Error(`${field} pozitif sayı olmalı.`);
   return parsed;
+}
+
+function parsePreviewMoney(value: string) {
+  const raw = value.trim();
+  if (!raw) return undefined;
+  const parsed = Number(raw.replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function parseOptionalInteger(value: string, field: string) {

@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { Bot, Building2, Camera, LayoutDashboard, ShieldCheck, TrendingUp } from "lucide-react";
+import { Bot, Building2, LayoutDashboard, ShieldCheck, TrendingUp } from "lucide-react";
+import { AgentLauncher } from "./agent-launcher";
 import { LogoutButton } from "./logout-button";
 
 const nav = [
   { href: "/", label: "Kişisel", icon: LayoutDashboard },
   { href: "/portfolio", label: "Portföy", icon: TrendingUp },
   { href: "/agent", label: "Agent", icon: Bot },
-  { href: "/receipt", label: "Belgeler", icon: Camera },
   { href: "/business", label: "KOBİ", icon: Building2 }
 ];
 
@@ -39,10 +39,7 @@ export function AppShell({ children, active = "/" }: { children: React.ReactNode
         </div>
       </aside>
       <main className="workspace">{children}</main>
-      <Link className="agent-fab" href="/agent" aria-label="Finansal ikiz agent paneli">
-        <Bot size={22} />
-        <span>İkiz</span>
-      </Link>
+      <AgentLauncher />
     </div>
   );
 }

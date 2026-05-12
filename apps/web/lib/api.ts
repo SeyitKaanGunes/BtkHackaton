@@ -1,5 +1,7 @@
 import type {
   AgentResponse,
+  ActionItem,
+  AiCfoSimulation,
   Business,
   BusinessCashEvent,
   BusinessCashEventCreateRequest,
@@ -8,6 +10,7 @@ import type {
   BusinessCustomerCreateRequest,
   BusinessDashboard,
   CollectionScore,
+  Currency,
   DashboardPeriod,
   DashboardSummary,
   InvestmentHoldingCreateRequest,
@@ -19,13 +22,18 @@ import type {
   SpendingDna,
   StatementConfirmResult,
   StatementPreviewResult,
+  SpeechToTextRequest,
+  SpeechToTextResult,
   SubscriptionLeak,
   SubscriptionReminderResult,
+  TextToSpeechRequest,
+  TextToSpeechResult,
+  Transaction,
+  TransactionType,
   WhatIfResponse
 } from "@fintwin/shared";
 
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
-if (!rawApiUrl) throw new Error("NEXT_PUBLIC_API_URL is required.");
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:4000";
 const apiUrl = rawApiUrl.replace(/\/$/, "");
 
 export interface AuthResponse {
@@ -290,6 +298,29 @@ export async function postAgentMessage(message: string, options?: AuthOptions): 
   );
 }
 
+export function synthesizeSpeech(input: TextToSpeechRequest | string, options?: AuthOptions): Promise<TextToSpeechResult> {
+  const body = typeof input === "string" ? { text: input } : input;
+  return request<TextToSpeechResult>(
+    "/speech/tts",
+    {
+      method: "POST",
+      body: JSON.stringify(body)
+    },
+    options
+  );
+}
+
+export function transcribeSpeech(input: SpeechToTextRequest, options?: AuthOptions): Promise<SpeechToTextResult> {
+  return request<SpeechToTextResult>(
+    "/speech/stt",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
 export async function postReceiptScan(imageBase64?: string, mimeType?: string, options?: AuthOptions): Promise<ReceiptScanResult> {
   return request<ReceiptScanResult>(
     "/documents/receipt-scan",
@@ -351,6 +382,59 @@ export async function postStatementConfirm(
 export async function postSubscriptionReminder(input: { merchant: string; amount?: number; remindAt: string; note?: string }, options?: AuthOptions): Promise<SubscriptionReminderResult> {
   return request<SubscriptionReminderResult>(
     "/actions/subscription-reminder",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
+export function approveAction(id: string, options?: AuthOptions): Promise<ActionItem> {
+  return request<ActionItem>(
+    `/actions/${encodeURIComponent(id)}/approve`,
+    {
+      method: "POST"
+    },
+    options
+  );
+}
+
+export function dismissAction(id: string, options?: AuthOptions): Promise<ActionItem> {
+  return request<ActionItem>(
+    `/actions/${encodeURIComponent(id)}/dismiss`,
+    {
+      method: "POST"
+    },
+    options
+  );
+}
+
+export function createTransaction(
+  input: {
+    merchant: string;
+    amount: number;
+    type: TransactionType;
+    currency: Currency;
+    categoryId: string;
+    occurredAt: string;
+    paymentMethod: Transaction["paymentMethod"];
+  },
+  options?: AuthOptions
+): Promise<Transaction> {
+  return request<Transaction>(
+    "/transactions",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
+export function simulateBusinessDecision(businessId: string, input: { amount: number; decision?: string }, options?: AuthOptions): Promise<AiCfoSimulation> {
+  return request<AiCfoSimulation>(
+    `/business/${encodeURIComponent(businessId)}/ai-cfo/simulate`,
     {
       method: "POST",
       body: JSON.stringify(input)
