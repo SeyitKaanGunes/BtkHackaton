@@ -2331,6 +2331,333 @@ h1 {
   background: rgba(255, 255, 255, 0.38);
 }
 
+.workspace-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.detail-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.insight-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.insight-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.insight-grid.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.detail-stat-card,
+.mini-metric,
+.subscription-detail-card,
+.risk-detail-row,
+.category-detail-row {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.56);
+  border-radius: var(--radius-md);
+}
+
+.detail-stat-card {
+  min-height: 142px;
+  padding: 18px;
+  display: grid;
+  align-content: space-between;
+  gap: 12px;
+}
+
+.detail-stat-card span,
+.mini-metric span,
+.category-detail-row span,
+.risk-detail-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.detail-stat-card strong {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 38px);
+  font-weight: 650;
+  line-height: 1;
+}
+
+.detail-stat-card small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.detail-panel {
+  align-content: start;
+}
+
+.scenario-list.detailed {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.scenario-list.detailed .scenario {
+  min-height: 260px;
+}
+
+.scenario-facts {
+  display: grid;
+  gap: 5px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.inline-warning {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cashflow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cashflow-grid.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mini-metric {
+  min-height: 104px;
+  padding: 13px;
+  display: grid;
+  gap: 6px;
+}
+
+.mini-metric svg {
+  color: var(--accent-2);
+}
+
+.mini-metric strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.reason-list,
+.detail-list {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reason-list.compact {
+  gap: 6px;
+}
+
+.reason-list li,
+.detail-list li {
+  border: 1px solid rgba(16, 24, 21, 0.08);
+  border-radius: 14px;
+  background: rgba(16, 24, 21, 0.04);
+  color: var(--ink);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.reason-list li.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.detail-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.detail-list svg {
+  flex: 0 0 auto;
+  color: var(--accent-2);
+  margin-top: 1px;
+}
+
+.hero-insight {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(37, 87, 214, 0.2), transparent 28rem),
+    linear-gradient(135deg, rgba(251, 252, 247, 0.9), rgba(232, 240, 235, 0.76));
+}
+
+.hero-insight h2 {
+  margin: 0;
+  max-width: 820px;
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 54px);
+  font-weight: 650;
+  line-height: 1;
+}
+
+.hero-insight p {
+  max-width: 680px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.delay-orb {
+  width: 168px;
+  height: 168px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 2px;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.24), transparent 34%),
+    linear-gradient(135deg, #2557d6, #0d7966);
+  color: #f8fff9;
+  box-shadow: 0 24px 48px rgba(37, 87, 214, 0.24);
+}
+
+.delay-orb strong {
+  font-family: var(--font-display);
+  font-size: 52px;
+  font-weight: 650;
+  line-height: 0.9;
+}
+
+.delay-orb span {
+  color: rgba(248, 255, 249, 0.78);
+  font-size: 12px;
+}
+
+.subscription-detail-list,
+.category-detail-list {
+  display: grid;
+  gap: 12px;
+}
+
+.subscription-detail-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+}
+
+.subscription-detail-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.subscription-detail-card h3 {
+  margin: 8px 0 4px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 650;
+}
+
+.subscription-detail-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.subscription-detail-card > strong {
+  font-family: var(--font-display);
+  font-size: 23px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.progress-list.detailed {
+  gap: 14px;
+}
+
+.risk-detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.44fr);
+  gap: 12px;
+  padding: 14px;
+}
+
+.risk-detail-row > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.risk-detail-row strong,
+.category-detail-row strong {
+  font-size: 15px;
+}
+
+.risk-meter {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+}
+
+.risk-meter > span {
+  text-align: right;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.risk-detail-row.warn .progress-track span {
+  background: var(--warn);
+}
+
+.risk-detail-row.danger .progress-track span {
+  background: var(--danger);
+}
+
+.risk-detail-row .reason-list {
+  grid-column: 1 / -1;
+}
+
+.category-detail-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 0.7fr) minmax(220px, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+}
+
+.category-swatch {
+  width: 16px;
+  height: 52px;
+  border-radius: 999px;
+}
+
+.category-detail-row > div:nth-child(2) {
+  display: grid;
+  gap: 4px;
+}
+
+.category-share {
+  display: grid;
+  gap: 7px;
+}
+
+.category-share > span {
+  text-align: right;
+  color: var(--ink);
+  font-weight: 900;
+}
+
 .auth-shell {
   background:
     radial-gradient(circle at 12% 12%, rgba(37, 87, 214, 0.16), transparent 28rem),
@@ -2390,6 +2717,25 @@ h1 {
     border-radius: 28px;
   }
 
+  .insight-grid.three,
+  .insight-grid.four,
+  .scenario-list.detailed,
+  .cashflow-grid,
+  .cashflow-grid.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hero-insight,
+  .subscription-detail-card,
+  .category-detail-row,
+  .risk-detail-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .delay-orb {
+    justify-self: start;
+  }
+
   .health-card.panel {
     display: grid;
   }
@@ -2414,6 +2760,33 @@ h1 {
   h1 {
     font-size: 34px;
     line-height: 0.98;
+  }
+
+  .insight-grid.three,
+  .insight-grid.four,
+  .scenario-list.detailed,
+  .cashflow-grid,
+  .cashflow-grid.compact {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-stat-card {
+    min-height: 116px;
+  }
+
+  .delay-orb {
+    width: 132px;
+    height: 132px;
+  }
+
+  .delay-orb strong {
+    font-size: 42px;
+  }
+
+  .subscription-detail-card > strong,
+  .category-share > span,
+  .risk-meter > span {
+    text-align: left;
   }
 
   .panel,

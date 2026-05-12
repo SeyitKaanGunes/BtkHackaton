@@ -226,6 +226,10 @@ export function getWhatIf(options?: AuthOptions) {
   );
 }
 
+export function getActions(options?: AuthOptions) {
+  return request<ActionItem[]>("/actions", undefined, options);
+}
+
 export function getInvestmentPortfolio(options?: AuthOptions) {
   return request<InvestmentPortfolioSummary>("/investments/portfolio", undefined, options);
 }

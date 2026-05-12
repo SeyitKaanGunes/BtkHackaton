@@ -1,10 +1,16 @@
 import Link from "next/link";
-import { Bot, Building2, LayoutDashboard, ShieldCheck, TrendingUp } from "lucide-react";
+import { BarChart3, Bot, Brain, Building2, Clock3, LayoutDashboard, ListChecks, Repeat2, ShieldCheck, TrendingUp, WandSparkles } from "lucide-react";
 import { AgentLauncher } from "./agent-launcher";
 import { LogoutButton } from "./logout-button";
 
 const nav = [
-  { href: "/", label: "Kişisel", icon: LayoutDashboard },
+  { href: "/", label: "Özet", icon: LayoutDashboard },
+  { href: "/categories", label: "Kategori Dağılımı", icon: BarChart3 },
+  { href: "/spending-dna", label: "Spending DNA", icon: Brain },
+  { href: "/what-if", label: "What-if", icon: WandSparkles },
+  { href: "/emotional-delay", label: "Emotional Delay", icon: Clock3 },
+  { href: "/actions", label: "Aksiyon Merkezi", icon: ListChecks },
+  { href: "/subscriptions", label: "Abonelik Avcısı", icon: Repeat2 },
   { href: "/portfolio", label: "Portföy", icon: TrendingUp },
   { href: "/agent", label: "Agent", icon: Bot },
   { href: "/business", label: "KOBİ", icon: Building2 }
