@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HttpException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
+import bcrypt from "bcryptjs";
 import {
   categories,
   type ActionItem,
@@ -115,6 +116,51 @@ describe("API feature services", () => {
     expect(firstLogin.oauth.googleReady).toBe(true);
     expect(secondLogin.user.id).toBe(firstLogin.user.id);
     expect(store.users.find((user) => user.email === "google.user@example.com")?.googleSubject).toBe("google-subject-1");
+  });
+
+  it("rejects the development admin account in production", async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const store = createTestStore();
+      store.users.push({
+        ...demoUser,
+        id: "user-admin",
+        email: "admin@local.dev",
+        name: "Admin",
+        passwordHash: await bcrypt.hash("admin", 10)
+      });
+      const auth = new AuthService(store, new JwtService({ secret: "test-secret" }), unconfiguredGoogle());
+
+      await expect(auth.login({ email: "admin", password: "admin" })).rejects.toThrow("E-posta veya şifre hatalı.");
+      await expect(auth.login({ email: "admin@local.dev", password: "admin" })).rejects.toThrow("E-posta veya şifre hatalı.");
+      await expect(auth.register({ name: "Admin", email: "admin@local.dev", password: "admin123" })).rejects.toThrow("E-posta veya şifre hatalı.");
+    } finally {
+      if (previousNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = previousNodeEnv;
+      }
+    }
+  });
+
+  it("keeps selected account type in auth responses and rejects mismatched login type", async () => {
+    const store = createTestStore();
+    const google = { isConfigured: () => false, verifyIdToken: vi.fn() } as unknown as GoogleOAuthService;
+    const auth = new AuthService(store, new JwtService({ secret: "test-secret" }), google);
+
+    const registered = await auth.register({
+      name: "KOBI Owner",
+      email: "kobi.owner@example.com",
+      password: "secret123",
+      accountType: "business"
+    });
+
+    expect(registered.user.accountType).toBe("business");
+    expect(registered.user.persona).toBe("business_owner");
+    await expect(auth.login({ email: "kobi.owner@example.com", password: "secret123", accountType: "personal" })).rejects.toThrow("hesap");
+    const loggedIn = await auth.login({ email: "kobi.owner@example.com", password: "secret123", accountType: "business" });
+    expect(loggedIn.user.accountType).toBe("business");
   });
 
   it("rejects invalid agent and what-if request bodies before defaulting", async () => {
@@ -791,4 +837,11 @@ function unconfiguredQwen(): QwenService {
     isConfigured: () => false,
     chat: vi.fn()
   } as unknown as QwenService;
+}
+
+function unconfiguredGoogle(): GoogleOAuthService {
+  return {
+    isConfigured: () => false,
+    verifyIdToken: vi.fn()
+  } as unknown as GoogleOAuthService;
 }

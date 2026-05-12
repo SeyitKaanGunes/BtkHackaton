@@ -14,6 +14,8 @@ export type RiskLevel = "low" | "medium" | "high" | "critical";
 
 export type DashboardPeriod = "daily" | "weekly" | "monthly" | "yearly";
 
+export type AccountType = "personal" | "business";
+
 export interface DashboardPeriodOptions {
   period?: DashboardPeriod | string;
   referenceDate?: string;
@@ -34,7 +36,8 @@ export interface UserProfile {
   id: string;
   name: string;
   email: string;
-  persona: "student" | "young_professional" | "family" | "senior";
+  persona: "student" | "young_professional" | "family" | "senior" | "business_owner";
+  accountType: AccountType;
   monthlyIncome: number;
   payday: number;
   currency: Currency;
@@ -500,6 +503,86 @@ export interface BusinessDashboard {
   liquidityRisk: RiskLevel;
   upcomingPayments: BusinessCashEvent[];
   expectedCollections: BusinessCashEvent[];
+}
+
+export interface BusinessSummaryInsight {
+  cashBalance: number;
+  expectedCollections30Days: number;
+  upcomingPayments30Days: number;
+  overdueReceivables: number;
+  projected30Days: number;
+  lowestProjectedBalance30Days: number;
+  cashRiskScore: number;
+  riskLevel: RiskLevel;
+}
+
+export interface BusinessCashflowPoint {
+  date: string;
+  label: string;
+  inflow: number;
+  outflow: number;
+  balance: number;
+  riskLevel: RiskLevel;
+  eventTitles: string[];
+}
+
+export interface BusinessCriticalDate {
+  date: string;
+  label: string;
+  projectedBalance: number;
+  riskLevel: RiskLevel;
+}
+
+export interface BusinessTwinInsight {
+  summary: string;
+  criticalDates: BusinessCriticalDate[];
+}
+
+export interface BusinessCoverageAnalysis {
+  canCover: boolean;
+  comfortLevel: "comfortable" | "tight" | "risk" | "missing_data";
+  payrollTotal: number;
+  rentTotal: number;
+  requiredTotal: number;
+  lowestBalanceAfterRequired: number;
+  riskDate?: string;
+  shortfall: number;
+  relievingCollection?: BusinessCashEvent;
+  deferrablePayment?: BusinessCashEvent;
+  explanation: string;
+}
+
+export interface CollectionPriority {
+  customerId: string;
+  customerName: string;
+  outstandingAmount: number;
+  averageDelayDays: number;
+  score: number;
+  riskLevel: RiskLevel;
+  priorityScore: number;
+  action: string;
+  reminderMessage: string;
+}
+
+export interface BusinessScenarioAnalysis {
+  id: "collection_delay" | "payment_deferral" | "cash_injection";
+  label: string;
+  description: string;
+  projected30Days: number;
+  cashImpact: number;
+  riskLevel: RiskLevel;
+  recommendation: string;
+}
+
+export interface BusinessInsights {
+  summary: BusinessSummaryInsight;
+  twin: BusinessTwinInsight;
+  cashflow: BusinessCashflowPoint[];
+  coverage: BusinessCoverageAnalysis;
+  collectionPriorities: CollectionPriority[];
+  scenarios: BusinessScenarioAnalysis[];
+  assumptions: string[];
+  missingData: string[];
 }
 
 export interface CollectionScore {

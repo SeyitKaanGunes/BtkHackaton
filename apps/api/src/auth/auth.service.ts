@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, UnauthorizedException } from "
 import { randomUUID } from "node:crypto";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
+import type { AccountType } from "@fintwin/shared";
 import { DataStoreService } from "../data/data-store.service.js";
 import type { Currency } from "@fintwin/shared";
 import type { AuthUser } from "./auth-user.js";
@@ -17,17 +18,20 @@ export class AuthService {
     @Inject(GoogleOAuthService) private readonly google: GoogleOAuthService
   ) {}
 
-  async register(input: { name: string; email: string; password: string }) {
+  async register(input: { name: string; email: string; password: string; accountType?: AccountType }) {
     const email = normalizeEmail(input.email);
+    this.rejectProductionAdminEmail(email);
     if (await this.store.findUserByEmail(email)) {
       throw new UnauthorizedException("Bu e-posta ile kullanıcı zaten var.");
     }
+    const accountType = normalizeAccountType(input.accountType);
     const passwordHash = await bcrypt.hash(input.password, 10);
     const user = await this.store.createUser({
       id: `user-${randomUUID()}`,
       name: input.name.trim(),
       email,
-      persona: "young_professional",
+      persona: personaForAccountType(accountType),
+      accountType,
       monthlyIncome: 0,
       payday: 5,
       currency: "TRY",
@@ -36,21 +40,29 @@ export class AuthService {
     return this.toAuthResponse(user);
   }
 
-  async login(input: { email: string; password: string }) {
-    const user = await this.store.findUserByEmail(this.normalizeLoginIdentifier(input.email));
+  async login(input: { email: string; password: string; accountType?: AccountType }) {
+    const email = this.normalizeLoginIdentifier(input.email);
+    this.rejectProductionAdminEmail(email);
+    const user = await this.store.findUserByEmail(email);
     if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
       throw new UnauthorizedException("E-posta veya şifre hatalı.");
     }
+    assertSelectedAccountType(user.accountType, input.accountType);
     return this.toAuthResponse(user);
   }
 
-  async loginWithGoogle(input: { idToken: string; nonce?: string }) {
+  async loginWithGoogle(input: { idToken: string; nonce?: string; accountType?: AccountType }) {
     const profile = await this.google.verifyIdToken(input.idToken, input.nonce);
+    const accountType = normalizeAccountType(input.accountType);
     const linkedUser = await this.store.findUserByGoogleSubject(profile.subject);
-    if (linkedUser) return this.toAuthResponse(linkedUser);
+    if (linkedUser) {
+      assertSelectedAccountType(linkedUser.accountType, input.accountType);
+      return this.toAuthResponse(linkedUser);
+    }
 
     const existingEmailUser = await this.store.findUserByEmail(profile.email);
     if (existingEmailUser) {
+      assertSelectedAccountType(existingEmailUser.accountType, input.accountType);
       const linked = await this.store.linkGoogleSubject(existingEmailUser.id, profile.subject);
       return this.toAuthResponse(linked);
     }
@@ -61,7 +73,8 @@ export class AuthService {
       name: profile.name,
       email: profile.email,
       googleSubject: profile.subject,
-      persona: "young_professional",
+      persona: personaForAccountType(accountType),
+      accountType,
       monthlyIncome: 0,
       payday: 5,
       currency: "TRY",
@@ -119,8 +132,9 @@ export class AuthService {
     };
   }
 
-  private toAuthResponse(user: { id: string; email: string; name: string; persona: string; monthlyIncome: number; payday: number; currency: string }) {
+  private toAuthResponse(user: { id: string; email: string; name: string; persona: string; accountType?: AccountType; monthlyIncome: number; payday: number; currency: string }) {
     const token = this.jwt.sign({ sub: user.id, email: user.email });
+    const accountType = user.accountType ?? accountTypeFromPersona(user.persona);
     return {
       token,
       user: {
@@ -128,6 +142,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         persona: user.persona,
+        accountType,
         monthlyIncome: user.monthlyIncome,
         payday: user.payday,
         currency: user.currency
@@ -141,6 +156,12 @@ export class AuthService {
   private normalizeLoginIdentifier(identifier: string) {
     const normalized = identifier.trim();
     return normalized.toLowerCase() === "admin" ? "admin@local.dev" : normalizeEmail(normalized);
+  }
+
+  private rejectProductionAdminEmail(email: string) {
+    if (process.env.NODE_ENV === "production" && email === "admin@local.dev") {
+      throw new UnauthorizedException("E-posta veya şifre hatalı.");
+    }
   }
 }
 
@@ -174,4 +195,23 @@ function optionalCurrency(value: unknown): Currency | undefined {
     throw new BadRequestException("currency TRY, USD veya EUR olmalı.");
   }
   return currency as Currency;
+}
+
+function normalizeAccountType(accountType: AccountType | undefined): AccountType {
+  return accountType === "business" ? "business" : "personal";
+}
+
+function personaForAccountType(accountType: AccountType) {
+  return accountType === "business" ? "business_owner" : "young_professional";
+}
+
+function accountTypeFromPersona(persona: string): AccountType {
+  return persona === "business_owner" ? "business" : "personal";
+}
+
+function assertSelectedAccountType(actual: AccountType | undefined, requested: AccountType | undefined) {
+  if (!requested) return;
+  if (normalizeAccountType(actual) !== normalizeAccountType(requested)) {
+    throw new UnauthorizedException("Bu e-posta seçilen hesap türüyle eşleşmiyor.");
+  }
 }

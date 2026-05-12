@@ -3,7 +3,7 @@ import { Brain } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { SpendingDnaDetailPanel } from "../../components/insight-detail-panels";
 import { getSpendingDna } from "../../lib/api";
-import { requireAuthSession } from "../../lib/server-auth";
+import { requirePersonalSession } from "../../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +19,13 @@ const periodOptions: Array<{ value: DashboardPeriod; label: string }> = [
 ];
 
 export default async function SpendingDnaPage({ searchParams }: SpendingDnaPageProps) {
-  const { token } = await requireAuthSession();
+  const { token, user } = await requirePersonalSession();
   const params = await searchParams;
   const period = parsePeriod(params?.period);
   const dna = await getSpendingDna({ token, period });
 
   return (
-    <AppShell active="/spending-dna">
+    <AppShell active="/spending-dna" accountType={user.accountType}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Davranışsal finans</p>

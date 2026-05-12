@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, OnModuleInit } from "@nestjs/c
 import { categories } from "@fintwin/shared";
 import type {
   Account,
+  AccountType,
   ActionItem,
   Budget,
   Business,
@@ -651,13 +652,15 @@ export class DataStoreService implements OnModuleInit {
     payday: number;
     currency: string;
   }): StoredUser {
+    const persona = normalizePersona(user.persona);
     return {
       id: user.id,
       email: user.email,
       googleSubject: user.googleSubject ?? undefined,
       name: user.name,
       passwordHash: user.passwordHash,
-      persona: user.persona as StoredUser["persona"],
+      persona,
+      accountType: accountTypeFromPersona(persona),
       monthlyIncome: Number(user.monthlyIncome),
       payday: user.payday,
       currency: user.currency as Currency
@@ -815,12 +818,12 @@ function slugifyCategoryName(value: string) {
   const slug = normalizeCategoryName(value)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/ı/g, "i")
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/ö/g, "o")
-    .replace(/ç/g, "c")
+    .replace(/\u0131/g, "i")
+    .replace(/\u011f/g, "g")
+    .replace(/\u00fc/g, "u")
+    .replace(/\u015f/g, "s")
+    .replace(/\u00f6/g, "o")
+    .replace(/\u00e7/g, "c")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return slug || "kategori";
@@ -829,4 +832,13 @@ function slugifyCategoryName(value: string) {
 function customCategoryColor(name: string) {
   const charTotal = Array.from(name).reduce((total, char) => total + char.charCodeAt(0), 0);
   return customCategoryColors[charTotal % customCategoryColors.length]!;
+}
+
+function normalizePersona(persona: string): StoredUser["persona"] {
+  if (persona === "student" || persona === "young_professional" || persona === "family" || persona === "senior" || persona === "business_owner") return persona;
+  return "young_professional";
+}
+
+function accountTypeFromPersona(persona: StoredUser["persona"]): AccountType {
+  return persona === "business_owner" ? "business" : "personal";
 }

@@ -1,10 +1,22 @@
 "use client";
 
-import { FormEvent, ReactNode, useState } from "react";
+import { type CSSProperties, type FormEvent, type ReactNode, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CalendarPlus, CircleDollarSign, Clock3, Landmark, Sparkles, UserPlus } from "lucide-react";
-import type { AiCfoSimulation, Business, BusinessCustomer, BusinessDashboard, CollectionScore } from "@fintwin/shared";
-import { createBusiness, createBusinessCashEvent, createBusinessCustomer, simulateBusinessDecision } from "../lib/api";
+import { AlertTriangle, ArrowRightLeft, Building2, CalendarPlus, CheckCircle2, CircleDollarSign, Clock3, Landmark, MessageSquareText, ShieldAlert, Sparkles, TrendingUp, UserPlus } from "lucide-react";
+import {
+  buildBusinessInsights,
+  type Business,
+  type BusinessCashflowPoint,
+  type BusinessCoverageAnalysis,
+  type BusinessCustomer,
+  type BusinessDashboard,
+  type BusinessInsights,
+  type BusinessScenarioAnalysis,
+  type BusinessSummaryInsight,
+  type CollectionPriority,
+  type CollectionScore
+} from "@fintwin/shared";
+import { createBusiness, createBusinessCashEvent, createBusinessCustomer } from "../lib/api";
 
 export type BusinessWorkspaceData = {
   business: Business;
@@ -14,10 +26,20 @@ export type BusinessWorkspaceData = {
 };
 
 type Status = { tone: "ok" | "error"; text: string } | null;
+type DetailFact = { label: string; value: string; tone?: "positive" | "negative" | "warning" };
+export type BusinessSectionId = "twin" | "cashflow" | "coverage" | "collections" | "scenarios" | "records";
 
-export function BusinessWorkspace({ initialData }: { initialData: BusinessWorkspaceData | null }) {
+export function BusinessWorkspace({
+  initialData,
+  activeSection = "twin",
+  showOverview = true
+}: {
+  initialData: BusinessWorkspaceData | null;
+  activeSection?: BusinessSectionId;
+  showOverview?: boolean;
+}) {
   if (!initialData) return <BusinessOnboarding />;
-  return <BusinessDashboardView data={initialData} />;
+  return <BusinessDashboardView data={initialData} activeSection={activeSection} showOverview={showOverview} />;
 }
 
 function BusinessOnboarding() {
@@ -90,37 +112,466 @@ function BusinessOnboarding() {
   );
 }
 
-function BusinessDashboardView({ data }: { data: BusinessWorkspaceData }) {
+function BusinessDashboardView({ data, activeSection, showOverview }: { data: BusinessWorkspaceData; activeSection: BusinessSectionId; showOverview: boolean }) {
   const { business, dashboard, customers, scores } = data;
+  const insights = buildBusinessInsights(business, [...dashboard.upcomingPayments, ...dashboard.expectedCollections], customers, scores);
   return (
     <>
-      <header className="workspace-header">
-        <div>
-          <p className="eyebrow">Ayrı KOBİ Modülü</p>
-          <h1>{business.name}</h1>
-          <p className="header-subtitle">{business.sector} işletme metrikleri oturum kullanıcısına bağlı DB kayıtlarından okunur.</p>
-        </div>
-        <div className="health-score">
-          <Building2 size={22} />
-          <span>Likidite riski</span>
-          <strong>{riskLabel(dashboard.liquidityRisk)}</strong>
-        </div>
-      </header>
+      {showOverview ? (
+        <header className="workspace-header">
+          <div>
+            <p className="eyebrow">Ayrı KOBİ Modülü</p>
+            <h1>{business.name}</h1>
+            <p className="header-subtitle">{business.sector} işletme metrikleri oturum kullanıcısına bağlı DB kayıtlarından okunur.</p>
+          </div>
+          <div className="health-score">
+            <Building2 size={22} />
+            <span>Likidite riski</span>
+            <strong>{riskLabel(dashboard.liquidityRisk)}</strong>
+          </div>
+        </header>
+      ) : null}
 
-      <section className="metric-grid">
-        <Metric icon={<Landmark size={20} />} label="Kasa" value={formatTry(dashboard.cashBalance)} />
-        <Metric icon={<Clock3 size={20} />} label="30 gün" value={formatTry(dashboard.projected30Days)} />
-        <Metric icon={<Clock3 size={20} />} label="60 gün" value={formatTry(dashboard.projected60Days)} />
-        <Metric icon={<CircleDollarSign size={20} />} label="90 gün" value={formatTry(dashboard.projected90Days)} />
-      </section>
-
-      <section className="split-layout">
-        <CashEventsPanel businessId={business.id} dashboard={dashboard} />
-        <CustomersPanel businessId={business.id} customers={customers} scores={scores} />
-      </section>
-
-      <AiCfoSimulationPanel business={business} dashboard={dashboard} />
+      {showOverview ? <BusinessSummaryMetrics summary={insights.summary} /> : null}
+      <BusinessSectionContent
+        activeSection={activeSection}
+        businessId={business.id}
+        customers={customers}
+        dashboard={dashboard}
+        detail={!showOverview}
+        insights={insights}
+        scores={scores}
+      />
     </>
+  );
+}
+
+function BusinessSectionContent({
+  activeSection,
+  businessId,
+  customers,
+  dashboard,
+  detail,
+  insights,
+  scores
+}: {
+  activeSection: BusinessSectionId;
+  businessId: string;
+  customers: BusinessCustomer[];
+  dashboard: BusinessDashboard;
+  detail: boolean;
+  insights: BusinessInsights;
+  scores: CollectionScore[];
+}) {
+  return (
+    <section className={detail ? "business-section-content detail-mode" : "business-section-content"}>
+      {activeSection === "twin" ? <TwinInsightPanel detail={detail} insights={insights} /> : null}
+      {activeSection === "cashflow" ? <CashflowForecastPanel detail={detail} points={insights.cashflow} /> : null}
+      {activeSection === "coverage" ? <CoveragePanel coverage={insights.coverage} detail={detail} /> : null}
+      {activeSection === "collections" ? <CollectionPriorityPanel detail={detail} priorities={insights.collectionPriorities} /> : null}
+      {activeSection === "scenarios" ? <ScenarioSimulatorPanel detail={detail} scenarios={insights.scenarios} /> : null}
+      {activeSection === "records" ? (
+        <>
+          {detail ? <RecordsOverviewPanel customers={customers} dashboard={dashboard} scores={scores} /> : null}
+          <section className="split-layout business-data-entry">
+            <CashEventsPanel businessId={businessId} dashboard={dashboard} />
+            <CustomersPanel businessId={businessId} customers={customers} scores={scores} />
+          </section>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function BusinessSummaryMetrics({ summary }: { summary: BusinessSummaryInsight }) {
+  return (
+    <section className="metric-grid business-summary-grid">
+      <Metric icon={<Landmark size={20} />} label="Kasa" value={formatTry(summary.cashBalance)} />
+      <Metric icon={<CircleDollarSign size={20} />} label="Beklenen tahsilat" value={formatTry(summary.expectedCollections30Days)} />
+      <Metric icon={<Clock3 size={20} />} label="Yaklaşan ödeme" value={formatTry(summary.upcomingPayments30Days)} />
+      <Metric icon={<AlertTriangle size={20} />} label="Geciken alacak" value={formatTry(summary.overdueReceivables)} />
+      <Metric icon={<TrendingUp size={20} />} label="30 gün sonu" value={formatTry(summary.projected30Days)} />
+      <Metric icon={<ShieldAlert size={20} />} label="Nakit risk skoru" value={`${summary.cashRiskScore}/100`} />
+    </section>
+  );
+}
+
+function TwinInsightPanel({ detail, insights }: { detail: boolean; insights: BusinessInsights }) {
+  const nextCriticalDate = insights.twin.criticalDates[0];
+  const detailFacts: DetailFact[] = [
+    { label: "Risk seviyesi", value: riskLabel(insights.summary.riskLevel), tone: riskFactTone(insights.summary.riskLevel) },
+    { label: "Risk skoru", value: `${insights.summary.cashRiskScore}/100` },
+    { label: "En düşük bakiye", value: formatTry(insights.summary.lowestProjectedBalance30Days) },
+    { label: "Kritik gün", value: nextCriticalDate ? formatDateLabel(nextCriticalDate.date) : "Görünmüyor" }
+  ];
+
+  return (
+    <section className={detail ? "panel business-twin-panel detail-panel" : "panel business-twin-panel"}>
+      {detail ? (
+        <BusinessSectionIntro
+          description={insights.twin.summary}
+          eyebrow="Finansal İkiz"
+          facts={detailFacts}
+          title="İşletmenin kısa vadeli finansal davranışı"
+        />
+      ) : (
+        <div className="business-twin-copy">
+          <Sparkles size={20} />
+          <div>
+            <p className="eyebrow">Finansal İkiz Cevabı</p>
+            <h2>{insights.twin.summary}</h2>
+          </div>
+        </div>
+      )}
+      <div className={detail ? "critical-date-list detailed" : "critical-date-list"}>
+        {insights.twin.criticalDates.map((item) => (
+          <div className={`critical-date ${riskToneClass(item.riskLevel)}`} key={`${item.date}-${item.label}`}>
+            <span>{formatDateLabel(item.date)}</span>
+            <strong>{item.label}</strong>
+            <small>{formatTry(item.projectedBalance)} tahmini bakiye</small>
+          </div>
+        ))}
+      </div>
+      {detail ? (
+        <div className="business-detail-grid">
+          <DetailBlock title="Veri durumu">
+            {insights.missingData.length > 0 ? (
+              insights.missingData.map((item) => <DetailRow key={item} label="Eksik veri" value={item} />)
+            ) : (
+              <DetailRow label="Eksik veri" value="Kayıtlı veriyle analiz üretilebiliyor." />
+            )}
+            {insights.assumptions.map((item) => <DetailRow key={item} label="Varsayım" value={item} />)}
+          </DetailBlock>
+          <DetailBlock title="Aksiyon yönü">
+            <DetailRow label="Sonuç" value={twinResultText(insights)} />
+            <DetailRow label="Öneri" value={twinActionText(insights)} />
+          </DetailBlock>
+        </div>
+      ) : insights.missingData.length > 0 || insights.assumptions.length > 0 ? (
+        <div className="business-note-strip">
+          {insights.missingData.slice(0, 2).map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+          {insights.assumptions.slice(0, 1).map((item) => (
+            <span key={item}>{item}</span>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function CashflowForecastPanel({ detail, points }: { detail: boolean; points: BusinessCashflowPoint[] }) {
+  const balances = points.map((point) => point.balance);
+  const minBalance = Math.min(0, ...balances);
+  const maxBalance = Math.max(1, ...balances);
+  const range = Math.max(maxBalance - minBalance, 1);
+  const eventfulPoints = points.filter((point) => point.inflow > 0 || point.outflow > 0 || point.riskLevel === "high" || point.riskLevel === "critical");
+  const visibleEventPoints = detail ? eventfulPoints : eventfulPoints.slice(0, 4);
+  const riskyPoints = points.filter((point) => point.riskLevel === "high" || point.riskLevel === "critical");
+  const lowestPoint = lowestCashflowPoint(points);
+  const totalInflow = sumNumbers(points.map((point) => point.inflow));
+  const totalOutflow = sumNumbers(points.map((point) => point.outflow));
+  const endingPoint = points[points.length - 1];
+  const detailFacts: DetailFact[] = [
+    { label: "30 gün sonu", value: formatTry(endingPoint?.balance ?? 0) },
+    { label: "En düşük bakiye", value: lowestPoint ? formatTry(lowestPoint.balance) : "Veri yok", tone: lowestPoint ? riskFactTone(lowestPoint.riskLevel) : undefined },
+    { label: "Tahsilat", value: formatTry(totalInflow), tone: "positive" },
+    { label: "Ödeme", value: formatTry(totalOutflow), tone: "negative" }
+  ];
+
+  return (
+    <section className={detail ? "panel cashflow-forecast-panel detail-panel" : "panel cashflow-forecast-panel"}>
+      {detail ? (
+        <BusinessSectionIntro
+          description="Gelecek 30 gün için kayıtlı tahsilat ve ödeme olaylarından deterministik nakit bakiyesi tahmini."
+          eyebrow="Nakit Akışı"
+          facts={detailFacts}
+          title="Riskli günleri ve nakit hareketlerini birlikte izle"
+        />
+      ) : (
+        <div className="section-title">
+          <span>30 günlük nakit akışı</span>
+          <strong>{points.length} gün</strong>
+        </div>
+      )}
+      <div className="cashflow-chart" aria-label="30 günlük tahmini nakit akışı">
+        {points.map((point, index) => {
+          const height = Math.max(8, ((point.balance - minBalance) / range) * 100);
+          return (
+            <div className="cashflow-bar-wrap" key={point.date}>
+              <span className={`cashflow-bar ${riskToneClass(point.riskLevel)}`} style={{ "--bar-height": `${height}%` } as CSSProperties} title={`${point.label}: ${formatTry(point.balance)}`} />
+              {index % 7 === 0 || index === points.length - 1 ? <small>{point.label}</small> : null}
+            </div>
+          );
+        })}
+      </div>
+      <div className="cashflow-events">
+        {visibleEventPoints.length > 0 ? (
+          visibleEventPoints.map((point) => (
+            <div className="cashflow-event" key={`${point.date}-${point.balance}`}>
+              <span>{formatDateLabel(point.date)}</span>
+              <strong>{formatTry(point.balance)}</strong>
+              <small>{point.eventTitles.join(", ") || riskLabel(point.riskLevel)}</small>
+            </div>
+          ))
+        ) : (
+          <div className="empty-state">Grafik için gelecek tahsilat veya ödeme bekleniyor.</div>
+        )}
+      </div>
+      {detail ? (
+        <div className="business-detail-grid">
+          <DetailBlock title="Riskli günler">
+            {riskyPoints.length > 0 ? (
+              riskyPoints.slice(0, 6).map((point) => (
+                <DetailRow
+                  key={`${point.date}-risk`}
+                  label={formatDateLabel(point.date)}
+                  value={`${formatTry(point.balance)} bakiye · ${point.eventTitles.join(", ") || riskLabel(point.riskLevel)}`}
+                />
+              ))
+            ) : (
+              <DetailRow label="Durum" value="Kayıtlı nakit olaylarına göre yüksek riskli gün görünmüyor." />
+            )}
+          </DetailBlock>
+          <DetailBlock title="Nakit hareketi özeti">
+            <DetailRow label="Toplam giriş" value={formatTry(totalInflow)} />
+            <DetailRow label="Toplam çıkış" value={formatTry(totalOutflow)} />
+            <DetailRow label="Net hareket" value={formatTry(totalInflow - totalOutflow)} />
+            <DetailRow label="Riskli gün sayısı" value={`${riskyPoints.length} gün`} />
+          </DetailBlock>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function CoveragePanel({ coverage, detail }: { coverage: BusinessCoverageAnalysis; detail: boolean }) {
+  const statusIcon = coverage.canCover ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />;
+  const detailFacts: DetailFact[] = [
+    { label: "Sonuç", value: coverage.comfortLevel === "missing_data" ? "Veri bekleniyor" : coverage.canCover ? "Karşılanabilir" : "Riskli" },
+    { label: "Maaş + kira", value: formatTry(coverage.requiredTotal) },
+    { label: "En düşük bakiye", value: formatTry(coverage.lowestBalanceAfterRequired), tone: coverage.lowestBalanceAfterRequired < 0 ? "negative" : "positive" },
+    { label: "Tampon açığı", value: formatTry(coverage.shortfall), tone: coverage.shortfall > 0 ? "warning" : "positive" }
+  ];
+
+  return (
+    <section className={`panel coverage-panel ${coverage.comfortLevel} ${detail ? "detail-panel" : ""}`}>
+      {detail ? (
+        <BusinessSectionIntro
+          description={coverage.explanation}
+          eyebrow="Maaş ve Kira"
+          facts={detailFacts}
+          title="Zorunlu ödemeler için karar destek analizi"
+        />
+      ) : (
+        <div className="section-title">
+          <span>Maaş ve kira karşılanabilir mi?</span>
+          <strong>{coverage.comfortLevel === "missing_data" ? "Veri bekleniyor" : coverage.canCover ? "Evet" : "Riskli"}</strong>
+        </div>
+      )}
+      <div className="coverage-verdict">
+        {statusIcon}
+        <p>{coverage.explanation}</p>
+      </div>
+      <div className="coverage-grid">
+        <MiniFact label="Maaş" value={formatTry(coverage.payrollTotal)} />
+        <MiniFact label="Kira" value={formatTry(coverage.rentTotal)} />
+        <MiniFact label="En düşük bakiye" value={formatTry(coverage.lowestBalanceAfterRequired)} />
+        <MiniFact label="Tampon açığı" value={formatTry(coverage.shortfall)} />
+      </div>
+      {coverage.riskDate ? <p className="coverage-note">Risk tarihi: {formatDateLabel(coverage.riskDate)}</p> : null}
+      {coverage.relievingCollection || coverage.deferrablePayment ? (
+        <div className="coverage-actions">
+          {coverage.relievingCollection ? <span>{coverage.relievingCollection.title} tahsilatı gelirse tampon güçlenir.</span> : null}
+          {coverage.deferrablePayment ? <span>{coverage.deferrablePayment.title} ertelenirse risk azalır.</span> : null}
+        </div>
+      ) : null}
+      {detail ? (
+        <div className="scenario-decision-grid">
+          <DetailRow label="Sonuç" value={coverageDecisionResult(coverage)} />
+          <DetailRow label="Neden" value={coverage.explanation} />
+          <DetailRow label="Varsayımlar" value="Yalnızca kayıtlı ve maaş/kira olarak etiketlenmiş ödeme olayları dikkate alındı." />
+          <DetailRow label="Veri güveni" value={coverage.comfortLevel === "missing_data" ? "Düşük - maaş/kira etiketi yok." : "Orta - kayıtlı nakit olaylarına bağlı."} />
+          <DetailRow label="Önerilen aksiyon" value={coverageActionText(coverage)} />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function CollectionPriorityPanel({ detail, priorities }: { detail: boolean; priorities: CollectionPriority[] }) {
+  const visiblePriorities = detail ? priorities : priorities.slice(0, 3);
+  const totalOutstanding = sumNumbers(priorities.map((priority) => priority.outstandingAmount));
+  const highRiskCount = priorities.filter((priority) => priority.riskLevel === "high" || priority.riskLevel === "critical").length;
+  const averageScore = priorities.length > 0 ? Math.round(sumNumbers(priorities.map((priority) => priority.score)) / priorities.length) : 0;
+  const detailFacts: DetailFact[] = [
+    { label: "Müşteri", value: `${priorities.length}` },
+    { label: "Açık bakiye", value: formatTry(totalOutstanding) },
+    { label: "Yüksek risk", value: `${highRiskCount}` },
+    { label: "Ortalama skor", value: priorities.length > 0 ? `${averageScore}/100` : "Veri yok" }
+  ];
+
+  return (
+    <section className={detail ? "panel collection-priority-panel detail-panel" : "panel collection-priority-panel"}>
+      {detail ? (
+        <BusinessSectionIntro
+          description="Geciken fatura davranışı, açık bakiye ve tahsilat skoruna göre hangi müşteriye önce odaklanılacağını sıralar."
+          eyebrow="Tahsilat"
+          facts={detailFacts}
+          title="Tahsilat önceliği ve kurtarma planı"
+        />
+      ) : (
+        <div className="section-title">
+          <span>Tahsilat önceliği</span>
+          <strong>{priorities.length} müşteri</strong>
+        </div>
+      )}
+      {visiblePriorities.length > 0 ? (
+        <div className="priority-list">
+          {visiblePriorities.map((priority) => (
+            <div className={`priority-row ${riskToneClass(priority.riskLevel)}`} key={priority.customerId}>
+              <div>
+                <strong>{priority.customerName}</strong>
+                <span>{priority.averageDelayDays} gün ortalama gecikme · güven skoru {priority.score}/100</span>
+              </div>
+              <b>{formatTry(priority.outstandingAmount)}</b>
+              <small>{priority.action}</small>
+              <p>
+                <MessageSquareText size={15} />
+                {priority.reminderMessage}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state">Önceliklendirme için müşteri ve açık bakiye bekleniyor.</div>
+      )}
+      {detail ? (
+        <DetailBlock title="Bu hafta tahsilat planı">
+          {priorities.length > 0 ? (
+            priorities.slice(0, 3).map((priority, index) => (
+              <DetailRow key={`${priority.customerId}-plan`} label={`${index + 1}. aksiyon`} value={`${priority.customerName}: ${priority.action}`} />
+            ))
+          ) : (
+            <DetailRow label="Plan" value="Plan üretmek için müşteri ve açık bakiye verisi bekleniyor." />
+          )}
+        </DetailBlock>
+      ) : null}
+    </section>
+  );
+}
+
+function ScenarioSimulatorPanel({ detail, scenarios }: { detail: boolean; scenarios: BusinessScenarioAnalysis[] }) {
+  const [selectedScenarioId, setSelectedScenarioId] = useState<BusinessScenarioAnalysis["id"]>(scenarios[0]?.id ?? "collection_delay");
+  const selectedScenario = scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0];
+  const bestScenario = [...scenarios].sort((left, right) => right.cashImpact - left.cashImpact)[0];
+  const worstScenario = [...scenarios].sort((left, right) => left.cashImpact - right.cashImpact)[0];
+  const detailFacts: DetailFact[] = [
+    { label: "Senaryo", value: `${scenarios.length}` },
+    { label: "En güçlü etki", value: bestScenario ? formatTry(bestScenario.cashImpact) : "Veri yok", tone: bestScenario && bestScenario.cashImpact >= 0 ? "positive" : "negative" },
+    { label: "En zayıf etki", value: worstScenario ? formatTry(worstScenario.cashImpact) : "Veri yok", tone: worstScenario && worstScenario.cashImpact < 0 ? "warning" : "positive" },
+    { label: "Seçili risk", value: selectedScenario ? riskLabel(selectedScenario.riskLevel) : "Veri yok" }
+  ];
+
+  return (
+    <section className={detail ? "panel business-scenario-panel detail-panel" : "panel business-scenario-panel"}>
+      {detail ? (
+        <BusinessSectionIntro
+          description="Seçili varsayımın 30 gün sonu kasa etkisini kayıtlı nakit olayları üzerinden karşılaştırır."
+          eyebrow="Senaryolar"
+          facts={detailFacts}
+          title="What-if senaryo simülatörü"
+        />
+      ) : (
+        <div className="section-title">
+          <span>Mini senaryo simülatörü</span>
+          <strong>3 hazır senaryo</strong>
+        </div>
+      )}
+      <div className="scenario-tabs" role="tablist" aria-label="KOBİ senaryoları">
+        {scenarios.map((scenario) => (
+          <button className={scenario.id === selectedScenario?.id ? "active" : ""} key={scenario.id} type="button" onClick={() => setSelectedScenarioId(scenario.id)}>
+            {scenario.label}
+          </button>
+        ))}
+      </div>
+      {selectedScenario ? (
+        <div className={`scenario-result ${riskToneClass(selectedScenario.riskLevel)}`}>
+          <ArrowRightLeft size={20} />
+          <div>
+            <strong>{formatTry(selectedScenario.projected30Days)}</strong>
+            <span>{selectedScenario.description}</span>
+            <p>{selectedScenario.recommendation}</p>
+          </div>
+          <b>{selectedScenario.cashImpact >= 0 ? "+" : ""}{formatTry(selectedScenario.cashImpact)}</b>
+        </div>
+      ) : (
+        <div className="empty-state">Senaryo için nakit verisi bekleniyor.</div>
+      )}
+      {detail && selectedScenario ? (
+        <>
+          <div className="scenario-decision-grid">
+            <DetailRow label="Sonuç" value={`30 gün sonu tahmini kasa ${formatTry(selectedScenario.projected30Days)}.`} />
+            <DetailRow label="Neden" value={selectedScenario.description} />
+            <DetailRow label="Varsayımlar" value={scenarioAssumptionText(selectedScenario)} />
+            <DetailRow label="Veri güveni" value={scenarioConfidenceText(selectedScenario)} />
+            <DetailRow label="Önerilen aksiyon" value={selectedScenario.recommendation} />
+          </div>
+          <div className="scenario-comparison-grid">
+            {scenarios.map((scenario) => (
+              <button
+                className={scenario.id === selectedScenario.id ? "scenario-compare-card active" : "scenario-compare-card"}
+                key={`${scenario.id}-comparison`}
+                type="button"
+                onClick={() => setSelectedScenarioId(scenario.id)}
+              >
+                <span>{scenario.label}</span>
+                <strong>{scenario.cashImpact >= 0 ? "+" : ""}{formatTry(scenario.cashImpact)}</strong>
+                <small>{riskLabel(scenario.riskLevel)} risk · {formatTry(scenario.projected30Days)} kasa</small>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function RecordsOverviewPanel({ customers, dashboard, scores }: { customers: BusinessCustomer[]; dashboard: BusinessDashboard; scores: CollectionScore[] }) {
+  const totalCollections = sumNumbers(dashboard.expectedCollections.map((event) => event.amount));
+  const totalPayments = sumNumbers(dashboard.upcomingPayments.map((event) => event.amount));
+  const totalOutstanding = sumNumbers(customers.map((customer) => customer.outstandingAmount));
+  const lateCustomerCount = customers.filter((customer) => customer.invoicesLate > 0).length;
+  const averageScore = scores.length > 0 ? Math.round(sumNumbers(scores.map((score) => score.score)) / scores.length) : 0;
+  const facts: DetailFact[] = [
+    { label: "Nakit olayı", value: `${dashboard.expectedCollections.length + dashboard.upcomingPayments.length}` },
+    { label: "Beklenen tahsilat", value: formatTry(totalCollections), tone: "positive" },
+    { label: "Yaklaşan ödeme", value: formatTry(totalPayments), tone: "negative" },
+    { label: "Tahsilat skoru", value: scores.length > 0 ? `${averageScore}/100` : "Veri yok" }
+  ];
+
+  return (
+    <section className="panel records-overview-panel detail-panel">
+      <BusinessSectionIntro
+        description="Nakit olayları ve müşteri kayıtları bu moddaki tüm analizlerin deterministik veri kaynağıdır."
+        eyebrow="Veri Girişi"
+        facts={facts}
+        title="Kayıtları güncelle, analizlerin kalitesini artır"
+      />
+      <div className="business-detail-grid">
+        <DetailBlock title="Nakit veri kalitesi">
+          <DetailRow label="Tahsilat kaydı" value={`${dashboard.expectedCollections.length} adet · ${formatTry(totalCollections)}`} />
+          <DetailRow label="Ödeme kaydı" value={`${dashboard.upcomingPayments.length} adet · ${formatTry(totalPayments)}`} />
+          <DetailRow label="Projeksiyon" value={`${formatTry(dashboard.projected30Days)} 30 gün sonu tahmini kasa`} />
+        </DetailBlock>
+        <DetailBlock title="Müşteri veri kalitesi">
+          <DetailRow label="Müşteri" value={`${customers.length} kayıt`} />
+          <DetailRow label="Geciken müşteri" value={`${lateCustomerCount} kayıt`} />
+          <DetailRow label="Açık bakiye" value={formatTry(totalOutstanding)} />
+        </DetailBlock>
+      </div>
+    </section>
   );
 }
 
@@ -291,80 +742,54 @@ function CustomersPanel({ businessId, customers, scores }: { businessId: string;
   );
 }
 
-function AiCfoSimulationPanel({ business, dashboard }: { business: Business; dashboard: BusinessDashboard }) {
-  const [amount, setAmount] = useState("75000");
-  const [result, setResult] = useState<AiCfoSimulation | null>(null);
-  const [pending, setPending] = useState(false);
-  const [status, setStatus] = useState<Status>(null);
-  const previewAmount = parsePreviewMoney(amount) ?? 0;
-
-  async function runSimulation(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setStatus(null);
-    let parsedAmount: number;
-    try {
-      parsedAmount = parseRequiredMoney(amount, "Simülasyon tutarı");
-    } catch (error) {
-      setStatus({ tone: "error", text: error instanceof Error ? error.message : "Pozitif tutar gerekli." });
-      return;
-    }
-
-    setPending(true);
-    try {
-      setResult(await simulateBusinessDecision(business.id, { amount: parsedAmount, decision: "Web CFO simülasyonu" }));
-    } catch (error) {
-      setStatus({ tone: "error", text: error instanceof Error ? error.message : "Simülasyon çalıştırılamadı." });
-    } finally {
-      setPending(false);
-    }
-  }
-
+function BusinessSectionIntro({
+  description,
+  eyebrow,
+  facts,
+  title
+}: {
+  description: string;
+  eyebrow: string;
+  facts: DetailFact[];
+  title: string;
+}) {
   return (
-    <section className="panel ai-cfo-panel">
-      <div className="section-title">
-        <span>KOBİ karar simülasyonu</span>
-        <strong>AI CFO</strong>
+    <div className="business-section-intro">
+      <div>
+        <p className="eyebrow">{eyebrow}</p>
+        <h2>{title}</h2>
+        <p>{description}</p>
       </div>
-      <form className="ai-cfo-form" onSubmit={runSimulation}>
-        <label className="field">
-          <span>Yeni yatırım / ödeme tutarı</span>
-          <input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder="75000" />
-        </label>
-        <button className="secondary-button" type="submit" disabled={pending}>
-          <Sparkles size={16} />
-          {pending ? "Hesaplanıyor" : "Simülasyonu çalıştır"}
-        </button>
-      </form>
-      <div className="ai-cfo-preview">
-        <MiniFact label="30 gün sonrası" value={formatTry(dashboard.projected30Days - previewAmount)} />
-        <MiniFact label="Mevcut likidite" value={riskLabel(dashboard.liquidityRisk)} />
-        {result ? <MiniFact label="Simülasyon riski" value={riskLabel(result.riskLevel)} /> : null}
+      <div className="business-detail-facts">
+        {facts.map((fact) => (
+          <MiniFact key={`${fact.label}-${fact.value}`} label={fact.label} tone={fact.tone} value={fact.value} />
+        ))}
       </div>
-      {result ? (
-        <div className="ai-cfo-result">
-          <strong>{result.summary}</strong>
-          <p>{result.recommendedPlan}</p>
-          {result.evidence.length ? (
-            <div className="evidence-list">
-              {result.evidence.map((item) => (
-                <div className="evidence-item" key={`${item.label}-${item.value}`}>
-                  <Sparkles size={15} />
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      {status ? <p className={`form-message ${status.tone === "error" ? "danger" : ""}`}>{status.text}</p> : null}
-    </section>
+    </div>
   );
 }
 
-function MiniFact({ label, value }: { label: string; value: string }) {
+function DetailBlock({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <div className="mini-fact">
+    <div className="business-detail-block">
+      <strong>{title}</strong>
+      <div className="business-detail-rows">{children}</div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="business-detail-row">
+      <span>{label}</span>
+      <p>{value}</p>
+    </div>
+  );
+}
+
+function MiniFact({ label, tone, value }: { label: string; tone?: DetailFact["tone"]; value: string }) {
+  return (
+    <div className={tone ? `mini-fact ${tone}-fact` : "mini-fact"}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -379,6 +804,61 @@ function Metric({ icon, label, value }: { icon: ReactNode; label: string; value:
       <strong>{value}</strong>
     </div>
   );
+}
+
+function sumNumbers(values: number[]): number {
+  return values.reduce((total, value) => total + value, 0);
+}
+
+function lowestCashflowPoint(points: BusinessCashflowPoint[]): BusinessCashflowPoint | undefined {
+  return points.reduce<BusinessCashflowPoint | undefined>((lowest, point) => {
+    if (!lowest || point.balance < lowest.balance) return point;
+    return lowest;
+  }, undefined);
+}
+
+function twinResultText(insights: BusinessInsights): string {
+  if (insights.summary.riskLevel === "high" || insights.summary.riskLevel === "critical") {
+    return `Nakit risk seviyesi ${riskLabel(insights.summary.riskLevel)}; en düşük tahmini bakiye ${formatTry(insights.summary.lowestProjectedBalance30Days)}.`;
+  }
+  return `Kayıtlı verilere göre 30 gün sonu tahmini kasa ${formatTry(insights.summary.projected30Days)}.`;
+}
+
+function twinActionText(insights: BusinessInsights): string {
+  if (insights.missingData.length > 0) return "Eksik veri alanları tamamlanırsa finansal ikiz daha güvenilir uyarı üretir.";
+  if (insights.collectionPriorities.length > 0 && insights.summary.overdueReceivables > 0) {
+    return `${insights.collectionPriorities[0].customerName} tahsilatı önceliklendirilirse kısa vadeli nakit tamponu güçlenir.`;
+  }
+  if (insights.coverage.deferrablePayment) return `${insights.coverage.deferrablePayment.title} ödeme tarihi ayrıca değerlendirilebilir.`;
+  return "Mevcut projeksiyonu korumak için kayıtlı tahsilat ve ödeme tarihleri düzenli güncellenmeli.";
+}
+
+function coverageDecisionResult(coverage: BusinessCoverageAnalysis): string {
+  if (coverage.comfortLevel === "missing_data") return "Maaş veya kira etiketi olmadığı için analiz tamamlanamadı.";
+  if (coverage.canCover && coverage.shortfall === 0) return "Maaş ve kira ödemeleri güvenli tampon korunarak karşılanabiliyor.";
+  if (coverage.canCover) return "Ödemeler karşılanıyor ancak güvenli tampon zayıflıyor.";
+  return "Ödeme döneminde nakit açığı riski oluşuyor.";
+}
+
+function coverageActionText(coverage: BusinessCoverageAnalysis): string {
+  if (coverage.comfortLevel === "missing_data") return "Maaş ve kira ödeme kayıtlarını etiketleyerek yeniden hesaplama yapılmalı.";
+  if (coverage.relievingCollection) return `${coverage.relievingCollection.title} tahsilatı takip edilirse tampon açığı azalır.`;
+  if (coverage.deferrablePayment) return `${coverage.deferrablePayment.title} için erteleme etkisi ayrıca değerlendirilebilir.`;
+  return "Kritik ödeme haftasından önce güncel tahsilat ve ödeme kayıtları kontrol edilmeli.";
+}
+
+function scenarioAssumptionText(scenario: BusinessScenarioAnalysis): string {
+  return `${scenario.label} varsayımı uygulandı; veri setindeki diğer nakit olayları aynı kaldı. Para birimi TRY olarak gösterildi.`;
+}
+
+function scenarioConfidenceText(scenario: BusinessScenarioAnalysis): string {
+  return scenario.description.includes("bulunmadı") ? "Düşük - ilgili nakit olayı bulunamadı." : "Orta - kayıtlı nakit olayları üzerinden hesaplandı.";
+}
+
+function riskFactTone(level: string): DetailFact["tone"] {
+  if (level === "high" || level === "critical") return "negative";
+  if (level === "medium") return "warning";
+  return "positive";
 }
 
 function formatTry(value: number) {
@@ -403,13 +883,6 @@ function parseRequiredMoney(value: string, field: string) {
   return parsed;
 }
 
-function parsePreviewMoney(value: string) {
-  const raw = value.trim();
-  if (!raw) return undefined;
-  const parsed = Number(raw.replace(/\./g, "").replace(",", "."));
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
-}
-
 function parseOptionalInteger(value: string, field: string) {
   const raw = value.trim();
   if (!raw) return undefined;
@@ -425,4 +898,17 @@ function riskLabel(level: string) {
     high: "yüksek",
     critical: "kritik"
   }[level] ?? level;
+}
+
+function riskToneClass(level: string) {
+  return {
+    low: "risk-low",
+    medium: "risk-medium",
+    high: "risk-high",
+    critical: "risk-critical"
+  }[level] ?? "risk-low";
+}
+
+function formatDateLabel(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short" }).format(new Date(`${value}T12:00:00.000Z`));
 }

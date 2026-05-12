@@ -9,8 +9,8 @@ export default function LoginPage() {
         <div>
           <span className="brand-mark">FS</span>
           <p className="eyebrow">Fintwin</p>
-          <h1>Finansal ikizine giriş yap.</h1>
-          <p className="header-subtitle">Kişisel veriler token ile ayrılır; her dashboard yalnızca oturum kullanıcısının kayıtlarını okur.</p>
+          <h1>Hesap türünü seç, finansal ikizine giriş yap.</h1>
+          <p className="header-subtitle">Kişisel ve KOBİ hesapları ayrı arayüzlere yönlenir; her dashboard yalnızca kendi oturum verilerini okur.</p>
         </div>
         <AuthForm />
       </section>

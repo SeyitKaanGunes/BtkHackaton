@@ -4,7 +4,7 @@ import { AppShell } from "../../components/app-shell";
 import { CategoryDistributionDetailPanel } from "../../components/insight-detail-panels";
 import { ReceiptScanner } from "../../components/receipt-scanner";
 import { getPersonalDashboard } from "../../lib/api";
-import { requireAuthSession } from "../../lib/server-auth";
+import { requirePersonalSession } from "../../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +20,13 @@ const periodOptions: Array<{ value: DashboardPeriod; label: string }> = [
 ];
 
 export default async function CategoriesPage({ searchParams }: CategoriesPageProps) {
-  const { token } = await requireAuthSession();
+  const { token, user } = await requirePersonalSession();
   const params = await searchParams;
   const period = parsePeriod(params?.period);
   const dashboard = await getPersonalDashboard({ token, period });
 
   return (
-    <AppShell active="/categories">
+    <AppShell active="/categories" accountType={user.accountType}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Harcama analizi</p>

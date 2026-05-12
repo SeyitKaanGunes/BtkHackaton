@@ -33,6 +33,7 @@ import type {
   TransactionType,
   WhatIfResponse
 } from "@fintwin/shared";
+import { resolveApiUrl } from "./api-url";
 
 const apiUrl = resolveApiUrl();
 
@@ -43,6 +44,7 @@ export interface AuthResponse {
     email: string;
     name: string;
     persona: string;
+    accountType: "personal" | "business";
     monthlyIncome: number;
     payday: number;
     currency: string;
@@ -50,21 +52,6 @@ export interface AuthResponse {
   oauth: {
     googleReady: boolean;
   };
-}
-
-function resolveApiUrl() {
-  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
-  const isProduction = process.env.NODE_ENV === "production";
-  if (!configured) {
-    if (isProduction) throw new Error("NEXT_PUBLIC_API_URL is required when NODE_ENV=production.");
-    return "http://localhost:4000";
-  }
-
-  const normalized = configured.replace(/\/$/, "");
-  if (isProduction && (normalized === "http://localhost:4000" || normalized.includes("your-api-domain.com"))) {
-    throw new Error("NEXT_PUBLIC_API_URL must point to the production API when NODE_ENV=production.");
-  }
-  return normalized;
 }
 
 export type AuthUserProfile = AuthResponse["user"];
@@ -119,21 +106,12 @@ export class ReceiptApiError extends Error {
   }
 }
 
-function browserAuthToken() {
-  if (typeof window === "undefined") return undefined;
-  const stored = window.localStorage.getItem("fintwin_token");
-  if (stored) return stored;
-  const match = document.cookie.match(/(?:^|;\s*)fintwin_token=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : undefined;
-}
-
 function withAuthHeaders(init?: RequestInit, options?: AuthOptions): RequestInit {
-  const token = options?.token ?? browserAuthToken();
   return {
     ...init,
     headers: {
       "content-type": "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(options?.token ? { authorization: `Bearer ${options.token}` } : {}),
       ...(init?.headers ?? {})
     }
   };
@@ -143,8 +121,9 @@ async function request<T>(path: string, init?: RequestInit, options?: AuthOption
   const isStatementEndpoint = path.startsWith("/documents/statement-agent/");
   const isReceiptEndpoint = path.startsWith("/documents/receipt");
   const isDocumentEndpoint = isStatementEndpoint || isReceiptEndpoint;
+  const targetUrl = requestUrl(path, options);
   try {
-    const response = await fetch(`${apiUrl}${path}`, {
+    const response = await fetch(targetUrl, {
       ...withAuthHeaders(init, options),
       cache: "no-store"
     });
@@ -167,6 +146,13 @@ async function request<T>(path: string, init?: RequestInit, options?: AuthOption
   }
 }
 
+function requestUrl(path: string, options?: AuthOptions) {
+  if (typeof window !== "undefined" && !options?.token) {
+    return `/api/backend${path}`;
+  }
+  return `${apiUrl}${path}`;
+}
+
 function periodPath(path: string, options?: DashboardRequestOptions) {
   const params = new URLSearchParams();
   if (options?.period) params.set("period", options.period);
@@ -175,21 +161,21 @@ function periodPath(path: string, options?: DashboardRequestOptions) {
   return query ? `${path}?${query}` : path;
 }
 
-export function register(input: { name: string; email: string; password: string }) {
+export function register(input: { name: string; email: string; password: string; accountType?: "personal" | "business" }) {
   return request<AuthResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify(input)
   });
 }
 
-export function login(input: { email: string; password: string }) {
+export function login(input: { email: string; password: string; accountType?: "personal" | "business" }) {
   return request<AuthResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify(input)
   });
 }
 
-export function loginWithGoogle(input: { idToken: string; nonce?: string }) {
+export function loginWithGoogle(input: { idToken: string; nonce?: string; accountType?: "personal" | "business" }) {
   return request<AuthResponse>("/auth/google", {
     method: "POST",
     body: JSON.stringify(input)

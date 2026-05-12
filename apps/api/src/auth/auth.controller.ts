@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Inject, Patch, Post, UseGuards } from "@nestjs/common";
-import { IsEmail, IsJWT, IsNumber, IsOptional, IsString, Max, Min, MinLength } from "class-validator";
+import { IsEmail, IsIn, IsJWT, IsNumber, IsOptional, IsString, Max, Min, MinLength } from "class-validator";
 import type { AuthUser } from "./auth-user.js";
 import { AuthService } from "./auth.service.js";
 import { CurrentUser } from "./current-user.decorator.js";
@@ -15,6 +15,10 @@ class RegisterDto {
   @IsString()
   @MinLength(6)
   password!: string;
+
+  @IsOptional()
+  @IsIn(["personal", "business"])
+  accountType?: "personal" | "business";
 }
 
 class LoginDto {
@@ -23,6 +27,10 @@ class LoginDto {
 
   @IsString()
   password!: string;
+
+  @IsOptional()
+  @IsIn(["personal", "business"])
+  accountType?: "personal" | "business";
 }
 
 class GoogleLoginDto {
@@ -32,6 +40,10 @@ class GoogleLoginDto {
   @IsOptional()
   @IsString()
   nonce?: string;
+
+  @IsOptional()
+  @IsIn(["personal", "business"])
+  accountType?: "personal" | "business";
 }
 
 class UpdateFinanceProfileDto {

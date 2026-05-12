@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loginWithGoogle } from "../../../lib/api";
+import { loginWithGoogle } from "../../../lib/web-auth";
 
 export default function GoogleLoginCallbackPage() {
   const [message, setMessage] = useState("Google oturumu doğrulanıyor...");
@@ -19,8 +19,10 @@ export default function GoogleLoginCallbackPage() {
       const returnedState = params.get("state")?.trim();
       const expectedState = window.sessionStorage.getItem("fintwin_google_state");
       const nonce = window.sessionStorage.getItem("fintwin_google_nonce") ?? undefined;
+      const accountType = window.sessionStorage.getItem("fintwin_account_type") === "business" ? "business" : "personal";
       window.sessionStorage.removeItem("fintwin_google_state");
       window.sessionStorage.removeItem("fintwin_google_nonce");
+      window.sessionStorage.removeItem("fintwin_account_type");
 
       if (!idToken) {
         redirectToLogin("Google oturum token'ı alınamadı.");
@@ -32,9 +34,8 @@ export default function GoogleLoginCallbackPage() {
       }
 
       try {
-        const result = await loginWithGoogle({ idToken, nonce });
-        persistSession(result.token);
-        window.location.replace("/");
+        const result = await loginWithGoogle({ idToken, nonce, accountType });
+        window.location.replace(result.user.accountType === "business" ? "/business" : "/");
       } catch (loginError) {
         redirectToLogin(loginError instanceof Error ? loginError.message : "Google ile oturum açılamadı.");
       }
@@ -62,9 +63,4 @@ export default function GoogleLoginCallbackPage() {
       </section>
     </main>
   );
-}
-
-function persistSession(token: string) {
-  window.localStorage.setItem("fintwin_token", token);
-  document.cookie = `fintwin_token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
 }
