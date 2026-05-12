@@ -144,6 +144,25 @@ describe("API feature services", () => {
     }
   });
 
+  it("keeps selected account type in auth responses and rejects mismatched login type", async () => {
+    const store = createTestStore();
+    const google = { isConfigured: () => false, verifyIdToken: vi.fn() } as unknown as GoogleOAuthService;
+    const auth = new AuthService(store, new JwtService({ secret: "test-secret" }), google);
+
+    const registered = await auth.register({
+      name: "KOBI Owner",
+      email: "kobi.owner@example.com",
+      password: "secret123",
+      accountType: "business"
+    });
+
+    expect(registered.user.accountType).toBe("business");
+    expect(registered.user.persona).toBe("business_owner");
+    await expect(auth.login({ email: "kobi.owner@example.com", password: "secret123", accountType: "personal" })).rejects.toThrow("hesap");
+    const loggedIn = await auth.login({ email: "kobi.owner@example.com", password: "secret123", accountType: "business" });
+    expect(loggedIn.user.accountType).toBe("business");
+  });
+
   it("rejects invalid agent and what-if request bodies before defaulting", async () => {
     const store = createTestStore();
     const agentController = new AgentController(new AgentService(store, new QwenService()));

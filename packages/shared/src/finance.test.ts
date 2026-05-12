@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildBusinessInsights,
   buildWhatIfScenarios,
   calculateCollectionScore,
   calculateDashboardSummary,
   calculateSpendingDna,
   detectSubscriptionLeakage
 } from "./finance.js";
-import { accounts, actions, budgets, businessCustomers, goals, subscriptions, transactions } from "./demo-data.js";
+import { accounts, actions, budgets, business, businessCashEvents, businessCustomers, goals, subscriptions, transactions } from "./demo-data.js";
 import type { Account, Budget, Category, Goal, Transaction } from "./types.js";
 
 describe("Fintwin finance engines", () => {
@@ -300,6 +301,19 @@ describe("Fintwin finance engines", () => {
     const score = calculateCollectionScore("cus-2", businessCustomers);
     expect(score.score).toBeLessThan(100);
     expect(score.recommendation.length).toBeGreaterThan(10);
+  });
+
+  it("builds KOBI cashflow, coverage, collection priority and scenario insights", () => {
+    const insights = buildBusinessInsights(business, businessCashEvents, businessCustomers, [], new Date("2026-05-12T00:00:00.000Z"));
+    expect(insights.summary.expectedCollections30Days).toBe(128000);
+    expect(insights.summary.upcomingPayments30Days).toBe(154000);
+    expect(insights.cashflow).toHaveLength(31);
+    expect(insights.coverage.requiredTotal).toBe(154000);
+    expect(insights.coverage.canCover).toBe(true);
+    expect(insights.collectionPriorities[0]?.priorityScore).toBeGreaterThanOrEqual(insights.collectionPriorities[1]?.priorityScore ?? 0);
+    expect(insights.collectionPriorities.some((priority) => priority.customerName === "Mavi Lojistik")).toBe(true);
+    expect(insights.scenarios.map((scenario) => scenario.id)).toEqual(["collection_delay", "payment_deferral", "cash_injection"]);
+    expect(insights.twin.summary).toContain("30 gün");
   });
 });
 

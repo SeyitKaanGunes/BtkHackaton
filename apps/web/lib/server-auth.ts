@@ -21,3 +21,15 @@ export async function requireAuthSession() {
     throw error;
   }
 }
+
+export async function requirePersonalSession() {
+  const session = await requireAuthSession();
+  if (session.user.accountType === "business") redirect("/business");
+  return session;
+}
+
+export async function requireBusinessSession() {
+  const session = await requireAuthSession();
+  if (session.user.accountType !== "business") redirect("/");
+  return session;
+}

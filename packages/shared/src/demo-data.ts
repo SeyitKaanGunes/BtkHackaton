@@ -20,6 +20,7 @@ export const demoUser: UserProfile = {
   name: "Seyit Kaan",
   email: "seyit@example.com",
   persona: "young_professional",
+  accountType: "personal",
   monthlyIncome: 48500,
   payday: 5,
   currency: "TRY"

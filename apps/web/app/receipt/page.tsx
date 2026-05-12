@@ -1,11 +1,11 @@
 import { AppShell } from "../../components/app-shell";
 import { ReceiptScanner } from "../../components/receipt-scanner";
-import { requireAuthSession } from "../../lib/server-auth";
+import { requirePersonalSession } from "../../lib/server-auth";
 
 export default async function ReceiptPage() {
-  await requireAuthSession();
+  const { user } = await requirePersonalSession();
   return (
-    <AppShell active="/receipt">
+    <AppShell active="/receipt" accountType={user.accountType}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Belge Agent'ları</p>

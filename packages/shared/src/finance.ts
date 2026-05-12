@@ -9,10 +9,18 @@ import type {
   AiCfoSimulation,
   Budget,
   Business,
+  BusinessCashflowPoint,
   BusinessDashboard,
   BusinessCashEvent,
   BusinessCustomer,
   Category,
+  BusinessCoverageAnalysis,
+  BusinessCriticalDate,
+  BusinessInsights,
+  BusinessScenarioAnalysis,
+  BusinessSummaryInsight,
+  BusinessTwinInsight,
+  CollectionPriority,
   CollectionScore,
   DashboardPeriod,
   DashboardPeriodOptions,
@@ -40,6 +48,17 @@ const balancedCashFactor = 0.45;
 const whatIfBalancedMultiplier = 0.7;
 const mandatoryCategoryTerms = ["kira", "fatura", "aidat", "borç", "borc", "rent_or_bills"];
 const emergencyGoalPattern = /acil|emergency/i;
+const businessProjectionWindowDays = 30;
+const businessScenarioDelayDays = 10;
+const businessScenarioDeferralDays = 7;
+const businessScenarioCashInjectionAmount = 50000;
+const businessCashWarningBuffer = 50000;
+const businessRequiredPaymentBufferRatio = 0.15;
+const businessMinimumRequiredPaymentBuffer = 20000;
+const businessRiskPaymentPressureWeight = 28;
+const businessRiskOverduePressureWeight = 22;
+const businessRiskBufferPressureWeight = 35;
+const businessRiskNegativeBalanceWeight = 25;
 
 const riskFromScore = (score: number): RiskLevel => {
   if (score >= 85) return "critical";
@@ -782,6 +801,331 @@ export function calculateBusinessDashboard(sourceBusiness: Business, sourceCashE
     upcomingPayments: futureEvents.filter((event) => event.type === "outflow"),
     expectedCollections: futureEvents.filter((event) => event.type === "inflow")
   };
+}
+
+export function buildBusinessInsights(
+  sourceBusiness: Business,
+  sourceCashEvents: BusinessCashEvent[],
+  sourceCustomers: BusinessCustomer[],
+  sourceScores: CollectionScore[] = [],
+  referenceDate = new Date()
+): BusinessInsights {
+  const referenceDay = parseUtcDate(referenceDate.toISOString());
+  const relatedEvents = sortedBusinessEvents(sourceBusiness.id, sourceCashEvents);
+  const futureEvents = relatedEvents.filter((event) => parseUtcDate(event.dueAt) >= referenceDay);
+  const projectionEvents = futureEvents.filter((event) => isWithinProjectionWindow(event, referenceDay, businessProjectionWindowDays));
+  const cashflow = buildBusinessCashflow(sourceBusiness.cashBalance, projectionEvents, referenceDay, businessProjectionWindowDays);
+  const summary = buildBusinessSummary(sourceBusiness, projectionEvents, sourceCustomers, cashflow);
+  const coverage = buildBusinessCoverageAnalysis(projectionEvents, cashflow);
+  const collectionPriorities = buildCollectionPriorities(sourceCustomers, sourceScores);
+  const scenarios = buildBusinessScenarioAnalyses(sourceBusiness, futureEvents, referenceDay, summary.projected30Days);
+  const missingData: string[] = [];
+  if (futureEvents.length === 0) missingData.push("Gelecek nakit olayı bulunamadı.");
+  if (sourceCustomers.length === 0) missingData.push("Tahsilat önceliği için müşteri kaydı bulunamadı.");
+  if (coverage.comfortLevel === "missing_data") missingData.push("Maaş veya kira analizi için maaş/kira etiketli ödeme bulunamadı.");
+
+  return {
+    summary,
+    twin: buildBusinessTwinInsight(summary, coverage, cashflow),
+    cashflow,
+    coverage,
+    collectionPriorities,
+    scenarios,
+    assumptions: ["Business modelinde para birimi alanı bulunmadığı için tutarlar TRY olarak gösterildi."],
+    missingData
+  };
+}
+
+function sortedBusinessEvents(businessId: string, sourceCashEvents: BusinessCashEvent[]): BusinessCashEvent[] {
+  return sourceCashEvents.filter((event) => event.businessId === businessId).sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+}
+
+function isWithinProjectionWindow(event: BusinessCashEvent, referenceDay: Date, days: number): boolean {
+  return parseUtcDate(event.dueAt) <= addUtcDays(referenceDay, days);
+}
+
+function buildBusinessCashflow(initialCashBalance: number, events: BusinessCashEvent[], referenceDay: Date, days: number): BusinessCashflowPoint[] {
+  const formatter = new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short" });
+  const points: BusinessCashflowPoint[] = [];
+  let runningBalance = initialCashBalance;
+  for (let dayIndex = 0; dayIndex <= days; dayIndex += 1) {
+    const currentDate = addUtcDays(referenceDay, dayIndex);
+    const currentDateKey = dateKey(currentDate);
+    const dayEvents = events.filter((event) => event.dueAt === currentDateKey);
+    const inflow = sum(dayEvents.filter((event) => event.type === "inflow").map((event) => event.amount));
+    const outflow = sum(dayEvents.filter((event) => event.type === "outflow").map((event) => event.amount));
+    runningBalance += inflow - outflow;
+    points.push({
+      date: currentDateKey,
+      label: formatter.format(currentDate),
+      inflow,
+      outflow,
+      balance: runningBalance,
+      riskLevel: businessBalanceRiskLevel(runningBalance),
+      eventTitles: dayEvents.map((event) => event.title)
+    });
+  }
+  return points;
+}
+
+function buildBusinessSummary(
+  sourceBusiness: Business,
+  projectionEvents: BusinessCashEvent[],
+  sourceCustomers: BusinessCustomer[],
+  cashflow: BusinessCashflowPoint[]
+): BusinessSummaryInsight {
+  const expectedCollections30Days = sum(projectionEvents.filter((event) => event.type === "inflow").map((event) => event.amount));
+  const upcomingPayments30Days = sum(projectionEvents.filter((event) => event.type === "outflow").map((event) => event.amount));
+  const overdueReceivables = sum(sourceCustomers.filter((customer) => customer.invoicesLate > 0).map((customer) => customer.outstandingAmount));
+  const projected30Days = cashflow[cashflow.length - 1]?.balance ?? sourceBusiness.cashBalance;
+  const lowestProjectedBalance30Days = cashflow.reduce((lowest, point) => Math.min(lowest, point.balance), sourceBusiness.cashBalance);
+  const coverageBase = Math.max(sourceBusiness.cashBalance + expectedCollections30Days, 1);
+  const paymentPressure = Math.min(upcomingPayments30Days / coverageBase, 1);
+  const overdueBase = Math.max(expectedCollections30Days + overdueReceivables, 1);
+  const overduePressure = Math.min(overdueReceivables / overdueBase, 1);
+  const bufferPressure = Math.min(Math.max(businessCashWarningBuffer - lowestProjectedBalance30Days, 0) / businessCashWarningBuffer, 1);
+  const negativeBalancePressure = Math.min(Math.max(-lowestProjectedBalance30Days, 0) / businessCashWarningBuffer, 1);
+  const cashRiskScore = clamp(
+    paymentPressure * businessRiskPaymentPressureWeight +
+      overduePressure * businessRiskOverduePressureWeight +
+      bufferPressure * businessRiskBufferPressureWeight +
+      negativeBalancePressure * businessRiskNegativeBalanceWeight
+  );
+  return {
+    cashBalance: sourceBusiness.cashBalance,
+    expectedCollections30Days,
+    upcomingPayments30Days,
+    overdueReceivables,
+    projected30Days,
+    lowestProjectedBalance30Days,
+    cashRiskScore,
+    riskLevel: riskFromScore(cashRiskScore)
+  };
+}
+
+function buildBusinessCoverageAnalysis(events: BusinessCashEvent[], cashflow: BusinessCashflowPoint[]): BusinessCoverageAnalysis {
+  const requiredEvents = events.filter((event) => event.type === "outflow" && isPayrollOrRentEvent(event));
+  const payrollTotal = sum(requiredEvents.filter(isPayrollEvent).map((event) => event.amount));
+  const rentTotal = sum(requiredEvents.filter(isRentEvent).map((event) => event.amount));
+  const requiredTotal = payrollTotal + rentTotal;
+  if (requiredTotal === 0) {
+    return {
+      canCover: false,
+      comfortLevel: "missing_data",
+      payrollTotal,
+      rentTotal,
+      requiredTotal,
+      lowestBalanceAfterRequired: 0,
+      shortfall: 0,
+      explanation: "Maaş veya kira etiketli ödeme bulunmadığı için karşılanabilirlik analizi yapılmadı."
+    };
+  }
+
+  const lowestPoint = cashflow.reduce((lowest, point) => (point.balance < lowest.balance ? point : lowest), cashflow[0] ?? {
+    date: "",
+    label: "",
+    inflow: 0,
+    outflow: 0,
+    balance: 0,
+    riskLevel: "low" as RiskLevel,
+    eventTitles: []
+  });
+  const requiredBuffer = Math.max(requiredTotal * businessRequiredPaymentBufferRatio, businessMinimumRequiredPaymentBuffer);
+  const shortfall = Math.max(requiredBuffer - lowestPoint.balance, 0);
+  const canCover = lowestPoint.balance >= 0;
+  const comfortLevel: BusinessCoverageAnalysis["comfortLevel"] = !canCover ? "risk" : shortfall > 0 ? "tight" : "comfortable";
+  const relievingCollection = bestRelievingCollection(events, lowestPoint.date, shortfall);
+  const deferrablePayment = bestDeferrablePayment(events, lowestPoint.date);
+  const explanation =
+    comfortLevel === "comfortable"
+      ? "Mevcut verilere göre maaş ve kira ödemeleri güvenli tampon korunarak karşılanabiliyor."
+      : comfortLevel === "tight"
+        ? "Maaş ve kira ödemeleri karşılanıyor ancak güvenli nakit tamponu zayıflıyor."
+        : "Maaş ve kira döneminde nakit açığı riski oluşuyor.";
+
+  return {
+    canCover,
+    comfortLevel,
+    payrollTotal,
+    rentTotal,
+    requiredTotal,
+    lowestBalanceAfterRequired: lowestPoint.balance,
+    riskDate: lowestPoint.date,
+    shortfall,
+    relievingCollection,
+    deferrablePayment,
+    explanation
+  };
+}
+
+function buildCollectionPriorities(sourceCustomers: BusinessCustomer[], sourceScores: CollectionScore[]): CollectionPriority[] {
+  return sourceCustomers
+    .map((customer) => {
+      const score = sourceScores.find((item) => item.customerId === customer.id) ?? calculateCollectionScore(customer.id, sourceCustomers);
+      const priorityScore = clamp((100 - score.score) * 0.5 + customer.averageDelayDays * 1.1 + customer.invoicesLate * 6 + customer.outstandingAmount / 2500);
+      return {
+        customerId: customer.id,
+        customerName: customer.name,
+        outstandingAmount: customer.outstandingAmount,
+        averageDelayDays: customer.averageDelayDays,
+        score: score.score,
+        riskLevel: score.riskLevel,
+        priorityScore,
+        action: collectionPriorityAction(score.riskLevel),
+        reminderMessage: `Merhaba, ${customer.outstandingAmount.toLocaleString("tr-TR")} TL açık bakiyeniz için ödeme planınızı paylaşabilir misiniz?`
+      };
+    })
+    .sort((left, right) => right.priorityScore - left.priorityScore);
+}
+
+function buildBusinessScenarioAnalyses(
+  sourceBusiness: Business,
+  futureEvents: BusinessCashEvent[],
+  referenceDay: Date,
+  baseProjected30Days: number
+): BusinessScenarioAnalysis[] {
+  const projectionEvents = futureEvents.filter((event) => isWithinProjectionWindow(event, referenceDay, businessProjectionWindowDays));
+  const largestCollection = [...projectionEvents].filter((event) => event.type === "inflow").sort((left, right) => right.amount - left.amount)[0];
+  const largestPayment = [...projectionEvents]
+    .filter((event) => event.type === "outflow")
+    .sort((left, right) => {
+      const requiredDelta = Number(isPayrollOrRentEvent(left)) - Number(isPayrollOrRentEvent(right));
+      return requiredDelta || right.amount - left.amount;
+    })[0];
+  const delayedCollectionEvents = largestCollection
+    ? futureEvents.map((event) => (event.id === largestCollection.id ? { ...event, dueAt: dateKey(addUtcDays(parseUtcDate(event.dueAt), businessScenarioDelayDays)) } : event))
+    : futureEvents;
+  const deferredPaymentEvents = largestPayment
+    ? futureEvents.map((event) => (event.id === largestPayment.id ? { ...event, dueAt: dateKey(addUtcDays(parseUtcDate(event.dueAt), businessScenarioDeferralDays)) } : event))
+    : futureEvents;
+  const delayedProjection = projectBusinessBalance(sourceBusiness.cashBalance, delayedCollectionEvents, referenceDay, businessProjectionWindowDays);
+  const deferredProjection = projectBusinessBalance(sourceBusiness.cashBalance, deferredPaymentEvents, referenceDay, businessProjectionWindowDays);
+  const injectedProjection = projectBusinessBalance(sourceBusiness.cashBalance + businessScenarioCashInjectionAmount, futureEvents, referenceDay, businessProjectionWindowDays);
+
+  return [
+    {
+      id: "collection_delay",
+      label: "Tahsilat 10 gün gecikirse",
+      description: largestCollection ? `${largestCollection.title} ${businessScenarioDelayDays} gün ötelenir.` : "30 gün içinde beklenen tahsilat bulunmadı.",
+      projected30Days: delayedProjection,
+      cashImpact: delayedProjection - baseProjected30Days,
+      riskLevel: businessProjectionRiskLevel(delayedProjection),
+      recommendation:
+        delayedProjection < baseProjected30Days
+          ? "Bu tahsilat kritikse ödeme hatırlatması ve kısmi tahsilat planı öne alınmalı."
+          : "Tahsilat gecikmesi 30 günlük projeksiyonu değiştirmiyor."
+    },
+    {
+      id: "payment_deferral",
+      label: "Ödeme 7 gün ertelenirse",
+      description: largestPayment ? `${largestPayment.title} ${businessScenarioDeferralDays} gün ötelenir.` : "30 gün içinde ertelenebilir ödeme bulunmadı.",
+      projected30Days: deferredProjection,
+      cashImpact: deferredProjection - baseProjected30Days,
+      riskLevel: businessProjectionRiskLevel(deferredProjection),
+      recommendation:
+        deferredProjection > baseProjected30Days
+          ? "Bu erteleme kısa vadeli nakit tamponunu artırır; tedarikçi ilişkisi ve gecikme maliyeti ayrıca kontrol edilmeli."
+          : "Erteleme 30 günlük ay sonu bakiyesini anlamlı değiştirmiyor."
+    },
+    {
+      id: "cash_injection",
+      label: "50.000 TL nakit girerse",
+      description: "Kasa bakiyesine ek kısa vadeli finansman eklenir.",
+      projected30Days: injectedProjection,
+      cashImpact: injectedProjection - baseProjected30Days,
+      riskLevel: businessProjectionRiskLevel(injectedProjection),
+      recommendation: "Ek nakit, riskli günlerde tampon yaratır; kredi ise maliyet ve geri ödeme takvimiyle birlikte değerlendirilmelidir."
+    }
+  ];
+}
+
+function buildBusinessTwinInsight(summary: BusinessSummaryInsight, coverage: BusinessCoverageAnalysis, cashflow: BusinessCashflowPoint[]): BusinessTwinInsight {
+  const criticalDates = collectCriticalBusinessDates(cashflow);
+  const criticalText = criticalDates.length > 0 ? `${criticalDates.length} kritik gün` : "kritik gün görünmüyor";
+  const coverageText =
+    coverage.comfortLevel === "missing_data"
+      ? "Maaş/kira için veri bekliyorum."
+      : coverage.canCover
+        ? "Maaş ve kira mevcut verilere göre karşılanabiliyor."
+        : "Maaş ve kira döneminde açık riski var.";
+  return {
+    summary: `Ben işletmenin finansal ikiziyim. Önümüzdeki 30 günde ${criticalText} var. ${coverageText} 30 gün sonu tahmini kasa ${summary.projected30Days.toLocaleString("tr-TR")} TL.`,
+    criticalDates
+  };
+}
+
+function collectCriticalBusinessDates(cashflow: BusinessCashflowPoint[]): BusinessCriticalDate[] {
+  const requiredOrRisky = cashflow.filter(
+    (point) => point.riskLevel === "high" || point.riskLevel === "critical" || point.eventTitles.some((title) => isPayrollOrRentTitle(title))
+  );
+  const selected = requiredOrRisky.length > 0 ? requiredOrRisky : [...cashflow].sort((left, right) => left.balance - right.balance).slice(0, 1);
+  return selected.slice(0, 3).map((point) => ({
+    date: point.date,
+    label: point.eventTitles[0] ?? point.label,
+    projectedBalance: point.balance,
+    riskLevel: point.riskLevel
+  }));
+}
+
+function projectBusinessBalance(initialCashBalance: number, events: BusinessCashEvent[], referenceDay: Date, days: number): number {
+  const maxDate = addUtcDays(referenceDay, days);
+  return events
+    .filter((event) => {
+      const eventDate = parseUtcDate(event.dueAt);
+      return eventDate >= referenceDay && eventDate <= maxDate;
+    })
+    .reduce((balance, event) => balance + (event.type === "inflow" ? event.amount : -event.amount), initialCashBalance);
+}
+
+function businessBalanceRiskLevel(balance: number): RiskLevel {
+  if (balance < 0) return "critical";
+  if (balance < businessCashWarningBuffer) return "high";
+  if (balance < businessCashWarningBuffer * 2) return "medium";
+  return "low";
+}
+
+function businessProjectionRiskLevel(projectedBalance: number): RiskLevel {
+  return businessBalanceRiskLevel(projectedBalance);
+}
+
+function isPayrollOrRentEvent(event: BusinessCashEvent): boolean {
+  return isPayrollEvent(event) || isRentEvent(event);
+}
+
+function isPayrollEvent(event: BusinessCashEvent): boolean {
+  return /maaş|maas|bordro|ücret|ucret|salary|personel/i.test(event.title);
+}
+
+function isRentEvent(event: BusinessCashEvent): boolean {
+  return /kira|rent|ofis/i.test(event.title);
+}
+
+function isPayrollOrRentTitle(title: string): boolean {
+  return /maaş|maas|bordro|ücret|ucret|salary|personel|kira|rent|ofis/i.test(title);
+}
+
+function bestRelievingCollection(events: BusinessCashEvent[], riskDate: string | undefined, shortfall: number): BusinessCashEvent | undefined {
+  const collections = events.filter((event) => event.type === "inflow");
+  const eligible = riskDate ? collections.filter((event) => event.dueAt <= riskDate) : collections;
+  const candidates = eligible.length > 0 ? eligible : collections;
+  return [...candidates].sort((left, right) => {
+    const leftCovers = shortfall > 0 && left.amount >= shortfall ? 1 : 0;
+    const rightCovers = shortfall > 0 && right.amount >= shortfall ? 1 : 0;
+    return rightCovers - leftCovers || right.amount - left.amount;
+  })[0];
+}
+
+function bestDeferrablePayment(events: BusinessCashEvent[], riskDate: string | undefined): BusinessCashEvent | undefined {
+  const payments = events.filter((event) => event.type === "outflow" && !isPayrollOrRentEvent(event));
+  const eligible = riskDate ? payments.filter((event) => event.dueAt <= riskDate) : payments;
+  const candidates = eligible.length > 0 ? eligible : payments;
+  return [...candidates].sort((left, right) => right.amount - left.amount)[0];
+}
+
+function collectionPriorityAction(riskLevel: RiskLevel): string {
+  if (riskLevel === "critical" || riskLevel === "high") return "Bu hafta ödeme planı iste; yeni satışta peşinat koşulu ekle.";
+  if (riskLevel === "medium") return "Vade öncesi hatırlatma gönder ve kısmi ödeme opsiyonu sun.";
+  return "Standart hatırlatma yeterli; vade takibi korunabilir.";
 }
 
 export function calculateCollectionScore(customerId: string, sourceCustomers: BusinessCustomer[]): CollectionScore {

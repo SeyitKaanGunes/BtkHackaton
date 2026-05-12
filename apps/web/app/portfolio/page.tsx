@@ -2,16 +2,16 @@ import { TrendingUp } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { InvestmentPortfolio } from "../../components/investment-portfolio";
 import { getInvestmentPortfolio } from "../../lib/api";
-import { requireAuthSession } from "../../lib/server-auth";
+import { requirePersonalSession } from "../../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortfolioPage() {
-  const { token } = await requireAuthSession();
+  const { token, user } = await requirePersonalSession();
   const investmentPortfolio = await getInvestmentPortfolio({ token });
 
   return (
-    <AppShell active="/portfolio">
+    <AppShell active="/portfolio" accountType={user.accountType}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Yatırım</p>

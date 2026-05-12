@@ -1,11 +1,11 @@
 import { AppShell } from "../../components/app-shell";
 import { AgentConsole } from "../../components/agent-console";
-import { requireAuthSession } from "../../lib/server-auth";
+import { requirePersonalSession } from "../../lib/server-auth";
 
 export default async function AgentPage() {
-  await requireAuthSession();
+  const { user } = await requirePersonalSession();
   return (
-    <AppShell active="/agent">
+    <AppShell active="/agent" accountType={user.accountType}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">LangGraph Agentic Finans Ekibi</p>

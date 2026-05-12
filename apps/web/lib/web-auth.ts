@@ -2,15 +2,17 @@ import type { AuthResponse } from "./api";
 
 export type WebAuthResponse = Omit<AuthResponse, "token">;
 
-export function register(input: { name: string; email: string; password: string }) {
+type AccountType = "personal" | "business";
+
+export function register(input: { name: string; email: string; password: string; accountType?: AccountType }) {
   return authRequest("register", input);
 }
 
-export function login(input: { email: string; password: string }) {
+export function login(input: { email: string; password: string; accountType?: AccountType }) {
   return authRequest("login", input);
 }
 
-export function loginWithGoogle(input: { idToken: string; nonce?: string }) {
+export function loginWithGoogle(input: { idToken: string; nonce?: string; accountType?: AccountType }) {
   return authRequest("google", input);
 }
 

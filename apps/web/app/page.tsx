@@ -1,10 +1,10 @@
 import type { CSSProperties } from "react";
 import type { DashboardPeriod } from "@fintwin/shared";
-import { BriefcaseBusiness, Landmark, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
+import { Landmark, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
 import { AppShell } from "../components/app-shell";
 import { ManualTransactionPanel } from "../components/dashboard-actions";
-import { ApiRequestError, getBusinessOverview, getCampaignReadiness, getInvestmentPortfolio, getPersonalDashboard } from "../lib/api";
-import { requireAuthSession } from "../lib/server-auth";
+import { getCampaignReadiness, getInvestmentPortfolio, getPersonalDashboard } from "../lib/api";
+import { requirePersonalSession } from "../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -27,16 +27,15 @@ const periodNetCaptions: Record<DashboardPeriod, string> = {
 };
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const { token, user } = await requireAuthSession();
+  const { token, user } = await requirePersonalSession();
   const params = await searchParams;
   const period = parseDashboardPeriod(params?.period);
   const dataOptions = { token, period };
   const todayLabel = new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "2-digit", month: "long" }).format(new Date());
-  const [dashboard, campaign, portfolio, businessOverview] = await Promise.all([
+  const [dashboard, campaign, portfolio] = await Promise.all([
     getPersonalDashboard(dataOptions),
     getCampaignReadiness(dataOptions),
-    getInvestmentPortfolio({ token }),
-    getOptionalBusinessOverview(token)
+    getInvestmentPortfolio({ token })
   ]);
   const hasFinancialData =
     dashboard.income > 0 ||
@@ -51,7 +50,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const periodLabel = dashboard.periodLabel;
 
   return (
-    <AppShell active="/">
+    <AppShell active="/" accountType={user.accountType}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">{todayLabel}</p>
@@ -96,7 +95,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         />
       </section>
 
-      <section className="module-grid">
+      <section className="module-grid personal-module-grid">
         <ModuleCard
           href="/portfolio"
           icon={<Landmark size={20} />}
@@ -104,27 +103,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           value={portfolio ? `${portfolio.totalMarketValueTry.toLocaleString("tr-TR")} TL` : "Bağlantı bekleniyor"}
           caption={portfolio ? `${portfolio.positions.length} varlık · %${Math.round(portfolio.totalProfitLossPercent)}` : "Portföy ekranına git"}
         />
-        <ModuleCard
-          href="/business"
-          icon={<BriefcaseBusiness size={20} />}
-          label={businessOverview?.business.name ?? "KOBİ Modülü"}
-          value={businessOverview ? `${businessOverview.dashboard.cashBalance.toLocaleString("tr-TR")} TL` : "İşletme bekleniyor"}
-          caption={businessOverview ? `${businessOverview.business.sector} · ${riskTitle(businessOverview.dashboard.liquidityRisk)}` : "KOBİ ekranına git"}
-        />
       </section>
 
       <ManualTransactionPanel initialUser={user} />
     </AppShell>
   );
-}
-
-async function getOptionalBusinessOverview(token: string) {
-  try {
-    return await getBusinessOverview({ token });
-  } catch (error) {
-    if (error instanceof ApiRequestError && error.status === 404) return null;
-    throw error;
-  }
 }
 
 function healthLabel(score: number) {
@@ -161,13 +144,6 @@ function ModuleCard({ href, icon, label, value, caption }: { href: string; icon:
       </span>
     </a>
   );
-}
-
-function riskTitle(level: string) {
-  if (level === "critical") return "Acil aksiyon gerekli.";
-  if (level === "high") return "Yakından takip edilmeli.";
-  if (level === "medium") return "Kontrollü izlenmeli.";
-  return "Düşük risk.";
 }
 
 function ScoreRing({ score }: { score: number }) {

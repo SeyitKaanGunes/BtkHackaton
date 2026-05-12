@@ -2,16 +2,16 @@ import { WandSparkles } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { WhatIfDetailPanel } from "../../components/insight-detail-panels";
 import { getWhatIf } from "../../lib/api";
-import { requireAuthSession } from "../../lib/server-auth";
+import { requirePersonalSession } from "../../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function WhatIfPage() {
-  const { token } = await requireAuthSession();
+  const { token, user } = await requirePersonalSession();
   const whatIf = await getWhatIf({ token });
 
   return (
-    <AppShell active="/what-if">
+    <AppShell active="/what-if" accountType={user.accountType}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Karar simülasyonu</p>

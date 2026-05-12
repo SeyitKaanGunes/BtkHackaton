@@ -5,6 +5,7 @@ import { LockKeyhole, Mail, UserRound } from "lucide-react";
 import { login, register } from "../lib/web-auth";
 
 type AuthMode = "login" | "register";
+type AccountType = "personal" | "business";
 
 const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim();
 
@@ -13,6 +14,7 @@ export function AuthForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accountType, setAccountType] = useState<AccountType>("personal");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -26,8 +28,11 @@ export function AuthForm() {
     setPending(true);
     setError(null);
     try {
-      await (mode === "register" ? register({ name: name.trim(), email: email.trim(), password }) : login({ email: email.trim(), password }));
-      window.location.href = "/";
+      const result =
+        mode === "register"
+          ? await register({ name: name.trim(), email: email.trim(), password, accountType })
+          : await login({ email: email.trim(), password, accountType });
+      window.location.href = result.user.accountType === "business" ? "/business" : "/";
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Oturum açılamadı.");
     } finally {
@@ -41,6 +46,7 @@ export function AuthForm() {
     const nonce = randomToken();
     window.sessionStorage.setItem("fintwin_google_state", state);
     window.sessionStorage.setItem("fintwin_google_nonce", nonce);
+    window.sessionStorage.setItem("fintwin_account_type", accountType);
 
     const params = new URLSearchParams({
       client_id: googleClientId,
@@ -75,6 +81,20 @@ export function AuthForm() {
           </div>
         </label>
       ) : null}
+
+      <div className="field">
+        <span>Hesap türü</span>
+        <div className="account-type-grid" role="radiogroup" aria-label="Hesap türü">
+          <button className={accountType === "personal" ? "active" : ""} type="button" role="radio" aria-checked={accountType === "personal"} onClick={() => setAccountType("personal")}>
+            <strong>Kişisel</strong>
+            <small>Bütçe, portföy ve harcama içgörüleri</small>
+          </button>
+          <button className={accountType === "business" ? "active" : ""} type="button" role="radio" aria-checked={accountType === "business"} onClick={() => setAccountType("business")}>
+            <strong>KOBİ</strong>
+            <small>Nakit akışı, tahsilat ve işletme ekranı</small>
+          </button>
+        </div>
+      </div>
 
       <label className="field">
         <span>E-posta</span>

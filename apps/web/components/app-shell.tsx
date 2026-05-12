@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { BarChart3, Brain, Building2, Clock3, LayoutDashboard, ListChecks, Repeat2, ShieldCheck, TrendingUp, WandSparkles } from "lucide-react";
+import { ArrowRightLeft, BarChart3, Bot, Brain, Building2, CalendarPlus, CheckCircle2, Clock3, LayoutDashboard, ListChecks, MessageSquareText, Repeat2, ShieldCheck, Sparkles, TrendingUp, WandSparkles } from "lucide-react";
 import { AgentLauncher } from "./agent-launcher";
 import { LogoutButton } from "./logout-button";
 
-const nav = [
+type AccountType = "personal" | "business";
+
+const personalNav = [
   { href: "/", label: "Özet", icon: LayoutDashboard },
   { href: "/categories", label: "Kategori Dağılımı", icon: BarChart3 },
   { href: "/spending-dna", label: "Spending DNA", icon: Brain },
@@ -12,14 +14,26 @@ const nav = [
   { href: "/actions", label: "Aksiyon Merkezi", icon: ListChecks },
   { href: "/subscriptions", label: "Abonelik Avcısı", icon: Repeat2 },
   { href: "/portfolio", label: "Portföy", icon: TrendingUp },
-  { href: "/business", label: "KOBİ", icon: Building2 }
+  { href: "/agent", label: "Agent", icon: Bot }
 ];
 
-export function AppShell({ children, active = "/" }: { children: React.ReactNode; active?: string }) {
+const businessNav = [
+  { href: "/business", label: "KOBİ", icon: Building2 },
+  { href: "/business?section=twin", label: "Finansal İkiz", icon: Sparkles },
+  { href: "/business?section=cashflow", label: "Nakit Akışı", icon: TrendingUp },
+  { href: "/business?section=coverage", label: "Maaş ve Kira", icon: CheckCircle2 },
+  { href: "/business?section=collections", label: "Tahsilat", icon: MessageSquareText },
+  { href: "/business?section=scenarios", label: "Senaryolar", icon: ArrowRightLeft },
+  { href: "/business?section=records", label: "Veri Girişi", icon: CalendarPlus }
+];
+
+export function AppShell({ children, active = "/", accountType = "personal" }: { children: React.ReactNode; active?: string; accountType?: AccountType }) {
+  const nav = accountType === "business" ? businessNav : personalNav;
+  const homeHref = accountType === "business" ? "/business" : "/";
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <Link className="brand" href="/">
+        <Link className="brand" href={homeHref}>
           <span className="brand-mark">FS</span>
           <span>
             <strong>Fintwin</strong>

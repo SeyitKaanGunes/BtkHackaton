@@ -44,6 +44,7 @@ export interface AuthResponse {
     email: string;
     name: string;
     persona: string;
+    accountType: "personal" | "business";
     monthlyIncome: number;
     payday: number;
     currency: string;
@@ -160,21 +161,21 @@ function periodPath(path: string, options?: DashboardRequestOptions) {
   return query ? `${path}?${query}` : path;
 }
 
-export function register(input: { name: string; email: string; password: string }) {
+export function register(input: { name: string; email: string; password: string; accountType?: "personal" | "business" }) {
   return request<AuthResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify(input)
   });
 }
 
-export function login(input: { email: string; password: string }) {
+export function login(input: { email: string; password: string; accountType?: "personal" | "business" }) {
   return request<AuthResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify(input)
   });
 }
 
-export function loginWithGoogle(input: { idToken: string; nonce?: string }) {
+export function loginWithGoogle(input: { idToken: string; nonce?: string; accountType?: "personal" | "business" }) {
   return request<AuthResponse>("/auth/google", {
     method: "POST",
     body: JSON.stringify(input)
