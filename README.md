@@ -44,6 +44,9 @@ Use `.env.production.example` as the deployment checklist. For the API, these va
 
 For the web app, set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. `NEXT_PUBLIC_GOOGLE_CLIENT_ID` must be the same Google OAuth Web Client ID configured as `GOOGLE_OAUTH_CLIENT_ID` on the API.
 The Google OAuth web client must allow `http://localhost:3000` as a JavaScript origin for local development and `http://localhost:3000/login/google` as a redirect URI for the redirect-based sign-in flow.
+Local web auth is best started with `npm run dev:local`; `apps/web/next.config.mjs` also loads the repo-root `.env` so `npm run dev:web` can see `NEXT_PUBLIC_GOOGLE_CLIENT_ID` when it is run by itself.
+The web app stores the session JWT in an HttpOnly `fintwin_token` cookie through `/api/auth/*` routes. Browser-side API calls go through `/api/backend/*`, which attaches that cookie server-side instead of reading a token from `localStorage`.
+The `admin` / `admin` development account is only for local demos; `admin@local.dev` sign-in and registration are rejected when `NODE_ENV=production`.
 
 Generate a JWT secret with:
 

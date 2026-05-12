@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { LockKeyhole, Mail, UserRound } from "lucide-react";
-import { login, register } from "../lib/api";
+import { login, register } from "../lib/web-auth";
 
 type AuthMode = "login" | "register";
 
@@ -26,11 +26,7 @@ export function AuthForm() {
     setPending(true);
     setError(null);
     try {
-      const result =
-        mode === "register"
-          ? await register({ name: name.trim(), email: email.trim(), password })
-          : await login({ email: email.trim(), password });
-      persistSession(result.token);
+      await (mode === "register" ? register({ name: name.trim(), email: email.trim(), password }) : login({ email: email.trim(), password }));
       window.location.href = "/";
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Oturum açılamadı.");
@@ -117,11 +113,6 @@ export function AuthForm() {
       </button>
     </form>
   );
-}
-
-function persistSession(token: string) {
-  window.localStorage.setItem("fintwin_token", token);
-  document.cookie = `fintwin_token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
 }
 
 function randomToken() {

@@ -34,3 +34,4 @@ apps/mobile/android/local.properties
 *.sqlite
 *.sqlite3
 postgres-data/
+ozellikler.md

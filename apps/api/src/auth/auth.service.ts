@@ -19,6 +19,7 @@ export class AuthService {
 
   async register(input: { name: string; email: string; password: string }) {
     const email = normalizeEmail(input.email);
+    this.rejectProductionAdminEmail(email);
     if (await this.store.findUserByEmail(email)) {
       throw new UnauthorizedException("Bu e-posta ile kullanıcı zaten var.");
     }
@@ -37,7 +38,9 @@ export class AuthService {
   }
 
   async login(input: { email: string; password: string }) {
-    const user = await this.store.findUserByEmail(this.normalizeLoginIdentifier(input.email));
+    const email = this.normalizeLoginIdentifier(input.email);
+    this.rejectProductionAdminEmail(email);
+    const user = await this.store.findUserByEmail(email);
     if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
       throw new UnauthorizedException("E-posta veya şifre hatalı.");
     }
@@ -141,6 +144,12 @@ export class AuthService {
   private normalizeLoginIdentifier(identifier: string) {
     const normalized = identifier.trim();
     return normalized.toLowerCase() === "admin" ? "admin@local.dev" : normalizeEmail(normalized);
+  }
+
+  private rejectProductionAdminEmail(email: string) {
+    if (process.env.NODE_ENV === "production" && email === "admin@local.dev") {
+      throw new UnauthorizedException("E-posta veya şifre hatalı.");
+    }
   }
 }
 
