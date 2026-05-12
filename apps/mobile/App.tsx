@@ -60,9 +60,10 @@ import {
 } from "./src/api";
 import { AgentScreen } from "./src/screens/AgentScreen";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
+import { ScanScreen } from "./src/screens/ScanScreen";
 import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles, typefaces } from "./src/ui";
 
-type Tab = "home" | "portfolio" | "agent" | "business";
+type Tab = "home" | "portfolio" | "scan" | "agent" | "business";
 type HomeData = Awaited<ReturnType<typeof loadMobileHome>>;
 type BusinessData = NonNullable<Awaited<ReturnType<typeof loadBusiness>>>;
 
@@ -148,6 +149,7 @@ export default function App() {
             <Loading />
           ))}
         {tab === "portfolio" && <PortfolioScreen onImported={refreshData} />}
+        {tab === "scan" && <ScanScreen onImported={refreshData} />}
         {tab === "agent" && <AgentScreen onActionChanged={refreshData} />}
         {tab === "business" &&
           (business ? (
@@ -170,6 +172,12 @@ export default function App() {
           active={tab === "portfolio"}
           onPress={() => setTab("portfolio")}
           icon={<Landmark size={20} color={tab === "portfolio" ? palette.secondary : palette.darkMuted} />}
+        />
+        <BottomTabButton
+          label="Fiş"
+          active={tab === "scan"}
+          onPress={() => setTab("scan")}
+          icon={<ReceiptText size={20} color={tab === "scan" ? palette.secondary : palette.darkMuted} />}
         />
         <BottomTabButton
           label="Agent"

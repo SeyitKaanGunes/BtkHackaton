@@ -19,11 +19,7 @@ export class GoogleOAuthService {
     const clientId = this.clientId();
     if (!clientId) throw new ServiceUnavailableException("GOOGLE_OAUTH_CLIENT_ID tanımlı değil.");
 
-    const ticket = await this.getClient(clientId).verifyIdToken({
-      idToken,
-      audience: clientId
-    });
-    const payload = ticket.getPayload();
+    const payload = await this.verifiedPayload(idToken, clientId);
     if (!payload?.sub || !payload.email) {
       throw new UnauthorizedException("Google kimliği doğrulanamadı.");
     }
@@ -43,6 +39,18 @@ export class GoogleOAuthService {
 
   private clientId() {
     return process.env.GOOGLE_OAUTH_CLIENT_ID?.trim();
+  }
+
+  private async verifiedPayload(idToken: string, clientId: string) {
+    try {
+      const ticket = await this.getClient(clientId).verifyIdToken({
+        idToken,
+        audience: clientId
+      });
+      return ticket.getPayload();
+    } catch {
+      throw new UnauthorizedException("Google oturum token'ı geçersiz.");
+    }
   }
 
   private getClient(clientId: string) {

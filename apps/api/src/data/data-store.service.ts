@@ -229,24 +229,40 @@ export class DataStoreService implements OnModuleInit {
 
   async addTransaction(transaction: Transaction) {
     this.assertReady();
-    const created = await this.prisma.transaction.create({
-      data: {
-        id: transaction.id,
-        userId: transaction.userId,
-        accountId: transaction.accountId,
-        categoryId: transaction.categoryId,
-        merchant: transaction.merchant,
-        amount: transaction.amount,
-        currency: transaction.currency,
-        type: transaction.type,
-        occurredAt: new Date(transaction.occurredAt),
-        paymentMethod: transaction.paymentMethod,
-        tags: transaction.tags ?? [],
-        recurring: transaction.recurring ?? false
-      }
-    });
+    const balanceDelta = transaction.type === "income" ? transaction.amount : -transaction.amount;
+    const [created, updatedAccount] = await this.prisma.$transaction([
+      this.prisma.transaction.create({
+        data: {
+          id: transaction.id,
+          userId: transaction.userId,
+          accountId: transaction.accountId,
+          categoryId: transaction.categoryId,
+          merchant: transaction.merchant,
+          amount: transaction.amount,
+          currency: transaction.currency,
+          type: transaction.type,
+          occurredAt: new Date(transaction.occurredAt),
+          paymentMethod: transaction.paymentMethod,
+          tags: transaction.tags ?? [],
+          recurring: transaction.recurring ?? false
+        }
+      }),
+      this.prisma.account.update({
+        where: { id: transaction.accountId },
+        data: { balance: { increment: balanceDelta } }
+      })
+    ]);
     const mapped = this.mapTransaction(created);
     this.transactions.unshift(mapped);
+    this.accounts = this.accounts.map((account) =>
+      account.id === updatedAccount.id
+        ? {
+            ...account,
+            balance: Number(updatedAccount.balance),
+            creditLimit: updatedAccount.creditLimit === null ? undefined : Number(updatedAccount.creditLimit)
+          }
+        : account
+    );
     return mapped;
   }
 

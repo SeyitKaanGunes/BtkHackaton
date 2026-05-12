@@ -243,6 +243,7 @@ describe("API feature services", () => {
   it("imports valid CSV transactions with explicit categories and dates", async () => {
     const store = createTestStore();
     const controller = new TransactionsController(store);
+    const initialBalance = store.accounts.find((account) => account.id === "acc-main")?.balance;
     const result = await controller.importCsv(authUser, {
       csv: "occurredAt,merchant,amount,categoryId,type,paymentMethod,currency,tags\n2026-05-10,\"Canli Market\",100.5,cat-market,expense,debit_card,TRY,manual;csv"
     });
@@ -251,6 +252,7 @@ describe("API feature services", () => {
     expect(result.rows[0]?.merchant).toBe("Canli Market");
     expect(result.rows[0]?.occurredAt).toBe("2026-05-10T12:00:00.000Z");
     expect(result.rows[0]?.tags).toEqual(["manual", "csv"]);
+    expect(store.accounts.find((account) => account.id === "acc-main")?.balance).toBe((initialBalance ?? 0) - 100.5);
   });
 
   it("rejects statement previews with a clear error when Qwen is not configured", async () => {
@@ -529,6 +531,14 @@ function createTestStore(): DataStoreService {
       return requestedAccountId ?? this.defaultAccountIdFor(userId, paymentMethod);
     },
     async addTransaction(transaction: Transaction) {
+      this.accounts = this.accounts.map((account) =>
+        account.id === transaction.accountId
+          ? {
+              ...account,
+              balance: Number((account.balance + (transaction.type === "income" ? transaction.amount : -transaction.amount)).toFixed(2))
+            }
+          : account
+      );
       this.transactions.unshift(transaction);
       return transaction;
     },

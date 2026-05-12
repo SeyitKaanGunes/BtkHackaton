@@ -122,7 +122,6 @@ export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void 
       setResponse(next);
       onActionChanged?.();
       setTurns((items) => [...items, { id: `assistant-${Date.now()}`, role: "assistant", text: next.answer }]);
-      void speak(next.answer);
     } catch (nextError) {
       setError(formatError(nextError, "Agent cevabı alınamadı."));
     }
