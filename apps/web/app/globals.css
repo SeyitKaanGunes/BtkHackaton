@@ -275,6 +275,64 @@ input {
   width: 100%;
 }
 
+.auth-separator {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.auth-separator span {
+  height: 1px;
+  background: var(--line);
+}
+
+.auth-separator small {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.google-auth-button {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #3c4043;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-weight: 800;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.google-auth-button:hover {
+  background: #f8fbff;
+  border-color: #c8d7f4;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.16);
+}
+
+.google-auth-logo {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.google-auth-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.auth-callback-panel {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .auth-submit:disabled {
   cursor: wait;
   opacity: 0.68;

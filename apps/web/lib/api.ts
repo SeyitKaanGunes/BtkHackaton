@@ -174,6 +174,13 @@ export function login(input: { email: string; password: string }) {
   });
 }
 
+export function loginWithGoogle(input: { idToken: string; nonce?: string }) {
+  return request<AuthResponse>("/auth/google", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
 export function getCurrentUser(options?: AuthOptions) {
   return request<AuthUserProfile>("/auth/me", undefined, options);
 }

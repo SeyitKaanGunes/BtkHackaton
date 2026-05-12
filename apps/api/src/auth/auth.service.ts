@@ -4,23 +4,26 @@ import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
 import { DataStoreService } from "../data/data-store.service.js";
 import type { AuthUser } from "./auth-user.js";
+import { GoogleOAuthService } from "./google-oauth.service.js";
 
 @Injectable()
 export class AuthService {
   constructor(
     @Inject(DataStoreService) private readonly store: DataStoreService,
-    @Inject(JwtService) private readonly jwt: JwtService
+    @Inject(JwtService) private readonly jwt: JwtService,
+    @Inject(GoogleOAuthService) private readonly google: GoogleOAuthService
   ) {}
 
   async register(input: { name: string; email: string; password: string }) {
-    if (await this.store.findUserByEmail(input.email)) {
+    const email = normalizeEmail(input.email);
+    if (await this.store.findUserByEmail(email)) {
       throw new UnauthorizedException("Bu e-posta ile kullanıcı zaten var.");
     }
     const passwordHash = await bcrypt.hash(input.password, 10);
     const user = await this.store.createUser({
       id: `user-${randomUUID()}`,
-      name: input.name,
-      email: input.email,
+      name: input.name.trim(),
+      email,
       persona: "young_professional",
       monthlyIncome: 0,
       payday: 5,
@@ -35,6 +38,32 @@ export class AuthService {
     if (!user || !(await bcrypt.compare(input.password, user.passwordHash))) {
       throw new UnauthorizedException("E-posta veya şifre hatalı.");
     }
+    return this.toAuthResponse(user);
+  }
+
+  async loginWithGoogle(input: { idToken: string; nonce?: string }) {
+    const profile = await this.google.verifyIdToken(input.idToken, input.nonce);
+    const linkedUser = await this.store.findUserByGoogleSubject(profile.subject);
+    if (linkedUser) return this.toAuthResponse(linkedUser);
+
+    const existingEmailUser = await this.store.findUserByEmail(profile.email);
+    if (existingEmailUser) {
+      const linked = await this.store.linkGoogleSubject(existingEmailUser.id, profile.subject);
+      return this.toAuthResponse(linked);
+    }
+
+    const passwordHash = await bcrypt.hash(`google-oauth-${randomUUID()}`, 10);
+    const user = await this.store.createUser({
+      id: `user-${randomUUID()}`,
+      name: profile.name,
+      email: profile.email,
+      googleSubject: profile.subject,
+      persona: "young_professional",
+      monthlyIncome: 0,
+      payday: 5,
+      currency: "TRY",
+      passwordHash
+    });
     return this.toAuthResponse(user);
   }
 
@@ -85,12 +114,17 @@ export class AuthService {
         currency: user.currency
       },
       oauth: {
-        googleReady: Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET)
+        googleReady: this.google.isConfigured()
       }
     };
   }
 
   private normalizeLoginIdentifier(identifier: string) {
-    return identifier.trim().toLocaleLowerCase("tr-TR") === "admin" ? "admin@local.dev" : identifier;
+    const normalized = identifier.trim();
+    return normalized.toLowerCase() === "admin" ? "admin@local.dev" : normalizeEmail(normalized);
   }
+}
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
 }

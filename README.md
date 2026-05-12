@@ -10,7 +10,7 @@ AI-powered Financial Digital Twin platform for personal finance first, with a se
 - DB: PostgreSQL with Prisma schema
 - AI: LangChain + LangGraph with Qwen API (DashScope OpenAI-compatible)
 - OCR: Qwen multimodal structured JSON output
-- Auth: JWT with Google OAuth placeholders
+- Auth: JWT plus web Google sign-in via Google Identity Services
 - Notifications: Firebase Cloud Messaging placeholders
 - Charts: Recharts on web
 
@@ -38,6 +38,12 @@ Use `.env.production.example` as the deployment checklist. For the API, these va
 - `API_CORS_ORIGINS`: comma-separated web origins allowed to call the API.
 - `QWEN_API_KEY`: required for production AI/OCR flows.
 - `TWELVE_DATA_API_KEY`: required for production portfolio market data.
+- `GOOGLE_OAUTH_CLIENT_ID`: Google OAuth Web Client ID used by the API to verify web `id_token` values.
+- `OPENAI_API_KEY`: required for production speech-to-text.
+- `GEMINI_API_KEY`: required for production text-to-speech. `GOOGLE_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY` can be used by the API service instead.
+
+For the web app, set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. `NEXT_PUBLIC_GOOGLE_CLIENT_ID` must be the same Google OAuth Web Client ID configured as `GOOGLE_OAUTH_CLIENT_ID` on the API.
+The Google OAuth web client must allow `http://localhost:3000` as a JavaScript origin for local development and `http://localhost:3000/login/google` as a redirect URI for the redirect-based sign-in flow.
 
 Generate a JWT secret with:
 
@@ -54,7 +60,7 @@ npm run db:push
 
 Frontend deployments only need the public API URL:
 
-- Web: `NEXT_PUBLIC_API_URL="https://your-api-domain.com"`
+- Web: `NEXT_PUBLIC_API_URL="https://your-api-domain.com"` and `NEXT_PUBLIC_GOOGLE_CLIENT_ID="<your-google-oauth-web-client-id>"`
 - Mobile build env: `EXPO_PUBLIC_API_URL="https://your-api-domain.com"`
 
 Qwen defaults:

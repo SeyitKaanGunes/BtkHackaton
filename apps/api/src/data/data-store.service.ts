@@ -23,6 +23,7 @@ import { PrismaService } from "../prisma/prisma.service.js";
 
 interface StoredUser extends UserProfile {
   passwordHash: string;
+  googleSubject?: string;
 }
 
 export class DataStoreNotReadyError extends Error {
@@ -182,6 +183,29 @@ export class DataStoreService implements OnModuleInit {
     return mapped;
   }
 
+  async findUserByGoogleSubject(googleSubject: string) {
+    this.assertReady();
+    const cached = this.users.find((user) => user.googleSubject === googleSubject);
+    if (cached) return cached;
+    const user = await this.prisma.user.findUnique({ where: { googleSubject } });
+    if (!user) return undefined;
+    const mapped = this.mapUser(user);
+    this.users.push(mapped);
+    return mapped;
+  }
+
+  async linkGoogleSubject(userId: string, googleSubject: string) {
+    this.assertReady();
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { googleSubject }
+    });
+    const mapped = this.mapUser(updated);
+    this.users = this.users.map((user) => (user.id === userId ? mapped : user));
+    if (!this.users.some((user) => user.id === mapped.id)) this.users.push(mapped);
+    return mapped;
+  }
+
   async createUser(user: StoredUser) {
     this.assertReady();
     const created = await this.prisma.user.create({
@@ -189,6 +213,7 @@ export class DataStoreService implements OnModuleInit {
         id: user.id,
         name: user.name,
         email: user.email,
+        googleSubject: user.googleSubject,
         passwordHash: user.passwordHash,
         persona: user.persona,
         monthlyIncome: user.monthlyIncome,
@@ -448,6 +473,7 @@ export class DataStoreService implements OnModuleInit {
   private mapUser(user: {
     id: string;
     email: string;
+    googleSubject: string | null;
     name: string;
     passwordHash: string;
     persona: string;
@@ -458,6 +484,7 @@ export class DataStoreService implements OnModuleInit {
     return {
       id: user.id,
       email: user.email,
+      googleSubject: user.googleSubject ?? undefined,
       name: user.name,
       passwordHash: user.passwordHash,
       persona: user.persona as StoredUser["persona"],

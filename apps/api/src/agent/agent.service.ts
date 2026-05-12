@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import {
@@ -117,7 +117,7 @@ export class AgentService {
       }))
       .addNode("assistant", async (state) => ({
         answer: await this.assistantAnswer(userId, state.message),
-        confidence: this.qwen.isConfigured() ? 0.8 : 0.72,
+        confidence: 0.8,
         routedAgents: ["LLM Agent", "Twin Agent"]
       }))
       .addConditionalEdges("supervisor", (state) => state.intent, {
@@ -206,9 +206,10 @@ export class AgentService {
     const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets);
     const dna = calculateSpendingDna(data.transactions, data.budgets);
     const leaks = detectSubscriptionLeakage(data.subscriptions);
-    const fallback = `Finansal sağlık skorun ${dashboard.financialHealthScore}/100. Bu dönem gelir ${dashboard.income.toLocaleString("tr-TR")} TL, gider ${dashboard.expenses.toLocaleString("tr-TR")} TL ve net durum ${dashboard.balance.toLocaleString("tr-TR")} TL. En riskli kategori ${dna.categories[0]?.categoryName ?? "henüz belirlenmedi"}.`;
 
-    if (!this.qwen.isConfigured()) return fallback;
+    if (!this.qwen.isConfigured()) {
+      throw new ServiceUnavailableException("Fintwin Agent için QWEN_API_KEY tanımlı değil; sessiz özet cevabı üretilmedi.");
+    }
 
     try {
       const response = await this.qwen.chat(
@@ -238,9 +239,11 @@ export class AgentService {
         ],
         { temperature: 0.35 }
       );
-      return response.content || fallback;
+      const content = response.content?.trim();
+      if (!content) throw new ServiceUnavailableException("Qwen Agent boş cevap döndürdü.");
+      return content;
     } catch {
-      return fallback;
+      throw new ServiceUnavailableException("Qwen Agent cevabı alınamadı; sessiz özet cevabı üretilmedi.");
     }
   }
 }

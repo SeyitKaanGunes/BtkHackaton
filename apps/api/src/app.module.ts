@@ -9,6 +9,7 @@ import { OpenAiSpeechService } from "./ai/openai-speech.service.js";
 import { QwenService } from "./ai/qwen.service.js";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthService } from "./auth/auth.service.js";
+import { GoogleOAuthService } from "./auth/google-oauth.service.js";
 import { JwtAuthGuard } from "./auth/jwt-auth.guard.js";
 import { BusinessController } from "./business/business.controller.js";
 import { CampaignsController } from "./campaigns/campaigns.controller.js";
@@ -71,6 +72,7 @@ import { TransactionsController } from "./transactions/transactions.controller.j
     DataStoreService,
     DocumentsService,
     GeminiTtsService,
+    GoogleOAuthService,
     JwtAuthGuard,
     OpenAiSpeechService,
     PdfExtractorService,

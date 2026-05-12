@@ -5,6 +5,9 @@ const localJwtSecret = "fintwin-local-dev-secret";
 const jwtPlaceholderValues = new Set(["replace-with-a-local-development-secret", "replace-with-a-production-secret"]);
 const qwenPlaceholderValues = new Set(["your-qwen-api-key", "replace-with-qwen-api-key", "replace-with-production-qwen-api-key"]);
 const twelveDataPlaceholderValues = new Set(["your-twelve-data-api-key", "replace-with-a-twelve-data-api-key", "replace-with-production-twelve-data-api-key"]);
+const googleOAuthPlaceholderValues = new Set(["optional-google-oauth-client-id", "your-google-oauth-client-id", "your-google-oauth-web-client-id", "replace-with-google-oauth-client-id"]);
+const openAiPlaceholderValues = new Set(["your-openai-api-key", "replace-with-openai-api-key", "replace-with-production-openai-api-key"]);
+const geminiPlaceholderValues = new Set(["your-gemini-api-key", "replace-with-gemini-api-key", "replace-with-production-gemini-api-key"]);
 
 type EnvRecord = Record<string, unknown>;
 
@@ -21,9 +24,15 @@ export function validateApiEnvironment(config: EnvRecord) {
     requireEnv(env, "JWT_SECRET");
     requireEnv(env, "QWEN_API_KEY");
     requireEnv(env, "TWELVE_DATA_API_KEY");
+    requireEnv(env, "GOOGLE_OAUTH_CLIENT_ID");
+    requireEnv(env, "OPENAI_API_KEY");
+    requireGeminiTtsKey(env);
     validateProductionJwtSecret(env.JWT_SECRET);
     validateProductionQwenKey(env.QWEN_API_KEY);
     validateProductionTwelveDataKey(env.TWELVE_DATA_API_KEY);
+    validateProductionGoogleOAuthClientId(env.GOOGLE_OAUTH_CLIENT_ID);
+    validateProductionOpenAiKey(env.OPENAI_API_KEY);
+    validateProductionGeminiKey(firstDefinedEnv(env, ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"]));
   }
 
   return config;
@@ -70,6 +79,15 @@ function readConfig(config: ConfigService, key: string) {
 
 function requireEnv(env: Record<string, string | undefined>, key: string) {
   if (!env[key]?.trim()) throw new Error(`${key} is required.`);
+}
+
+function requireGeminiTtsKey(env: Record<string, string | undefined>) {
+  if (env.GEMINI_API_KEY?.trim() || env.GOOGLE_API_KEY?.trim() || env.GOOGLE_GENERATIVE_AI_API_KEY?.trim()) return;
+  throw new Error("GEMINI_API_KEY, GOOGLE_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY is required.");
+}
+
+function firstDefinedEnv(env: Record<string, string | undefined>, keys: string[]) {
+  return keys.map((key) => env[key]).find((value) => value?.trim());
 }
 
 function parsePort(value: string) {
@@ -119,5 +137,29 @@ function validateProductionTwelveDataKey(key: string | undefined) {
   if (!value) throw new Error("TWELVE_DATA_API_KEY is required when NODE_ENV=production.");
   if (twelveDataPlaceholderValues.has(value)) {
     throw new Error("TWELVE_DATA_API_KEY must be a real Twelve Data API key in production.");
+  }
+}
+
+function validateProductionGoogleOAuthClientId(clientId: string | undefined) {
+  const value = clientId?.trim().toLowerCase();
+  if (!value) throw new Error("GOOGLE_OAUTH_CLIENT_ID is required when NODE_ENV=production.");
+  if (googleOAuthPlaceholderValues.has(value)) {
+    throw new Error("GOOGLE_OAUTH_CLIENT_ID must be a real Google OAuth web client ID in production.");
+  }
+}
+
+function validateProductionOpenAiKey(key: string | undefined) {
+  const value = key?.trim().toLowerCase();
+  if (!value) throw new Error("OPENAI_API_KEY is required when NODE_ENV=production.");
+  if (openAiPlaceholderValues.has(value)) {
+    throw new Error("OPENAI_API_KEY must be a real OpenAI API key in production.");
+  }
+}
+
+function validateProductionGeminiKey(key: string | undefined) {
+  const value = key?.trim().toLowerCase();
+  if (!value) throw new Error("GEMINI_API_KEY, GOOGLE_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY is required when NODE_ENV=production.");
+  if (geminiPlaceholderValues.has(value)) {
+    throw new Error("Gemini TTS key must be a real API key in production.");
   }
 }

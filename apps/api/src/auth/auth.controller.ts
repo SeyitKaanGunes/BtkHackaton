@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
-import { IsEmail, IsString, MinLength } from "class-validator";
+import { IsEmail, IsJWT, IsOptional, IsString, MinLength } from "class-validator";
 import type { AuthUser } from "./auth-user.js";
 import { AuthService } from "./auth.service.js";
 import { CurrentUser } from "./current-user.decorator.js";
@@ -25,6 +25,15 @@ class LoginDto {
   password!: string;
 }
 
+class GoogleLoginDto {
+  @IsJWT()
+  idToken!: string;
+
+  @IsOptional()
+  @IsString()
+  nonce?: string;
+}
+
 @Controller("auth")
 export class AuthController {
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}
@@ -39,17 +48,14 @@ export class AuthController {
     return this.auth.login(body);
   }
 
+  @Post("google")
+  google(@Body() body: GoogleLoginDto) {
+    return this.auth.loginWithGoogle(body);
+  }
+
   @Get("me")
   @UseGuards(JwtAuthGuard)
   async me(@CurrentUser() user: AuthUser) {
     return this.auth.me(user.id);
-  }
-
-  @Get("google")
-  googleOAuthPlaceholder() {
-    return {
-      ready: Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET),
-      message: "Google OAuth callback hazırlığı mevcut; client bilgileri eklendiğinde etkinleşir."
-    };
   }
 }

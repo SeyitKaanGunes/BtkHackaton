@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HttpException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { JwtService } from "@nestjs/jwt";
 import {
   categories,
   type ActionItem,
@@ -26,6 +27,8 @@ import { AgentController } from "../src/agent/agent.controller.js";
 import { AgentService } from "../src/agent/agent.service.js";
 import { QwenService } from "../src/ai/qwen.service.js";
 import { ActionsController } from "../src/actions/actions.controller.js";
+import { AuthService } from "../src/auth/auth.service.js";
+import type { GoogleOAuthService } from "../src/auth/google-oauth.service.js";
 import { BusinessController } from "../src/business/business.controller.js";
 import { DataStoreService } from "../src/data/data-store.service.js";
 import { DocumentsService } from "../src/documents/documents.service.js";
@@ -39,6 +42,8 @@ import { TwelveDataService } from "../src/investments/twelve-data.service.js";
 import { NotificationsController } from "../src/notifications/notifications.controller.js";
 import { SimulationsController } from "../src/simulations/simulations.controller.js";
 import { TransactionsController } from "../src/transactions/transactions.controller.js";
+
+type TestUser = typeof demoUser & { passwordHash: string; googleSubject?: string };
 
 describe("API feature services", () => {
   const authUser = { id: demoUser.id, email: demoUser.email, name: demoUser.name };
@@ -78,6 +83,34 @@ describe("API feature services", () => {
     expect(result.routedAgents).toContain("Simulation Agent");
     expect(result.answer).toContain("tutarı");
     expect(result.suggestedActions).toEqual([]);
+  });
+
+  it("fails fast for assistant chat when Qwen is unavailable", async () => {
+    const store = createTestStore();
+    const agent = new AgentService(store, unconfiguredQwen());
+
+    await expect(agent.chat(authUser.id, "Finans durumumu özetle")).rejects.toThrow("sessiz özet cevabı üretilmedi");
+  });
+
+  it("creates and reuses web Google sign-in users", async () => {
+    const store = createTestStore();
+    const google = {
+      isConfigured: () => true,
+      verifyIdToken: vi.fn(async () => ({
+        subject: "google-subject-1",
+        email: "google.user@example.com",
+        name: "Google User"
+      }))
+    } as unknown as GoogleOAuthService;
+    const auth = new AuthService(store, new JwtService({ secret: "test-secret" }), google);
+
+    const firstLogin = await auth.loginWithGoogle({ idToken: "header.payload.signature" });
+    const secondLogin = await auth.loginWithGoogle({ idToken: "header.payload.signature" });
+
+    expect(firstLogin.user.email).toBe("google.user@example.com");
+    expect(firstLogin.oauth.googleReady).toBe(true);
+    expect(secondLogin.user.id).toBe(firstLogin.user.id);
+    expect(store.users.find((user) => user.email === "google.user@example.com")?.googleSubject).toBe("google-subject-1");
   });
 
   it("rejects invalid agent and what-if request bodies before defaulting", () => {
@@ -409,9 +442,30 @@ function createTestStore(): DataStoreService {
     actions: [...actions],
     transactions: [...transactions],
     fcmTokens: [] as Array<{ userId: string; token: string; platform: string }>,
-    users: [{ ...demoUser, passwordHash: "$2b$10$XUWXgP2dSqJbe1dTT4rC9O71yPUb4B3bVAeMzb7XHSc6uWXr6KI0m" }],
+    users: [{ ...demoUser, passwordHash: "$2b$10$XUWXgP2dSqJbe1dTT4rC9O71yPUb4B3bVAeMzb7XHSc6uWXr6KI0m" }] as TestUser[],
     getDemoUser() {
       return this.users[0]!;
+    },
+    async findUserByEmail(email: string) {
+      return this.users.find((user) => user.email.toLowerCase() === email.toLowerCase());
+    },
+    async findUserByGoogleSubject(googleSubject: string) {
+      return this.users.find((user) => user.googleSubject === googleSubject);
+    },
+    async linkGoogleSubject(userId: string, googleSubject: string) {
+      const existing = this.users.find((user) => user.id === userId);
+      if (!existing) throw new Error("User not found");
+      existing.googleSubject = googleSubject;
+      return existing;
+    },
+    async createUser(user: TestUser) {
+      this.users.push(user);
+      this.accounts.push(
+        { id: `acc-main-${user.id}`, userId: user.id, name: "Vadesiz Hesap", type: "debit", balance: 0, currency: user.currency },
+        { id: `acc-card-${user.id}`, userId: user.id, name: "Kredi Kartı", type: "credit", balance: 0, currency: user.currency, creditLimit: 0 },
+        { id: `acc-save-${user.id}`, userId: user.id, name: "Birikim", type: "savings", balance: 0, currency: user.currency }
+      );
+      return user;
     },
     getBusinessesForUser(userId: string) {
       return this.businesses.filter((item) => item.ownerUserId === userId);
