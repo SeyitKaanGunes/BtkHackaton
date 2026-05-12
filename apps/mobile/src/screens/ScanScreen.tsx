@@ -6,6 +6,7 @@ import { receiptErrorMessage, type ReceiptExpenseImportResult } from "@fintwin/s
 import { importReceiptExpense, ReceiptApiError } from "../api";
 import { Btn, Card, Chip, Divider, Eyebrow, KV, ScreenHeader } from "../ui";
 import { radius, space, usePalette } from "../theme";
+import { BankStatementImporter } from "./PortfolioScreen";
 
 export function ScanScreen({ onImported }: { onImported: () => void }) {
   const p = usePalette();
@@ -60,7 +61,7 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
           <Text style={{ color: p.muted, fontSize: 12, textAlign: "center", lineHeight: 17 }}>
             {loading
               ? "AI tutar, KDV, tarih, kategori ve ödeme yöntemini çıkarıyor."
-              : "Kameradan çek veya galeriden yükle. Ekstre PDF akışı portföy ekranındaki banka ekstresi kartındadır."}
+              : "Kameradan çek veya galeriden yükle. Ekstre PDF akışı bu kategori ekranındaki banka ekstresi kartındadır."}
           </Text>
         </View>
         {!loading ? (
@@ -83,11 +84,13 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ color: p.ink, fontWeight: "800", fontSize: 13 }}>Otomatik gider kaydı</Text>
             <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>
-              Fiş tek işlem olarak kaydedilir. Banka ekstresi çok kalemli olduğu için portföy ekranındaki kontrol akışından geçirilir.
+              Fiş tek işlem olarak kaydedilir. Banka ekstresi çok kalemli olduğu için aşağıdaki seçimli kontrol akışından geçirilir.
             </Text>
           </View>
         </View>
       </Card>
+
+      <BankStatementImporter onImported={onImported} />
 
       <View style={{ height: space[5] }} />
     </View>

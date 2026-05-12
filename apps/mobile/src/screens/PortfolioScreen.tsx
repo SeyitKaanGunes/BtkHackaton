@@ -26,6 +26,60 @@ type StatementFlow =
   | { phase: "preview"; data: StatementPreviewResult; selected: Set<number>; skipDuplicates: boolean }
   | { phase: "confirmed"; data: StatementConfirmResult };
 
+export function BankStatementImporter({ onImported }: { onImported?: () => void }) {
+  const [statementFlow, setStatementFlow] = useState<StatementFlow>({ phase: "idle" });
+  const [statementLoading, setStatementLoading] = useState(false);
+
+  async function pickBankStatement() {
+    try {
+      setStatementLoading(true);
+      const file = await DocumentPicker.pickSingle({ type: [DocumentPicker.types.pdf], copyTo: "cachesDirectory" });
+      const sourceUri = file.fileCopyUri ?? file.uri;
+      const base64 = await RNFS.readFile(normalizeFileUri(sourceUri), "base64");
+      const data = await importStatementPreview(base64, file.type ?? "application/pdf", file.name ?? "banka-ekstresi.pdf");
+      setStatementFlow({
+        phase: "preview",
+        data,
+        selected: new Set(data.items.filter((item) => !item.existingTransactionId).map((item) => item.index)),
+        skipDuplicates: true
+      });
+    } catch (error) {
+      if (DocumentPicker.isCancel(error)) return;
+      Alert.alert("Ekstre yüklenemedi", formatStatementError(error, "Banka ekstresi okunamadı."));
+    } finally {
+      setStatementLoading(false);
+    }
+  }
+
+  async function confirmBankStatement() {
+    if (statementFlow.phase !== "preview") return;
+    if (countImportableSelected(statementFlow.data, statementFlow.selected, statementFlow.skipDuplicates) === 0) {
+      Alert.alert("Kalem seçilmedi", "İçe aktarılacak yeni ekstre kalemi seç.");
+      return;
+    }
+    try {
+      setStatementLoading(true);
+      const result = await confirmStatementImport(statementFlow.data.documentId, [...statementFlow.selected], statementFlow.skipDuplicates);
+      setStatementFlow({ phase: "confirmed", data: result });
+      onImported?.();
+    } catch (error) {
+      Alert.alert("Ekstre işlenemedi", formatStatementError(error, "Ekstre kalemleri giderlere eklenemedi."));
+    } finally {
+      setStatementLoading(false);
+    }
+  }
+
+  return (
+    <BankStatementCard
+      flow={statementFlow}
+      loading={statementLoading}
+      onPick={() => void pickBankStatement()}
+      onConfirm={() => void confirmBankStatement()}
+      setFlow={setStatementFlow}
+    />
+  );
+}
+
 export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
   const p = usePalette();
   const [portfolio, setPortfolio] = useState<InvestmentPortfolioSummary | null>(null);
@@ -39,8 +93,6 @@ export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
   const [costCurrency, setCostCurrency] = useState<Currency>("TRY");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [statementFlow, setStatementFlow] = useState<StatementFlow>({ phase: "idle" });
-  const [statementLoading, setStatementLoading] = useState(false);
   const isCash = assetType === "cash";
 
   useEffect(() => {
@@ -112,45 +164,6 @@ export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
     }
   }
 
-  async function pickBankStatement() {
-    try {
-      setStatementLoading(true);
-      const file = await DocumentPicker.pickSingle({ type: [DocumentPicker.types.pdf], copyTo: "cachesDirectory" });
-      const sourceUri = file.fileCopyUri ?? file.uri;
-      const base64 = await RNFS.readFile(normalizeFileUri(sourceUri), "base64");
-      const data = await importStatementPreview(base64, file.type ?? "application/pdf", file.name ?? "banka-ekstresi.pdf");
-      setStatementFlow({
-        phase: "preview",
-        data,
-        selected: new Set(data.items.filter((item) => !item.existingTransactionId).map((item) => item.index)),
-        skipDuplicates: true
-      });
-    } catch (error) {
-      if (DocumentPicker.isCancel(error)) return;
-      Alert.alert("Ekstre yüklenemedi", formatStatementError(error, "Banka ekstresi okunamadı."));
-    } finally {
-      setStatementLoading(false);
-    }
-  }
-
-  async function confirmBankStatement() {
-    if (statementFlow.phase !== "preview") return;
-    if (countImportableSelected(statementFlow.data, statementFlow.selected, statementFlow.skipDuplicates) === 0) {
-      Alert.alert("Kalem seçilmedi", "İçe aktarılacak yeni ekstre kalemi seç.");
-      return;
-    }
-    try {
-      setStatementLoading(true);
-      const result = await confirmStatementImport(statementFlow.data.documentId, [...statementFlow.selected], statementFlow.skipDuplicates);
-      setStatementFlow({ phase: "confirmed", data: result });
-      onImported?.();
-    } catch (error) {
-      Alert.alert("Ekstre işlenemedi", formatStatementError(error, "Ekstre kalemleri giderlere eklenemedi."));
-    } finally {
-      setStatementLoading(false);
-    }
-  }
-
   if (!portfolio) {
     return (
       <View style={{ paddingTop: 80, alignItems: "center", gap: 8 }}>
@@ -163,14 +176,6 @@ export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
   return (
     <View style={{ gap: space[4] }}>
       <ScreenHeader eyebrow="Piyasa" title="Yatirim Portfoyu" subtitle="Hisse, doviz, altin, nakit ve mevduati tek toplamda takip et." />
-
-      <BankStatementCard
-        flow={statementFlow}
-        loading={statementLoading}
-        onPick={() => void pickBankStatement()}
-        onConfirm={() => void confirmBankStatement()}
-        setFlow={setStatementFlow}
-      />
 
       <Card>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>

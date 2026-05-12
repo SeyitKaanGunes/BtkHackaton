@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, Image, Modal, PanResponder, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Image, Modal, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   AlertTriangle,
+  BarChart3,
   BriefcaseBusiness,
+  Brain,
   Building2,
   CalendarPlus,
   Check,
@@ -11,10 +13,14 @@ import {
   FileScan,
   Fingerprint,
   Landmark,
+  ListChecks,
   LogOut,
+  Menu,
   PauseCircle,
   Plus,
+  Repeat2,
   ShieldAlert,
+  Sparkles,
   Target,
   ReceiptText,
   UserPlus,
@@ -63,13 +69,80 @@ import {
 import { AgentScreen } from "./src/screens/AgentScreen";
 import { PortfolioScreen } from "./src/screens/PortfolioScreen";
 import { ScanScreen } from "./src/screens/ScanScreen";
-import { Badge, BottomTabButton, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles, typefaces } from "./src/ui";
+import { Badge, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles, typefaces } from "./src/ui";
 
-type Tab = "home" | "portfolio" | "scan" | "agent" | "business";
+type MobileSection = "overview" | "categories" | "spendingDna" | "whatIf" | "emotionalDelay" | "actions" | "subscriptions" | "portfolio" | "business" | "agent";
+type HomeSection = Exclude<MobileSection, "portfolio" | "business" | "agent">;
+type NavIcon = typeof WalletCards;
 type HomeData = Awaited<ReturnType<typeof loadMobileHome>>;
 type BusinessData = NonNullable<Awaited<ReturnType<typeof loadBusiness>>>;
 
 const agentPet = require("./src/assets/agent-pet.png");
+
+const mobileNavItems: Array<{ id: Exclude<MobileSection, "agent">; label: string; caption: string; Icon: NavIcon }> = [
+  { id: "overview", label: "Özet", caption: "Ana finansal durum", Icon: WalletCards },
+  { id: "categories", label: "Kategori Dağılımı", caption: "Fiş, ekstre ve harcama payı", Icon: BarChart3 },
+  { id: "spendingDna", label: "Spending DNA", caption: "Davranışsal riskler", Icon: Brain },
+  { id: "whatIf", label: "What-if", caption: "Karar simülasyonu", Icon: Sparkles },
+  { id: "emotionalDelay", label: "Emotional Delay", caption: "Bekletilecek kararlar", Icon: Clock3 },
+  { id: "actions", label: "Aksiyon Merkezi", caption: "Onay ve takip", Icon: ListChecks },
+  { id: "subscriptions", label: "Abonelik Avcısı", caption: "Sızıntı ve tekrarlar", Icon: Repeat2 },
+  { id: "portfolio", label: "Portföy", caption: "Varlıklar ve nakit", Icon: Landmark },
+  { id: "business", label: "KOBİ", caption: "Nakit akışı ve CFO", Icon: BriefcaseBusiness }
+];
+
+const sectionMeta: Record<MobileSection, { eyebrow: string; title: string; subtitle: string }> = {
+  overview: {
+    eyebrow: "Ana ekran",
+    title: "Özet",
+    subtitle: "Gelir, gider, sağlık skoru ve hızlı kayıtlar."
+  },
+  categories: {
+    eyebrow: "Harcama analizi",
+    title: "Kategori Dağılımı",
+    subtitle: "Fiş ve ekstreyle beslenen kategori kırılımı."
+  },
+  spendingDna: {
+    eyebrow: "Davranışsal finans",
+    title: "Spending DNA",
+    subtitle: "Harcama refleksleri ve kategori riskleri."
+  },
+  whatIf: {
+    eyebrow: "Karar simülasyonu",
+    title: "What-if",
+    subtitle: "Güvenli, dengeli ve riskli senaryolar."
+  },
+  emotionalDelay: {
+    eyebrow: "Karar freni",
+    title: "Emotional Delay",
+    subtitle: "Ani harcamaları bekletme önerileri."
+  },
+  actions: {
+    eyebrow: "Takip",
+    title: "Aksiyon Merkezi",
+    subtitle: "Onay bekleyen finansal aksiyonlar."
+  },
+  subscriptions: {
+    eyebrow: "Sızıntı kontrolü",
+    title: "Abonelik Avcısı",
+    subtitle: "Tekrarlayan ve kullanılmayan ödemeler."
+  },
+  portfolio: {
+    eyebrow: "Piyasa",
+    title: "Portföy",
+    subtitle: "Varlıklar, nakit ve mevduat takibi."
+  },
+  business: {
+    eyebrow: "İşletme",
+    title: "KOBİ",
+    subtitle: "Tahsilat, ödeme ve nakit projeksiyonu."
+  },
+  agent: {
+    eyebrow: "Finans asistanı",
+    title: "Agent",
+    subtitle: "Sağ alttaki ikizle sohbet."
+  }
+};
 
 const dashboardPeriods: Array<{ value: DashboardPeriod; label: string }> = [
   { value: "daily", label: "Günlük" },
@@ -97,10 +170,10 @@ const fallbackTransactionCategories: Category[] = [
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(() => hasAuthToken());
-  const [tab, setTab] = useState<Tab>("home");
+  const [section, setSection] = useState<MobileSection>("overview");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [home, setHome] = useState<HomeData | null>(null);
   const [business, setBusiness] = useState<BusinessData | null>(null);
-  const [agentOpen, setAgentOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [period, setPeriod] = useState<DashboardPeriod>("monthly");
@@ -121,7 +194,7 @@ export default function App() {
     setAuthenticated(false);
     setHome(null);
     setBusiness(null);
-    setTab("home");
+    setSection("overview");
   }
 
   function refreshData() {
@@ -132,73 +205,148 @@ export default function App() {
     return <AuthScreen onAuthenticated={() => setAuthenticated(true)} />;
   }
 
+  const content =
+    section === "portfolio" ? (
+      <PortfolioScreen onImported={refreshData} />
+    ) : section === "agent" ? (
+      <AgentScreen onActionChanged={refreshData} />
+    ) : section === "business" ? (
+      home === null && !loadError ? (
+        <Loading />
+      ) : business ? (
+        <BusinessScreen {...business} onChanged={refreshData} />
+      ) : loadError ? (
+        <LoadError message={loadError} />
+      ) : (
+        <BusinessOnboardingScreen onCreated={refreshData} />
+      )
+    ) : home ? (
+      <HomeScreen
+        {...home}
+        section={section}
+        activePeriod={period}
+        onPeriodChange={setPeriod}
+        onOpenPortfolio={() => setSection("portfolio")}
+        onOpenBusiness={() => setSection("business")}
+        onLogout={logout}
+        onRefresh={refreshData}
+      />
+    ) : loadError ? (
+      <LoadError message={loadError} />
+    ) : (
+      <Loading />
+    );
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor={palette.bg} />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {tab === "home" &&
-          (home ? (
-            <HomeScreen
-              {...home}
-              activePeriod={period}
-              onPeriodChange={setPeriod}
-              onOpenPortfolio={() => setTab("portfolio")}
-              onOpenBusiness={() => setTab("business")}
-              onLogout={logout}
-              onRefresh={refreshData}
-            />
-          ) : loadError ? (
-            <LoadError message={loadError} />
-          ) : (
-            <Loading />
-          ))}
-        {tab === "portfolio" && <PortfolioScreen onImported={refreshData} />}
-        {tab === "scan" && <ScanScreen onImported={refreshData} />}
-        {tab === "agent" && <AgentScreen onActionChanged={refreshData} />}
-        {tab === "business" &&
-          (business ? (
-            <BusinessScreen {...business} onChanged={refreshData} />
-          ) : loadError ? (
-            <LoadError message={loadError} />
-          ) : (
-            <BusinessOnboardingScreen onCreated={refreshData} />
-          ))}
+      <MobileTopBar activeSection={section} onOpenMenu={() => setMenuOpen(true)} />
+      <ScrollView key={section} contentContainerStyle={[styles.scroll, localStyles.workspaceScroll]} showsVerticalScrollIndicator={false}>
+        {content}
       </ScrollView>
-      <View style={styles.tabBar}>
-        <BottomTabButton
-          label="Kişisel"
-          active={tab === "home"}
-          onPress={() => setTab("home")}
-          icon={<WalletCards size={20} color={tab === "home" ? palette.secondary : palette.darkMuted} />}
-        />
-        <BottomTabButton
-          label="Portföy"
-          active={tab === "portfolio"}
-          onPress={() => setTab("portfolio")}
-          icon={<Landmark size={20} color={tab === "portfolio" ? palette.secondary : palette.darkMuted} />}
-        />
-        <BottomTabButton
-          label="Fiş"
-          active={tab === "scan"}
-          onPress={() => setTab("scan")}
-          icon={<ReceiptText size={20} color={tab === "scan" ? palette.secondary : palette.darkMuted} />}
-        />
-        <BottomTabButton
-          label="Agent"
-          active={tab === "agent"}
-          onPress={() => setTab("agent")}
-          icon={<Image source={agentPet} resizeMode="contain" style={[localStyles.agentTabPet, tab === "agent" && localStyles.agentTabPetActive]} />}
-        />
-        <BottomTabButton
-          label="KOBİ"
-          active={tab === "business"}
-          onPress={() => setTab("business")}
-          icon={<BriefcaseBusiness size={20} color={tab === "business" ? palette.secondary : palette.darkMuted} />}
-        />
-      </View>
-      <DraggableAgentBubble onOpen={() => setAgentOpen(true)} />
-      <AgentModal visible={agentOpen} onClose={() => setAgentOpen(false)} />
+      <MobileMenuDrawer
+        visible={menuOpen}
+        activeSection={section}
+        onClose={() => setMenuOpen(false)}
+        onLogout={logout}
+        onSelect={(nextSection) => {
+          setSection(nextSection);
+          setMenuOpen(false);
+        }}
+      />
+      <DraggableAgentBubble active={section === "agent"} onOpen={() => setSection("agent")} />
     </SafeAreaView>
+  );
+}
+
+function MobileTopBar({ activeSection, onOpenMenu }: { activeSection: MobileSection; onOpenMenu: () => void }) {
+  const meta = sectionMeta[activeSection];
+
+  return (
+    <View style={localStyles.mobileTopBar}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Menüyü aç" onPress={onOpenMenu} style={localStyles.menuButton}>
+        <Menu size={20} color={palette.ink} />
+      </Pressable>
+      <View style={localStyles.topBrandMark}>
+        <Text style={localStyles.authMarkText}>FS</Text>
+      </View>
+      <View style={localStyles.topBarCopy}>
+        <Text style={localStyles.topBarEyebrow}>{meta.eyebrow}</Text>
+        <Text style={localStyles.topBarTitle} numberOfLines={1}>
+          {meta.title}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function MobileMenuDrawer({
+  visible,
+  activeSection,
+  onSelect,
+  onClose,
+  onLogout
+}: {
+  visible: boolean;
+  activeSection: MobileSection;
+  onSelect: (section: Exclude<MobileSection, "agent">) => void;
+  onClose: () => void;
+  onLogout: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={localStyles.menuOverlay}>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        <SafeAreaView style={localStyles.menuSheet}>
+          <View style={localStyles.menuBrand}>
+            <View style={localStyles.authMark}>
+              <Text style={localStyles.authMarkText}>FS</Text>
+            </View>
+            <View style={localStyles.alertCopy}>
+              <Text style={localStyles.cardTitle}>Fintwin</Text>
+              <Text style={styles.bodyMuted}>AI Financial Twin</Text>
+            </View>
+            <IconButton onPress={onClose} tone="muted">
+              <X size={18} color={palette.ink} />
+            </IconButton>
+          </View>
+
+          <ScrollView contentContainerStyle={localStyles.menuList} showsVerticalScrollIndicator={false}>
+            {mobileNavItems.map((item) => {
+              const Icon = item.Icon;
+              const active = activeSection === item.id;
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  key={item.id}
+                  onPress={() => onSelect(item.id)}
+                  style={[localStyles.menuItem, active && localStyles.menuItemActive]}
+                >
+                  <View style={[localStyles.menuItemIcon, active && localStyles.menuItemIconActive]}>
+                    <Icon size={18} color={active ? palette.primary : palette.muted} />
+                  </View>
+                  <View style={localStyles.alertCopy}>
+                    <Text style={[localStyles.menuItemLabel, active && localStyles.menuItemLabelActive]}>{item.label}</Text>
+                    <Text style={localStyles.menuItemCaption}>{item.caption}</Text>
+                  </View>
+                  <ChevronRight size={16} color={active ? palette.primary : palette.darkMuted} />
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <Pressable accessibilityRole="button" style={localStyles.menuLogout} onPress={onLogout}>
+            <LogOut size={17} color={palette.ink} />
+            <Text style={localStyles.menuLogoutText}>Çıkış yap</Text>
+          </Pressable>
+          <View style={localStyles.trustNote}>
+            <ShieldAlert size={16} color={palette.teal} />
+            <Text style={localStyles.trustNoteText}>Detay ekranları menüden açılır; Agent sağ alttaki ikiz ikonunda.</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    </Modal>
   );
 }
 
@@ -362,73 +510,14 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
   );
 }
 
-function DraggableAgentBubble({ onOpen }: { onOpen: () => void }) {
-  const { width, height } = Dimensions.get("window");
-  const initial = useMemo(() => ({ x: width - 84, y: 112 }), [width]);
-  const position = useRef(new Animated.ValueXY(initial)).current;
-  const lastPosition = useRef(initial);
-  const moved = useRef(false);
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 3 || Math.abs(gesture.dy) > 3,
-        onPanResponderGrant: () => {
-          moved.current = false;
-          position.setOffset(lastPosition.current);
-          position.setValue({ x: 0, y: 0 });
-        },
-        onPanResponderMove: (_, gesture) => {
-          moved.current = moved.current || Math.abs(gesture.dx) > 8 || Math.abs(gesture.dy) > 8;
-          position.setValue({ x: gesture.dx, y: gesture.dy });
-        },
-        onPanResponderRelease: (_, gesture) => {
-          const next = {
-            x: Math.min(Math.max(lastPosition.current.x + gesture.dx, 12), width - 76),
-            y: Math.min(Math.max(lastPosition.current.y + gesture.dy, 76), height - 176)
-          };
-          position.flattenOffset();
-          position.setValue(next);
-          lastPosition.current = next;
-          if (!moved.current) {
-            onOpen();
-          }
-        }
-      }),
-    [height, onOpen, position, width]
-  );
-
+function DraggableAgentBubble({ active, onOpen }: { active: boolean; onOpen: () => void }) {
   return (
-    <Animated.View style={[localStyles.agentBubble, { transform: position.getTranslateTransform() }]} {...panResponder.panHandlers}>
-      <View style={localStyles.agentBubbleInner}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Agent'i aç" onPress={onOpen} style={({ pressed }) => [localStyles.agentBubble, pressed && styles.pressed]}>
+      <View style={[localStyles.agentBubbleInner, active && localStyles.agentBubbleInnerActive]}>
         <Image source={agentPet} resizeMode="contain" style={localStyles.agentBubblePet} />
         <Text style={localStyles.agentBubbleLabel}>İkiz</Text>
       </View>
-    </Animated.View>
-  );
-}
-
-function AgentModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={localStyles.agentModalBackdrop}>
-        <SafeAreaView style={localStyles.agentModalSheet}>
-          <View style={localStyles.agentModalHeader}>
-            <View>
-              <Text style={localStyles.overline}>Finansal İkiz</Text>
-              <Text style={localStyles.cardTitle}>Agent paneli</Text>
-            </View>
-            <IconButton onPress={onClose} tone="muted">
-              <X size={18} color={palette.ink} />
-            </IconButton>
-          </View>
-          <ScrollView contentContainerStyle={localStyles.agentModalContent} showsVerticalScrollIndicator={false}>
-            <AgentScreen />
-          </ScrollView>
-        </SafeAreaView>
-      </View>
-    </Modal>
+    </Pressable>
   );
 }
 
@@ -441,6 +530,7 @@ function HomeScreen({
   simulation,
   investmentPortfolio,
   businessOverview,
+  section,
   activePeriod,
   onPeriodChange,
   onOpenPortfolio,
@@ -456,6 +546,7 @@ function HomeScreen({
   simulation: WhatIfResponse;
   investmentPortfolio: HomeData["investmentPortfolio"];
   businessOverview: HomeData["businessOverview"];
+  section: HomeSection;
   activePeriod: DashboardPeriod;
   onPeriodChange: (period: DashboardPeriod) => void;
   onOpenPortfolio: () => void;
@@ -473,6 +564,101 @@ function HomeScreen({
     campaign.score > 0 ||
     simulation.cards.length > 0;
   const primaryRiskCategory = dna.categories.find((category) => category.riskScore >= 65 || category.monthlySpend > 0);
+
+  if (section === "categories") {
+    return (
+      <>
+        <ScreenHeader
+          eyebrow="Harcama analizi"
+          title="Kategori Dağılımı"
+          subtitle="Bu dönemki harcamaları kategori bazında, pay oranı ve toplam etkiyle birlikte incele."
+          right={<BarChart3 size={28} color={palette.primary} />}
+        />
+        <PeriodSwitcher activePeriod={activePeriod} periodLabel={dashboard.periodLabel} onChange={onPeriodChange} />
+        <CategoryDistributionPanel dashboard={dashboard} />
+        <CategoryRiskList dna={dna} periodLabel={dashboard.periodLabel} />
+        <Panel>
+          <SectionTitle title="Kategori verisini besle" meta="fiş / ekstre" />
+          <Text style={styles.bodyMuted}>Fiş okutunca tek gider kaydı; banka ekstresi yükleyince seçtiğin satırlar kategori dağılımına otomatik yansır.</Text>
+        </Panel>
+        <ScanScreen onImported={onRefresh} />
+      </>
+    );
+  }
+
+  if (section === "spendingDna") {
+    return (
+      <>
+        <ScreenHeader
+          eyebrow="Davranışsal finans"
+          title="Spending DNA Riskleri"
+          subtitle="Harcama reflekslerini, kategori risklerini ve veri sinyallerini tek ekranda oku."
+          right={<Brain size={28} color={palette.primary} />}
+        />
+        <PeriodSwitcher activePeriod={activePeriod} periodLabel={dashboard.periodLabel} onChange={onPeriodChange} />
+        <SpendingDnaCard dna={dna} periodLabel={dashboard.periodLabel} />
+        <SpendingDnaPatternPanel dna={dna} />
+        <CategoryRiskList dna={dna} periodLabel={dashboard.periodLabel} />
+      </>
+    );
+  }
+
+  if (section === "whatIf") {
+    return (
+      <>
+        <ScreenHeader
+          eyebrow="Karar simülasyonu"
+          title="What-if senaryosu"
+          subtitle="Güvenli, dengeli ve riskli harcama senaryolarını nakit akışıyla birlikte incele."
+          right={<Sparkles size={28} color={palette.primary} />}
+        />
+        <WhatIfPreview simulation={simulation} />
+      </>
+    );
+  }
+
+  if (section === "emotionalDelay") {
+    return (
+      <>
+        <ScreenHeader
+          eyebrow="Karar freni"
+          title="Emotional Delay"
+          subtitle="Ani harcama kararlarını bekletme önerisi, gerekçesi ve aksiyonlarıyla takip et."
+          right={<PauseCircle size={28} color={palette.primary} />}
+        />
+        <EmotionalDelayPanel simulation={simulation} actions={dashboard.upcomingActions} onChanged={onRefresh} />
+      </>
+    );
+  }
+
+  if (section === "actions") {
+    return (
+      <>
+        <ScreenHeader
+          eyebrow="Karar ve takip"
+          title="Finansal Aksiyon Merkezi"
+          subtitle="Sistem ve agent tarafından üretilen aksiyonları burada onayla, reddet veya takip et."
+          right={<ListChecks size={28} color={palette.primary} />}
+        />
+        <ActionStats actions={dashboard.upcomingActions} />
+        <ActionCenter actions={dashboard.upcomingActions} onChanged={onRefresh} />
+      </>
+    );
+  }
+
+  if (section === "subscriptions") {
+    return (
+      <>
+        <ScreenHeader
+          eyebrow="Sızıntı kontrolü"
+          title="Akıllı Abonelik Avcısı"
+          subtitle="Tekrarlayan, kullanılmayan veya fiyatı artmış abonelikleri ayrı ekranda incele."
+          right={<Repeat2 size={28} color={palette.primary} />}
+        />
+        <SubscriptionHunter leaks={leaks} />
+      </>
+    );
+  }
 
   return (
     <>
@@ -516,14 +702,7 @@ function HomeScreen({
         onOpenPortfolio={onOpenPortfolio}
         onOpenBusiness={onOpenBusiness}
       />
-      <RiskAlerts alerts={dashboard.riskAlerts} monthlyLeak={monthlyLeak} leaks={leaks} />
-      <SpendingDnaCard dna={dna} periodLabel={dashboard.periodLabel} />
-      <CategoryRiskList dna={dna} periodLabel={dashboard.periodLabel} />
-      <GoalsSection goals={dashboard.goals} />
       <ManualTransactionPanel user={user} onChanged={onRefresh} />
-      <ActionCenter actions={dashboard.upcomingActions} onChanged={onRefresh} />
-      <WhatIfPreview simulation={simulation} />
-      <SubscriptionHunter leaks={leaks} />
     </>
   );
 }
@@ -776,6 +955,116 @@ function CategoryRiskList({ dna, periodLabel }: { dna: SpendingDna; periodLabel:
         <EmptyPanelMessage message="Kategori riski için önce fiş, işlem veya ekstre verisi eklenmeli." />
       )}
     </Panel>
+  );
+}
+
+function CategoryDistributionPanel({ dashboard }: { dashboard: DashboardSummary }) {
+  const total = dashboard.categoryBreakdown.reduce((sum, item) => sum + item.value, 0);
+
+  return (
+    <Panel>
+      <SectionTitle title="Kategori Payları" meta={total ? money(total) : dashboard.periodLabel} />
+      {dashboard.categoryBreakdown.length ? (
+        dashboard.categoryBreakdown.map((item) => {
+          const percent = total > 0 ? Math.round((item.value / total) * 100) : 0;
+          return (
+            <View style={localStyles.categoryRow} key={item.categoryId}>
+              <View style={styles.rowBetween}>
+                <View style={styles.row}>
+                  <View style={[localStyles.categorySwatch, { backgroundColor: item.color }]} />
+                  <View>
+                    <Text style={localStyles.cardTitle}>{item.name}</Text>
+                    <Text style={styles.bodyMuted}>{money(item.value)}</Text>
+                  </View>
+                </View>
+                <Mono style={localStyles.categoryPercent}>%{percent}</Mono>
+              </View>
+              <ProgressBar value={percent} tone={percent >= 40 ? "danger" : percent >= 25 ? "warn" : "teal"} />
+            </View>
+          );
+        })
+      ) : (
+        <EmptyPanelMessage message="Kategori dağılımı için önce fiş, işlem veya ekstre verisi eklenmeli." />
+      )}
+    </Panel>
+  );
+}
+
+function SpendingDnaPatternPanel({ dna }: { dna: SpendingDna }) {
+  const confidence = Math.round((dna.dataConfidence ?? 0) * 100);
+  return (
+    <Panel>
+      <SectionTitle title="Veri Güveni ve Bulgular" meta={dna.dataConfidenceLevel ?? "ölçülüyor"} />
+      <View style={localStyles.dnaGrid}>
+        <MiniSignal label="Veri güveni" value={dna.dataConfidence === undefined ? "Beklemede" : `%${confidence}`} tone="teal" />
+        <MiniSignal label="Eksik veri" value={String(dna.missingData?.length ?? 0)} tone={dna.missingData?.length ? "warn" : "teal"} />
+      </View>
+      {dna.patterns.length ? (
+        dna.patterns.map((pattern, index) => (
+          <View style={localStyles.patternCard} key={`${pattern}-${index}`}>
+            <Text style={styles.body}>{pattern}</Text>
+          </View>
+        ))
+      ) : (
+        <EmptyPanelMessage message="Davranış örüntüsü için daha fazla harcama verisi gerekiyor." />
+      )}
+      {dna.missingData?.length ? (
+        <View style={localStyles.segmentedWrap}>
+          {dna.missingData.map((item) => (
+            <Badge key={item} label={item} tone="warn" />
+          ))}
+        </View>
+      ) : null}
+    </Panel>
+  );
+}
+
+function EmotionalDelayPanel({ simulation, actions, onChanged }: { simulation: WhatIfResponse; actions: ActionItem[]; onChanged: () => void }) {
+  const delayActions = actions.filter((action) => action.type === "delay_purchase");
+  const delayMinutes = simulation.emotionalDelayMinutes;
+
+  return (
+    <>
+      <Panel>
+        <SectionTitle title="Bekletme Kararı" meta={delayMinutes ? `${delayMinutes} dakika` : "öneri yok"} />
+        <View style={localStyles.delayCard}>
+          <View style={styles.row}>
+            <PauseCircle size={22} color={palette.primary} />
+            <View style={localStyles.alertCopy}>
+              <Text style={localStyles.cardTitle}>{delayMinutes ? "Ani harcamayı beklet" : "Bekleme önerisi üretilmedi"}</Text>
+              <Text style={styles.bodyMuted}>
+                {delayMinutes
+                  ? "Bu senaryo nakit akışı ve risk sinyalleri nedeniyle kısa bir bekleme öneriyor."
+                  : "Mevcut veride ekstra karar freni gerektiren bir sinyal yok."}
+              </Text>
+            </View>
+            <Mono style={localStyles.timer}>{delayMinutes ? `${delayMinutes}:00` : "0:00"}</Mono>
+          </View>
+        </View>
+        {simulation.assumptions.length ? (
+          <View style={styles.wrapRow}>
+            {simulation.assumptions.map((assumption) => (
+              <Badge key={assumption} label={assumption} tone="muted" />
+            ))}
+          </View>
+        ) : null}
+      </Panel>
+      <ActionCenter actions={delayActions} onChanged={onChanged} />
+    </>
+  );
+}
+
+function ActionStats({ actions }: { actions: ActionItem[] }) {
+  const pending = actions.filter((action) => action.status === "pending").length;
+  const approved = actions.filter((action) => action.status === "approved").length;
+  const dismissed = actions.filter((action) => action.status === "dismissed").length;
+
+  return (
+    <View style={styles.metricGrid}>
+      <MetricCard icon={<Clock3 size={18} color={palette.primary} />} label="Bekleyen" value={String(pending)} caption="karar bekliyor" tone="primary" />
+      <MetricCard icon={<Check size={18} color={palette.success} />} label="Onaylanan" value={String(approved)} caption="takibe alındı" tone="success" />
+      <MetricCard icon={<X size={18} color={palette.danger} />} label="Reddedilen" value={String(dismissed)} caption="kapatıldı" tone="danger" />
+    </View>
   );
 }
 
@@ -1526,6 +1815,171 @@ function leakIssueLabel(issue: SubscriptionLeak["issue"]) {
 }
 
 const localStyles = StyleSheet.create({
+  workspaceScroll: {
+    paddingTop: 14,
+    paddingBottom: 96
+  },
+  mobileTopBar: {
+    marginHorizontal: 14,
+    marginTop: 8,
+    minHeight: 66,
+    borderColor: "rgba(255,255,255,0.78)",
+    borderWidth: 1,
+    borderRadius: 24,
+    backgroundColor: "rgba(251,252,247,0.86)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    shadowColor: "#101815",
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    shadowOffset: { height: 8, width: 0 },
+    elevation: 8
+  },
+  menuButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    borderColor: "rgba(16,24,21,0.08)",
+    borderWidth: 1,
+    backgroundColor: palette.surface,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  topBrandMark: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: palette.secondary,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  topBarCopy: {
+    flex: 1,
+    gap: 2
+  },
+  topBarEyebrow: {
+    color: palette.teal,
+    fontFamily: typefaces.body,
+    fontSize: 10.5,
+    fontWeight: "800",
+    textTransform: "uppercase"
+  },
+  topBarTitle: {
+    color: palette.ink,
+    fontFamily: typefaces.display,
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "700"
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(16,24,21,0.46)",
+    justifyContent: "flex-start"
+  },
+  menuSheet: {
+    width: "82%",
+    maxWidth: 360,
+    height: "100%",
+    borderTopRightRadius: 30,
+    borderBottomRightRadius: 30,
+    backgroundColor: palette.bg,
+    padding: 16,
+    gap: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.22,
+    shadowRadius: 28,
+    shadowOffset: { height: 0, width: 12 },
+    elevation: 24
+  },
+  menuBrand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingBottom: 4
+  },
+  menuList: {
+    gap: 8,
+    paddingBottom: 8
+  },
+  menuItem: {
+    minHeight: 68,
+    borderColor: "rgba(16,24,21,0.08)",
+    borderWidth: 1,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.5)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 10
+  },
+  menuItemActive: {
+    borderColor: "rgba(37,87,214,0.2)",
+    backgroundColor: "rgba(37,87,214,0.1)"
+  },
+  menuItemIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 15,
+    backgroundColor: palette.surface2,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  menuItemIconActive: {
+    backgroundColor: palette.primarySoft
+  },
+  menuItemLabel: {
+    color: palette.ink,
+    fontFamily: typefaces.display,
+    fontSize: 14,
+    lineHeight: 19,
+    fontWeight: "700"
+  },
+  menuItemLabelActive: {
+    color: palette.primary
+  },
+  menuItemCaption: {
+    color: palette.muted,
+    fontFamily: typefaces.body,
+    fontSize: 11.5,
+    lineHeight: 16,
+    fontWeight: "600"
+  },
+  menuLogout: {
+    minHeight: 48,
+    borderColor: "rgba(16,24,21,0.08)",
+    borderWidth: 1,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.52)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8
+  },
+  menuLogoutText: {
+    color: palette.ink,
+    fontFamily: typefaces.body,
+    fontSize: 13,
+    fontWeight: "800"
+  },
+  trustNote: {
+    borderColor: palette.line,
+    borderWidth: 1,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.44)",
+    flexDirection: "row",
+    gap: 8,
+    padding: 12
+  },
+  trustNoteText: {
+    flex: 1,
+    color: palette.muted,
+    fontFamily: typefaces.body,
+    fontSize: 11.5,
+    lineHeight: 16,
+    fontWeight: "600"
+  },
   authScroll: {
     flexGrow: 1,
     justifyContent: "center",
@@ -1681,9 +2135,9 @@ const localStyles = StyleSheet.create({
   },
   agentBubble: {
     position: "absolute",
-    left: 0,
-    top: 0,
-    zIndex: 30,
+    right: 16,
+    bottom: 20,
+    zIndex: 40,
     elevation: 18
   },
   agentBubbleInner: {
@@ -1702,6 +2156,10 @@ const localStyles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { height: 12, width: 0 },
     elevation: 18
+  },
+  agentBubbleInnerActive: {
+    backgroundColor: palette.secondary,
+    borderColor: palette.primarySoft
   },
   agentBubblePet: {
     position: "absolute",
@@ -1964,6 +2422,25 @@ const localStyles = StyleSheet.create({
     backgroundColor: palette.primarySoft,
     borderRadius: 20,
     padding: 14
+  },
+  categoryRow: {
+    borderColor: "rgba(16,24,21,0.08)",
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 12,
+    gap: 10,
+    backgroundColor: "rgba(255,255,255,0.48)"
+  },
+  categorySwatch: {
+    width: 12,
+    height: 42,
+    borderRadius: 999
+  },
+  categoryPercent: {
+    color: palette.ink,
+    fontFamily: typefaces.display,
+    fontSize: 18,
+    fontWeight: "700"
   },
   emptyMessage: {
     borderColor: "rgba(16,24,21,0.08)",
