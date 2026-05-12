@@ -5,18 +5,8 @@ import { useRouter } from "next/navigation";
 import { Bell, CalendarClock, Check, Plus, Wallet, X } from "lucide-react";
 import type { ActionItem, Category, Currency, TransactionType } from "@fintwin/shared";
 import { approveAction, createTransaction, dismissAction, getCategories, updateFinanceProfile, type AuthUserProfile } from "../lib/api";
+import { localDateInputValue, parseMoneyInput } from "../lib/input-format";
 
-const fallbackCategories: Category[] = [
-  { id: "cat-salary", name: "Maaş", kind: "income", color: "#16a34a" },
-  { id: "cat-market", name: "Market", kind: "expense", color: "#f59e0b" },
-  { id: "cat-food", name: "Yemek", kind: "expense", color: "#ef4444" },
-  { id: "cat-transport", name: "Ulaşım", kind: "expense", color: "#0891b2" },
-  { id: "cat-tech", name: "Teknoloji", kind: "expense", color: "#4f46e5" },
-  { id: "cat-clothes", name: "Giyim", kind: "expense", color: "#db2777" },
-  { id: "cat-subscription", name: "Abonelik", kind: "expense", color: "#7c3aed" },
-  { id: "cat-rent", name: "Kira", kind: "expense", color: "#64748b" },
-  { id: "cat-other", name: "Diğer", kind: "expense", color: "#71717a" }
-];
 const currencies: Currency[] = ["TRY", "USD", "EUR"];
 
 type Status = { tone: "ok" | "error"; text: string } | null;
@@ -29,9 +19,10 @@ export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserP
   const [categoryId, setCategoryId] = useState("cat-other");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [currency, setCurrency] = useState<Currency>("TRY");
-  const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [occurredAt, setOccurredAt] = useState(() => localDateInputValue());
   const [recurring, setRecurring] = useState(false);
-  const [categories, setCategories] = useState<Category[]>(fallbackCategories);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<Status>(null);
   const [salaryAmount, setSalaryAmount] = useState(initialUser.monthlyIncome > 0 ? String(initialUser.monthlyIncome) : "");
@@ -42,12 +33,17 @@ export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserP
   const categoryOptions = useMemo(() => categories.filter((category) => category.kind === type), [categories, type]);
 
   useEffect(() => {
+    setCategoryLoadError(null);
     void getCategories()
-      .then((items) => setCategories(items.length ? items : fallbackCategories))
-      .catch(() => setCategories(fallbackCategories));
+      .then((items) => setCategories(items))
+      .catch((error) => {
+        setCategories([]);
+        setCategoryLoadError(error instanceof Error ? error.message : "Kategori listesi alınamadı.");
+      });
   }, []);
 
   useEffect(() => {
+    if (!categoryOptions.length) return;
     if (!categoryOptions.some((option) => option.id === categoryId)) {
       setCategoryId(categoryOptions[0]?.id ?? "");
     }
@@ -83,6 +79,10 @@ export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserP
     event.preventDefault();
     const parsedAmount = parseMoneyInput(amount);
     const customCategory = newCategoryName.trim();
+    if (categoryLoadError && !customCategory) {
+      setStatus({ tone: "error", text: "Kategori listesi alınamadı. Yeni kategori adı gir veya sayfayı yenile." });
+      return;
+    }
     if (!merchant.trim() || parsedAmount === undefined || parsedAmount <= 0 || (!categoryId && !customCategory)) {
       setStatus({ tone: "error", text: "Açıklama, kategori ve pozitif tutar gerekli." });
       return;
@@ -108,7 +108,12 @@ export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserP
       setRecurring(false);
       setStatus({ tone: "ok", text: "İşlem eklendi." });
       if (customCategory) {
-        void getCategories().then((items) => setCategories(items.length ? items : fallbackCategories));
+        void getCategories()
+          .then((items) => {
+            setCategories(items);
+            setCategoryLoadError(null);
+          })
+          .catch((error) => setCategoryLoadError(error instanceof Error ? error.message : "Kategori listesi alınamadı."));
       }
       router.refresh();
     } catch (error) {
@@ -192,6 +197,7 @@ export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserP
               </button>
             ))}
           </div>
+          {categoryLoadError ? <p className="form-message danger">{categoryLoadError}</p> : null}
           <label className="field custom-category-field">
             <span>Yeni kategori</span>
             <input value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="Örn. okul, spor" />
@@ -289,9 +295,3 @@ function formatShortDate(value: string) {
   return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short" }).format(new Date(value));
 }
 
-function parseMoneyInput(value: string) {
-  const raw = value.trim();
-  if (!raw) return undefined;
-  const parsed = Number(raw.replace(/\./g, "").replace(",", "."));
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
-}

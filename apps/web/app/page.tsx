@@ -66,7 +66,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <PeriodTabs active={period} />
 
       <section className="health-card panel">
-        <ScoreRing score={dashboard.financialHealthScore} />
+        <ScoreRing active={hasFinancialData} score={dashboard.financialHealthScore} />
         <div>
           <p className="eyebrow muted">Finansal Sağlık</p>
           <h2>{healthTitle}</h2>
@@ -101,7 +101,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           icon={<Landmark size={20} />}
           label="Yatırım Portföyü"
           value={portfolio ? `${portfolio.totalMarketValueTry.toLocaleString("tr-TR")} TL` : "Bağlantı bekleniyor"}
-          caption={portfolio ? `${portfolio.positions.length} varlık · %${Math.round(portfolio.totalProfitLossPercent)}` : "Portföy ekranına git"}
+          caption={portfolio ? portfolioCaption(portfolio.positions.length, portfolio.totalProfitLossPercent) : "Portföy ekranına git"}
         />
       </section>
 
@@ -146,11 +146,15 @@ function ModuleCard({ href, icon, label, value, caption }: { href: string; icon:
   );
 }
 
-function ScoreRing({ score }: { score: number }) {
+function portfolioCaption(positionCount: number, profitLossPercent: number) {
+  return positionCount > 0 ? `${positionCount} varlık · %${Math.round(profitLossPercent)}` : "Pozisyon yok";
+}
+
+function ScoreRing({ active, score }: { active: boolean; score: number }) {
   return (
-    <div className="score-ring" style={{ "--score": score } as CSSProperties}>
-      <strong>{score}</strong>
-      <span>/100</span>
+    <div className="score-ring" style={{ "--score": active ? score : 0 } as CSSProperties}>
+      <strong>{active ? score : "--"}</strong>
+      {active ? <span>/100</span> : null}
       <small>sağlık</small>
     </div>
   );

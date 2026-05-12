@@ -26,9 +26,9 @@ Bu dosya web uygulamasinin mevcut halindeki kullaniciya acik ekranlari, tiklanab
 | Donem sekmeleri | Gunluk, haftalik, aylik veya yillik ozet gorur. | URL'deki `period` parametresiyle dashboard, kampanya ve DNA verileri secili doneme gore API'den tekrar okunur. |
 | Finansal saglik karti | Saglik skoru, aksiyon ve risk ozetini gorur. | Hesaplar, islemler, hedefler, aksiyonlar ve butcelerden hesaplanan dashboard ozetini gosterir. Veri yoksa bos durum verir. |
 | Metrik kartlari | Gelir, gider, bakiye ve guvenli limit degerlerini izler. | `/dashboard/personal` ve `/campaigns/readiness` verilerini formatlayarak gosterir. |
-| Modül kartlari | Portfoy veya KOBI ekranina hizli gecis yapar. | Kartlar `/portfolio` ve `/business` route'larina link verir; mevcut portfoy/KOBI ozetini de gosterir. |
+| Modül kartlari | Portfoy ekranina hizli gecis yapar. | Kart `/portfolio` route'una link verir; portfoyde pozisyon varsa varlik sayisi ve kar/zarar yuzdesini, pozisyon yoksa bos portfoy durumunu gosterir. |
 | Manuel islem formu | Gelir veya gider ekler; tarih, para birimi ve kategori secer. | Form `/transactions` endpointine gider. Backend kategori, tarih, tutar ve odeme yontemini dogrular; islem yazilinca ilgili hesap bakiyesi guncellenir. |
-| Grafik ve analiz bloklari | Harcama dagilimi, DNA, what-if, risk, abonelik ve aksiyon ozetlerini okur. | Dashboard altinda serverdan gelen hesaplanmis sonuclar gosterilir; detayli inceleme icin ayrica kendi route'lari vardir. |
+| Analiz yonlendirmeleri | Harcama dagilimi, DNA, what-if, risk, abonelik ve aksiyon detaylarina gecer. | Ozet dashboard bu analizleri kart/grafik olarak tekrar etmez; detayli inceleme sol navigasyondaki kendi route'larinda yapilir. |
 
 ## Analiz Detay Sayfalari
 
