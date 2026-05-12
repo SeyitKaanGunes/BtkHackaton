@@ -58,7 +58,7 @@ export function AppShell({ children, active = "/", accountType = "personal" }: {
         </div>
       </aside>
       <main className="workspace">{children}</main>
-      <AgentLauncher />
+      {accountType === "personal" ? <AgentLauncher /> : null}
     </div>
   );
 }
