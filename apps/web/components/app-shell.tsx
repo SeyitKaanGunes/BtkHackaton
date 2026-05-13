@@ -58,7 +58,10 @@ export function AppShell({ children, active = "/", accountType = "personal" }: {
         </div>
       </aside>
       <main className="workspace">{children}</main>
-      {accountType === "personal" ? <AgentLauncher /> : null}
+      <AgentLauncher
+        ariaLabel={accountType === "business" ? "KOBİ asistanını aç" : "Agent sayfasına git"}
+        href={accountType === "business" ? "/business?section=assistant" : "/agent"}
+      />
     </div>
   );
 }

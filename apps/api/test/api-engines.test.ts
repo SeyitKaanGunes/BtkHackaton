@@ -492,6 +492,19 @@ describe("API feature services", () => {
     expect(controller.dashboard(authUser, createdBusiness.id).expectedCollections).toHaveLength(1);
   });
 
+  it("hydrates local KOBI demo data when Prisma is unavailable", async () => {
+    const store = new DataStoreService({ isConnected: () => false } as unknown as ConstructorParameters<typeof DataStoreService>[0]);
+
+    await store.onModuleInit();
+
+    const businessUser = await store.findUserByEmail("kobi.owner@example.com");
+    expect(businessUser?.accountType).toBe("business");
+    const businesses = store.getBusinessesForUser(businessUser!.id);
+    expect(businesses[0]?.name).toContain("KOBİ");
+    expect(store.getBusinessCustomers(businesses[0]!.id)).toHaveLength(3);
+    expect(store.getBusinessCashEvents(businesses[0]!.id).length).toBeGreaterThan(0);
+  });
+
   it("rejects invalid cached statement documents before they can be imported", async () => {
     const repository = new StatementDocumentRepository({
       document: {

@@ -1344,6 +1344,130 @@ h1 {
   letter-spacing: 0;
 }
 
+.business-assistant-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.business-assistant-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.business-assistant-picker,
+.business-assistant-answer {
+  display: grid;
+  gap: 12px;
+}
+
+.business-assistant-avatar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.business-assistant-avatar .agent-pet {
+  width: 68px;
+  height: 68px;
+  border-radius: 18px;
+  background-color: var(--surface);
+  box-shadow: 0 12px 28px rgba(16, 24, 21, 0.12);
+}
+
+.business-assistant-avatar div {
+  display: grid;
+  gap: 3px;
+}
+
+.business-assistant-avatar strong {
+  font-size: 16px;
+}
+
+.business-assistant-avatar span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.business-assistant-question {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--ink);
+  text-align: left;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.business-assistant-question svg {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.business-assistant-question.active,
+.business-assistant-question:hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+  background: var(--accent-soft);
+}
+
+.business-assistant-answer {
+  min-width: 0;
+}
+
+.business-assistant-answer-head {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.business-assistant-answer-head svg {
+  width: 42px;
+  height: 42px;
+  padding: 10px;
+  border-radius: 14px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.business-assistant-answer-head span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.business-assistant-answer-head strong {
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.business-assistant-note {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .critical-date-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2301,6 +2425,7 @@ h1 {
   .business-summary-grid,
   .business-detail-facts,
   .business-detail-grid,
+  .business-assistant-shell,
   .critical-date-list,
   .scenario-tabs,
   .scenario-comparison-grid {
@@ -2337,6 +2462,7 @@ h1 {
   .business-detail-facts,
   .business-detail-grid,
   .business-main-grid,
+  .business-assistant-shell,
   .critical-date-list,
   .coverage-grid,
   .scenario-tabs,

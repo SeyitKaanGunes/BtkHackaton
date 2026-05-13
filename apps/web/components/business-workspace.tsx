@@ -2,7 +2,7 @@
 
 import { type CSSProperties, type FormEvent, type ReactNode, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRightLeft, Building2, CalendarPlus, CheckCircle2, CircleDollarSign, Clock3, Landmark, MessageSquareText, ShieldAlert, Sparkles, TrendingUp, UserPlus } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, Bot, Building2, CalendarPlus, CheckCircle2, CircleDollarSign, Clock3, Landmark, MessageSquareText, Send, ShieldAlert, Sparkles, TrendingUp, UserPlus } from "lucide-react";
 import {
   buildBusinessInsights,
   type Business,
@@ -27,7 +27,7 @@ export type BusinessWorkspaceData = {
 
 type Status = { tone: "ok" | "error"; text: string } | null;
 type DetailFact = { label: string; value: string; tone?: "positive" | "negative" | "warning" };
-export type BusinessSectionId = "twin" | "cashflow" | "coverage" | "collections" | "scenarios" | "records";
+export type BusinessSectionId = "twin" | "cashflow" | "coverage" | "collections" | "scenarios" | "records" | "assistant";
 
 export function BusinessWorkspace({
   initialData,
@@ -170,6 +170,7 @@ function BusinessSectionContent({
       {activeSection === "coverage" ? <CoveragePanel coverage={insights.coverage} detail={detail} /> : null}
       {activeSection === "collections" ? <CollectionPriorityPanel detail={detail} priorities={insights.collectionPriorities} /> : null}
       {activeSection === "scenarios" ? <ScenarioSimulatorPanel detail={detail} scenarios={insights.scenarios} /> : null}
+      {activeSection === "assistant" ? <BusinessAssistantPanel dashboard={dashboard} detail={detail} insights={insights} /> : null}
       {activeSection === "records" ? (
         <>
           {detail ? <RecordsOverviewPanel customers={customers} dashboard={dashboard} scores={scores} /> : null}
@@ -538,6 +539,84 @@ function ScenarioSimulatorPanel({ detail, scenarios }: { detail: boolean; scenar
   );
 }
 
+type BusinessAssistantPromptId = "coverage" | "risk" | "collections" | "critical";
+
+const businessAssistantPrompts: Array<{ id: BusinessAssistantPromptId; label: string }> = [
+  { id: "coverage", label: "Maaş ve kirayı karşılayabilir miyim?" },
+  { id: "risk", label: "Nakit sıkışıklığı yaşayacak mıyım?" },
+  { id: "collections", label: "Hangi tahsilat daha kritik?" },
+  { id: "critical", label: "Önümüzdeki kritik günler neler?" }
+];
+
+function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: BusinessDashboard; detail: boolean; insights: BusinessInsights }) {
+  const [selectedPrompt, setSelectedPrompt] = useState<BusinessAssistantPromptId>("coverage");
+  const answer = businessAssistantAnswer(selectedPrompt, dashboard, insights);
+  const criticalDate = insights.twin.criticalDates[0];
+  const facts: DetailFact[] = [
+    { label: "Risk skoru", value: `${insights.summary.cashRiskScore}/100`, tone: riskFactTone(insights.summary.riskLevel) },
+    { label: "30 gün sonu", value: formatTry(insights.summary.projected30Days), tone: insights.summary.projected30Days >= 0 ? "positive" : "negative" },
+    { label: "Tahsilat", value: formatTry(insights.summary.expectedCollections30Days), tone: "positive" },
+    { label: "Kritik gün", value: criticalDate ? formatDateLabel(criticalDate.date) : "Görünmüyor" }
+  ];
+
+  return (
+    <section className={detail ? "panel business-assistant-panel detail-panel" : "panel business-assistant-panel"}>
+      {detail ? (
+        <BusinessSectionIntro
+          description="Bay Yengeç, KOBİ nakit verilerini kişisel ekranla karıştırmadan okur ve kayıtlı tahsilat/ödeme bilgilerine göre karar destek cevabı verir."
+          eyebrow="KOBİ Asistanı"
+          facts={facts}
+          title="İşletme sorularını hızlıca yanıtla"
+        />
+      ) : (
+        <div className="section-title">
+          <span>KOBİ asistanı</span>
+          <strong>Bay Yengeç</strong>
+        </div>
+      )}
+
+      <div className="business-assistant-shell">
+        <div className="business-assistant-picker">
+          <div className="business-assistant-avatar">
+            <span className="agent-pet" aria-hidden="true" />
+            <div>
+              <strong>Bay Yengeç</strong>
+              <span>Veriye dayalı KOBİ cevabı</span>
+            </div>
+          </div>
+          {businessAssistantPrompts.map((prompt) => (
+            <button className={prompt.id === selectedPrompt ? "business-assistant-question active" : "business-assistant-question"} key={prompt.id} type="button" onClick={() => setSelectedPrompt(prompt.id)}>
+              <MessageSquareText size={17} />
+              <span>{prompt.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="business-assistant-answer">
+          <div className="business-assistant-answer-head">
+            <Bot size={20} />
+            <div>
+              <span>{businessAssistantPrompts.find((prompt) => prompt.id === selectedPrompt)?.label}</span>
+              <strong>{answer.result}</strong>
+            </div>
+          </div>
+          <div className="scenario-decision-grid">
+            <DetailRow label="Sonuç" value={answer.result} />
+            <DetailRow label="Neden" value={answer.reason} />
+            <DetailRow label="Varsayımlar" value={answer.assumptions} />
+            <DetailRow label="Veri güveni" value={answer.confidence} />
+            <DetailRow label="Önerilen aksiyon" value={answer.action} />
+          </div>
+          <div className="business-assistant-note">
+            <Send size={16} />
+            <span>Bu cevap kayıtlı KOBİ nakit olayları, tahsilat verisi ve müşteri skorlarından deterministik olarak hazırlanır.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function RecordsOverviewPanel({ customers, dashboard, scores }: { customers: BusinessCustomer[]; dashboard: BusinessDashboard; scores: CollectionScore[] }) {
   const totalCollections = sumNumbers(dashboard.expectedCollections.map((event) => event.amount));
   const totalPayments = sumNumbers(dashboard.upcomingPayments.map((event) => event.amount));
@@ -853,6 +932,74 @@ function scenarioAssumptionText(scenario: BusinessScenarioAnalysis): string {
 
 function scenarioConfidenceText(scenario: BusinessScenarioAnalysis): string {
   return scenario.description.includes("bulunmadı") ? "Düşük - ilgili nakit olayı bulunamadı." : "Orta - kayıtlı nakit olayları üzerinden hesaplandı.";
+}
+
+type BusinessAssistantAnswer = {
+  action: string;
+  assumptions: string;
+  confidence: string;
+  reason: string;
+  result: string;
+};
+
+function businessAssistantAnswer(prompt: BusinessAssistantPromptId, dashboard: BusinessDashboard, insights: BusinessInsights): BusinessAssistantAnswer {
+  if (prompt === "coverage") {
+    return {
+      result: coverageDecisionResult(insights.coverage),
+      reason: insights.coverage.explanation,
+      assumptions: "Yalnızca kayıtlı maaş ve kira ödeme olayları ile beklenen tahsilatlar dikkate alındı.",
+      confidence: insights.coverage.comfortLevel === "missing_data" ? "Düşük - maaş/kira etiketi eksik." : "Orta - kayıtlı KOBİ nakit olaylarına bağlı.",
+      action: coverageActionText(insights.coverage)
+    };
+  }
+
+  if (prompt === "collections") {
+    const priority = insights.collectionPriorities[0];
+    if (!priority) {
+      return {
+        result: "Önceliklendirilecek geciken tahsilat görünmüyor.",
+        reason: "Müşteri açık bakiye ve gecikme verilerinde acil tahsilat sinyali oluşmadı.",
+        assumptions: "Kayıtlı müşteri skorları ve açık bakiye alanları kullanıldı.",
+        confidence: dashboard.expectedCollections.length > 0 ? "Orta - tahsilat kayıtları var." : "Düşük - tahsilat kaydı sınırlı.",
+        action: "Yeni fatura ve müşteri gecikme verileri girildikçe tahsilat önceliği yeniden hesaplanmalı."
+      };
+    }
+    return {
+      result: `${priority.customerName} ilk tahsilat odağı olmalı.`,
+      reason: `${formatTry(priority.outstandingAmount)} açık bakiye, ${priority.averageDelayDays} gün ortalama gecikme ve ${riskLabel(priority.riskLevel)} risk sinyali var.`,
+      assumptions: "Müşteri skoru, açık bakiye ve ortalama gecikme günleri birlikte değerlendirildi.",
+      confidence: "Orta - müşteri ödeme geçmişi kayıtlarına bağlı.",
+      action: priority.action
+    };
+  }
+
+  if (prompt === "critical") {
+    const criticalDates = insights.twin.criticalDates.slice(0, 3);
+    if (criticalDates.length === 0) {
+      return {
+        result: "Önümüzdeki 30 gün için kritik gün görünmüyor.",
+        reason: `Kayıtlı nakit akışı 30 gün sonunda ${formatTry(insights.summary.projected30Days)} projeksiyon üretiyor.`,
+        assumptions: "Kayıtlı tahsilat ve ödeme tarihleri değişmeden kaldı.",
+        confidence: dashboard.upcomingPayments.length + dashboard.expectedCollections.length > 0 ? "Orta - nakit olaylarına bağlı." : "Düşük - nakit olayı az.",
+        action: "Yeni ödeme veya tahsilat eklendiğinde kritik günler yeniden kontrol edilmeli."
+      };
+    }
+    return {
+      result: `${criticalDates.length} kritik gün öne çıkıyor.`,
+      reason: criticalDates.map((date) => `${formatDateLabel(date.date)}: ${formatTry(date.projectedBalance)} (${riskLabel(date.riskLevel)})`).join(", "),
+      assumptions: "Kritik günler günlük tahmini nakit bakiyesi üzerinden seçildi.",
+      confidence: "Orta - kayıtlı nakit akışı tarih doğruluğuna bağlı.",
+      action: "Bu tarihlerden önce tahsilat teyidi veya ödeme erteleme planı hazırlanmalı."
+    };
+  }
+
+  return {
+    result: `Nakit risk skoru ${insights.summary.cashRiskScore}/100 ve seviye ${riskLabel(insights.summary.riskLevel)}.`,
+    reason: `30 gün sonu kasa ${formatTry(insights.summary.projected30Days)}, en düşük tahmini bakiye ${formatTry(insights.summary.lowestProjectedBalance30Days)}.`,
+    assumptions: "Kayıtlı KOBİ kasa, beklenen tahsilat, yaklaşan ödeme ve müşteri gecikme verileri kullanıldı.",
+    confidence: dashboard.upcomingPayments.length + dashboard.expectedCollections.length > 0 ? "Orta - nakit olayları mevcut." : "Düşük - kayıtlı nakit olayı sınırlı.",
+    action: twinActionText(insights)
+  };
 }
 
 function riskFactTone(level: string): DetailFact["tone"] {

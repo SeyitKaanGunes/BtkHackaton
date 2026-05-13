@@ -33,6 +33,6 @@ async function loadBusinessData(token: string): Promise<BusinessWorkspaceData | 
 }
 
 function parseBusinessSection(section: string | undefined): BusinessSectionId {
-  if (section === "cashflow" || section === "coverage" || section === "collections" || section === "scenarios" || section === "records") return section;
+  if (section === "cashflow" || section === "coverage" || section === "collections" || section === "scenarios" || section === "records" || section === "assistant") return section;
   return "twin";
 }

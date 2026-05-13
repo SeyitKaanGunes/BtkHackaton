@@ -15,7 +15,13 @@ type DragState = {
   moved: boolean;
 };
 
-export function AgentLauncher() {
+export function AgentLauncher({
+  ariaLabel = "Agent sayfasına git",
+  href = "/agent"
+}: {
+  ariaLabel?: string;
+  href?: string;
+}) {
   const router = useRouter();
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -57,7 +63,7 @@ export function AgentLauncher() {
   function onPointerUp(event: PointerEvent<HTMLButtonElement>) {
     const drag = dragRef.current;
     dragRef.current = null;
-    if (drag && !drag.moved) router.push("/agent");
+    if (drag && !drag.moved) router.push(href);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -76,7 +82,7 @@ export function AgentLauncher() {
         onPointerCancel={() => {
           dragRef.current = null;
         }}
-        aria-label="Agent sayfasına git"
+        aria-label={ariaLabel}
         type="button"
       >
         <span className="agent-pet agent-pet-fab" aria-hidden="true" />
