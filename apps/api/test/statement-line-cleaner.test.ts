@@ -6,6 +6,7 @@ describe("cleanStatementText", () => {
     const result = cleanStatementText("15/05/2026 MIGROS 250,75 TL");
     expect(result.candidateLines).toEqual(["15/05/2026 MIGROS 250,75 TL"]);
     expect(result.droppedCount).toBe(0);
+    expect(result.dateAmountLineCount).toBe(1);
   });
 
   it("drops Turkish statement summary and banking noise lines", () => {
@@ -32,5 +33,20 @@ describe("cleanStatementText", () => {
     const result = cleanStatementText(["", "12", ".....", "abcde", "16.05.2026 BİM 80,50 TL"].join("\n"));
     expect(result.candidateLines).toEqual(["16.05.2026 BİM 80,50 TL"]);
     expect(result.droppedCount).toBe(3);
+  });
+
+  it("extracts a conservative statement spending total from summary lines", () => {
+    const result = cleanStatementText(
+      [
+        "Dönem içi harcama toplamı 1.384,50 TL",
+        "Asgari ödeme tutarı 500,00 TL",
+        "2026-05-01 STREAMPLUS 219,00 TL",
+        "2026-05-03 MIGROS 845,50 TL",
+        "2026-05-05 UBER 320,00 TL"
+      ].join("\n")
+    );
+
+    expect(result.expectedTotalAmount).toBe(1384.5);
+    expect(result.dateAmountLineCount).toBe(3);
   });
 });

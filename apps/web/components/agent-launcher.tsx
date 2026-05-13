@@ -2,6 +2,8 @@
 
 import { PointerEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
+import { AgentConsole } from "./agent-console";
 
 const bubbleSize = 64;
 const edgePadding = 16;
@@ -17,13 +19,16 @@ type DragState = {
 
 export function AgentLauncher({
   ariaLabel = "Agent sayfasına git",
-  href = "/agent"
+  href = "/agent",
+  mode = "modal"
 }: {
   ariaLabel?: string;
   href?: string;
+  mode?: "modal" | "link";
 }) {
   const router = useRouter();
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [open, setOpen] = useState(false);
   const dragRef = useRef<DragState | null>(null);
 
   function currentPosition() {
@@ -63,7 +68,10 @@ export function AgentLauncher({
   function onPointerUp(event: PointerEvent<HTMLButtonElement>) {
     const drag = dragRef.current;
     dragRef.current = null;
-    if (drag && !drag.moved) router.push(href);
+    if (drag && !drag.moved) {
+      if (mode === "link") router.push(href);
+      else setOpen(true);
+    }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -88,6 +96,22 @@ export function AgentLauncher({
         <span className="agent-pet agent-pet-fab" aria-hidden="true" />
         <span className="agent-fab-label">İkiz</span>
       </button>
+      {open ? (
+        <div className="agent-modal-backdrop" role="presentation" onMouseDown={() => setOpen(false)}>
+          <section className="agent-modal-sheet" role="dialog" aria-modal="true" aria-label="Finansal ikiz" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="agent-modal-header">
+              <div>
+                <span className="eyebrow">Finansal ikiz</span>
+                <strong>Agent</strong>
+              </div>
+              <button className="ghost-icon" type="button" onClick={() => setOpen(false)} aria-label="Agent panelini kapat">
+                <X size={18} />
+              </button>
+            </div>
+            <AgentConsole compact />
+          </section>
+        </div>
+      ) : null}
     </>
   );
 }

@@ -30,7 +30,7 @@ export function ReceiptScanner() {
     setError(null);
     try {
       const base64 = file ? await readFileAsBase64(file) : undefined;
-      const result = await postReceiptExpenseImport(base64, file?.type, file?.name);
+      const result = await postReceiptExpenseImport(base64, file?.type);
       setReceiptResult(result);
       router.refresh();
     } catch (caught) {

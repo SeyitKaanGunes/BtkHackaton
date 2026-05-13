@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, CheckCircle2, Mic, Send, Sparkles, Volume2, X } from "lucide-react";
-import type { ActionItem, AgentResponse } from "@fintwin/shared";
-import { approveAction, dismissAction, postAgentMessage, synthesizeSpeech, transcribeSpeech } from "../lib/api";
+import type { ActionItem, AgentResponse, SpeechCapabilities } from "@fintwin/shared";
+import { approveAction, dismissAction, getSpeechCapabilities, postAgentMessage, synthesizeSpeech, transcribeSpeech } from "../lib/api";
 
 type AgentConsoleProps = {
   compact?: boolean;
@@ -21,10 +21,32 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
   const [speaking, setSpeaking] = useState(false);
   const [actionPendingId, setActionPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [speechCapabilities, setSpeechCapabilities] = useState<SpeechCapabilities | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const sttUnavailable = speechCapabilities?.stt.available === false;
+  const ttsUnavailable = speechCapabilities?.tts.available === false;
+
+  useEffect(() => {
+    let active = true;
+    void getSpeechCapabilities()
+      .then((capabilities) => {
+        if (active) setSpeechCapabilities(capabilities);
+      })
+      .catch(() => {
+        if (active) {
+          setSpeechCapabilities({
+            stt: { available: false, reason: "Konuşarak gönderme durumu alınamadı." },
+            tts: { available: false, reason: "Cevap seslendirme durumu alınamadı." }
+          });
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function sendText(text = message) {
     const trimmed = text.trim();
@@ -46,6 +68,10 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
   async function toggleRecording() {
     if (recording) {
       recorderRef.current?.stop();
+      return;
+    }
+    if (sttUnavailable) {
+      setError(speechCapabilities?.stt.reason ?? "Konuşarak gönderme şu an kullanılamıyor.");
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -93,7 +119,9 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
       setMessage(transcript.text);
       await sendText(transcript.text);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Ses metne çevrilemedi.");
+      const message = caught instanceof Error ? caught.message : "Ses metne çevrilemedi.";
+      setSpeechCapabilities((current) => (current ? { ...current, stt: { available: false, reason: message } } : current));
+      setError(message);
     } finally {
       setVoiceBusy(false);
     }
@@ -101,6 +129,10 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
 
   async function speakAnswer() {
     if (!response?.answer) return;
+    if (ttsUnavailable) {
+      setError(speechCapabilities?.tts.reason ?? "Cevap seslendirme şu an kullanılamıyor.");
+      return;
+    }
     setSpeaking(true);
     setError(null);
     try {
@@ -112,8 +144,10 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
       audio.onerror = () => setSpeaking(false);
       await audio.play();
     } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Cevap seslendirilemedi.";
       setSpeaking(false);
-      setError(caught instanceof Error ? caught.message : "Cevap seslendirilemedi.");
+      setSpeechCapabilities((current) => (current ? { ...current, tts: { available: false, reason: message } } : current));
+      setError(message);
     }
   }
 
@@ -166,8 +200,8 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
           <button
             className={recording ? "icon-button voice-button recording" : "icon-button voice-button"}
             onClick={() => void toggleRecording()}
-            disabled={voiceBusy || loading}
-            title={recording ? "Kaydı bitir ve gönder" : "Konuşarak gönder"}
+            disabled={voiceBusy || loading || sttUnavailable}
+            title={sttUnavailable ? speechCapabilities?.stt.reason ?? "Konuşarak gönderme kullanılamıyor" : recording ? "Kaydı bitir ve gönder" : "Konuşarak gönder"}
             type="button"
           >
             <Mic size={18} />
@@ -179,6 +213,11 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
         <div className="voice-status">
           <span className={recording ? "recording-dot" : ""} />
           {recording ? "Dinliyorum. Bitirmek için mikrofon ikonuna tekrar bas." : "Ses metne çevriliyor..."}
+        </div>
+      ) : null}
+      {sttUnavailable || ttsUnavailable ? (
+        <div className="voice-status voice-status-muted">
+          <span>{[speechCapabilities?.stt.reason, speechCapabilities?.tts.reason].filter(Boolean).join(" ")}</span>
         </div>
       ) : null}
       {error ? <p className="form-message danger">{error}</p> : null}
@@ -198,7 +237,13 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
           <div className="agent-answer-header">
             <Sparkles size={18} />
             <span>Agent cevabı</span>
-            <button className="ghost-icon" onClick={() => void speakAnswer()} disabled={speaking} type="button" title="Cevabı sesli oku">
+            <button
+              className="ghost-icon"
+              onClick={() => void speakAnswer()}
+              disabled={speaking || ttsUnavailable}
+              type="button"
+              title={ttsUnavailable ? speechCapabilities?.tts.reason ?? "Cevap seslendirme kullanılamıyor" : "Cevabı sesli oku"}
+            >
               <Volume2 size={16} />
             </button>
           </div>

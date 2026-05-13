@@ -1,5 +1,5 @@
-import { Body, Controller, Inject, Post, UseGuards } from "@nestjs/common";
-import type { SpeechToTextRequest, TextToSpeechRequest } from "@fintwin/shared";
+import { Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
+import type { SpeechCapabilities, SpeechToTextRequest, TextToSpeechRequest } from "@fintwin/shared";
 import { GeminiTtsService } from "../ai/gemini-tts.service.js";
 import { OpenAiSpeechService } from "../ai/openai-speech.service.js";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
@@ -11,6 +11,22 @@ export class SpeechController {
     @Inject(GeminiTtsService) private readonly geminiTts: GeminiTtsService,
     @Inject(OpenAiSpeechService) private readonly openAiSpeech: OpenAiSpeechService
   ) {}
+
+  @Get("capabilities")
+  capabilities(): SpeechCapabilities {
+    const sttAvailable = this.openAiSpeech.isConfigured();
+    const ttsAvailable = this.geminiTts.isConfigured();
+    return {
+      stt: {
+        available: sttAvailable,
+        ...(sttAvailable ? {} : { reason: "OPENAI_API_KEY tanımlı olmadığı için konuşarak gönderme kapalı." })
+      },
+      tts: {
+        available: ttsAvailable,
+        ...(ttsAvailable ? {} : { reason: "Gemini TTS API anahtarı tanımlı olmadığı için cevap seslendirme kapalı." })
+      }
+    };
+  }
 
   @Post("tts")
   synthesize(@Body() body: TextToSpeechRequest) {

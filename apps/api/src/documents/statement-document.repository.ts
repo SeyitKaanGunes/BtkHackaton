@@ -12,6 +12,8 @@ export interface StatementCachedExtraction {
   warnings: string[];
   statementMonth: string;
   totalAmount: number;
+  candidateLineCount?: number;
+  expectedTotalAmount?: number;
   sourceType: StatementSourceType;
   avgConfidence: number;
   tokenUsage: TokenUsage;
@@ -31,6 +33,8 @@ export interface CreateDocumentInput {
   fileName?: string;
   statementMonth: string;
   totalAmount: number;
+  candidateLineCount?: number;
+  expectedTotalAmount?: number;
   items: StatementPreviewItem[];
   warnings: string[];
   sourceType: StatementSourceType;
@@ -68,6 +72,8 @@ export class StatementDocumentRepository {
       warnings: mapped.warnings,
       statementMonth: mapped.statementMonth,
       totalAmount: mapped.totalAmount,
+      candidateLineCount: mapped.candidateLineCount,
+      expectedTotalAmount: mapped.expectedTotalAmount,
       sourceType: mapped.sourceType,
       avgConfidence: mapped.avgConfidence,
       tokenUsage: mapped.tokenUsage
@@ -80,6 +86,8 @@ export class StatementDocumentRepository {
       warnings: input.warnings,
       statementMonth: input.statementMonth,
       totalAmount: input.totalAmount,
+      candidateLineCount: input.candidateLineCount,
+      expectedTotalAmount: input.expectedTotalAmount,
       sourceType: input.sourceType,
       avgConfidence: input.avgConfidence
     };
@@ -138,6 +146,8 @@ function mapDocument(document: StatementDocumentRecord): StatementPreviewDocumen
     warnings: normalizeWarnings(rawResult.warnings),
     statementMonth,
     totalAmount: requiredNonNegativeNumber(rawResult.totalAmount ?? document.totalAmount, "totalAmount"),
+    candidateLineCount: optionalNonNegativeInteger(rawResult.candidateLineCount, "candidateLineCount"),
+    expectedTotalAmount: optionalNonNegativeNumber(rawResult.expectedTotalAmount, "expectedTotalAmount"),
     sourceType,
     avgConfidence: requiredConfidence(rawResult.avgConfidence, "avgConfidence"),
     tokenUsage: normalizeTokenUsage(document.tokenUsage)
@@ -221,6 +231,20 @@ function requiredPositiveNumber(value: unknown, field: string): number {
 function requiredNonNegativeNumber(value: unknown, field: string): number {
   const number = Number(value);
   if (!Number.isFinite(number) || number < 0) throw invalidStatementDocument(`${field} must be zero or greater.`);
+  return number;
+}
+
+function optionalNonNegativeNumber(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) throw invalidStatementDocument(`${field} must be zero or greater.`);
+  return number;
+}
+
+function optionalNonNegativeInteger(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0) throw invalidStatementDocument(`${field} must be a non-negative integer.`);
   return number;
 }
 

@@ -1,19 +1,6 @@
-import { BadRequestException, Inject, Injectable, OnModuleInit } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { categories } from "@fintwin/shared";
-import {
-  accounts as demoAccounts,
-  actions as demoActions,
-  budgets as demoBudgets,
-  business as demoBusiness,
-  businessCashEvents as demoBusinessCashEvents,
-  businessCustomers as demoBusinessCustomers,
-  demoInvestmentHoldings,
-  demoUser,
-  goals as demoGoals,
-  subscriptions as demoSubscriptions,
-  transactions as demoTransactions
-} from "@fintwin/shared/dist/demo-data.js";
 import type {
   Account,
   AccountType,
@@ -55,8 +42,8 @@ interface StoredUser extends UserProfile {
 type FinanceProfileUpdate = Partial<Pick<UserProfile, "monthlyIncome" | "payday" | "currency">>;
 
 const customCategoryColors = ["#0d9488", "#2563eb", "#9333ea", "#f97316", "#be123c", "#64748b", "#16a34a"];
-const fallbackPasswordHash = "$2b$10$8v4sBex/34PoLRuhaPKgpeB8YqdaptNu2rq4o0MUetVfN/VK1tcOa";
-const fallbackBusinessUserId = "user-demo-business";
+const defaultDatabaseStartupRetryAttempts = 6;
+const defaultDatabaseStartupRetryDelayMs = 2500;
 
 export class DataStoreNotReadyError extends Error {
   constructor() {
@@ -80,21 +67,13 @@ export class DataStoreService implements OnModuleInit {
   fcmTokens: Array<{ userId: string; token: string; platform: string }> = [];
   users: StoredUser[] = [];
 
+  private readonly logger = new Logger(DataStoreService.name);
   private ready = false;
-  private databaseAvailable = true;
 
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async onModuleInit(): Promise<void> {
-    await this.prisma.ensureConnected();
-    if (!this.prisma.isConnected()) {
-      this.loadDemoFallback();
-      this.ready = true;
-      return;
-    }
-
-    await this.ensureSeedData();
-    await this.reload();
+    await this.hydrateFromDatabaseWithRetry();
     this.ready = true;
   }
 
@@ -135,18 +114,6 @@ export class DataStoreService implements OnModuleInit {
 
   async createBusiness(userId: string, input: BusinessCreateRequest) {
     this.assertReady();
-    if (!this.databaseAvailable) {
-      const created: Business = {
-        id: `business-${randomUUID()}`,
-        ownerUserId: userId,
-        name: input.name,
-        sector: input.sector,
-        cashBalance: input.cashBalance ?? 0
-      };
-      this.businesses.push(created);
-      return created;
-    }
-
     const created = await this.prisma.business.create({
       data: {
         ownerId: userId,
@@ -162,20 +129,6 @@ export class DataStoreService implements OnModuleInit {
 
   async addBusinessCustomer(businessId: string, input: BusinessCustomerCreateRequest) {
     this.assertReady();
-    if (!this.databaseAvailable) {
-      const created: BusinessCustomer = {
-        id: `cus-${randomUUID()}`,
-        businessId,
-        name: input.name,
-        averageDelayDays: input.averageDelayDays ?? 0,
-        invoicesPaid: input.invoicesPaid ?? 0,
-        invoicesLate: input.invoicesLate ?? 0,
-        outstandingAmount: input.outstandingAmount ?? 0
-      };
-      this.businessCustomers.push(created);
-      return created;
-    }
-
     const created = await this.prisma.businessCustomer.create({
       data: {
         businessId,
@@ -193,20 +146,6 @@ export class DataStoreService implements OnModuleInit {
 
   async addBusinessCashEvent(businessId: string, input: BusinessCashEventCreateRequest) {
     this.assertReady();
-    if (!this.databaseAvailable) {
-      const created: BusinessCashEvent = {
-        id: `be-${randomUUID()}`,
-        businessId,
-        title: input.title,
-        amount: input.amount,
-        type: input.type,
-        dueAt: input.dueAt
-      };
-      this.businessCashEvents.push(created);
-      this.businessCashEvents.sort((left, right) => left.dueAt.localeCompare(right.dueAt));
-      return created;
-    }
-
     const created = await this.prisma.businessCashEvent.create({
       data: {
         businessId,
@@ -245,7 +184,6 @@ export class DataStoreService implements OnModuleInit {
     this.assertReady();
     const cached = this.users.find((user) => user.id === id);
     if (cached) return cached;
-    if (!this.databaseAvailable) return undefined;
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) return undefined;
     const mapped = this.mapUser(user);
@@ -257,7 +195,6 @@ export class DataStoreService implements OnModuleInit {
     this.assertReady();
     const cached = this.users.find((user) => user.email.toLowerCase() === email.toLowerCase());
     if (cached) return cached;
-    if (!this.databaseAvailable) return undefined;
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) return undefined;
     const mapped = this.mapUser(user);
@@ -269,7 +206,6 @@ export class DataStoreService implements OnModuleInit {
     this.assertReady();
     const cached = this.users.find((user) => user.googleSubject === googleSubject);
     if (cached) return cached;
-    if (!this.databaseAvailable) return undefined;
     const user = await this.prisma.user.findUnique({ where: { googleSubject } });
     if (!user) return undefined;
     const mapped = this.mapUser(user);
@@ -279,14 +215,6 @@ export class DataStoreService implements OnModuleInit {
 
   async linkGoogleSubject(userId: string, googleSubject: string) {
     this.assertReady();
-    if (!this.databaseAvailable) {
-      const existing = this.users.find((user) => user.id === userId);
-      if (!existing) throw new BadRequestException("Kullanıcı bulunamadı.");
-      const mapped = { ...existing, googleSubject };
-      this.users = this.users.map((user) => (user.id === userId ? mapped : user));
-      return mapped;
-    }
-
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: { googleSubject }
@@ -299,12 +227,6 @@ export class DataStoreService implements OnModuleInit {
 
   async createUser(user: StoredUser) {
     this.assertReady();
-    if (!this.databaseAvailable) {
-      this.users.push(user);
-      this.addStarterAccountsToCache(user.id, user.currency);
-      return user;
-    }
-
     const created = await this.prisma.user.create({
       data: {
         id: user.id,
@@ -326,14 +248,6 @@ export class DataStoreService implements OnModuleInit {
 
   async updateUserFinanceProfile(userId: string, input: FinanceProfileUpdate) {
     this.assertReady();
-    if (!this.databaseAvailable) {
-      const existing = this.users.find((user) => user.id === userId);
-      if (!existing) throw new BadRequestException("Kullanıcı bulunamadı.");
-      const mapped = { ...existing, ...input };
-      this.users = this.users.map((user) => (user.id === userId ? mapped : user));
-      return mapped;
-    }
-
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -369,11 +283,6 @@ export class DataStoreService implements OnModuleInit {
       kind,
       color: input.color ?? customCategoryColor(name)
     };
-    if (!this.databaseAvailable) {
-      this.categories = [category, ...this.categories.filter((item) => item.id !== category.id)];
-      return category;
-    }
-
     const created = await this.prisma.category.upsert({
       where: { id: category.id },
       update: {
@@ -396,19 +305,6 @@ export class DataStoreService implements OnModuleInit {
   async addTransaction(transaction: Transaction) {
     this.assertReady();
     const balanceDelta = transaction.type === "income" ? transaction.amount : -transaction.amount;
-    if (!this.databaseAvailable) {
-      this.transactions.unshift(transaction);
-      this.accounts = this.accounts.map((account) =>
-        account.id === transaction.accountId
-          ? {
-              ...account,
-              balance: Number((account.balance + balanceDelta).toFixed(2))
-            }
-          : account
-      );
-      return transaction;
-    }
-
     const [created, updatedAccount] = await this.prisma.$transaction([
       this.prisma.transaction.create({
         data: {
@@ -498,27 +394,6 @@ export class DataStoreService implements OnModuleInit {
   private async updateSalaryTransaction(existing: Transaction, amount: number, currency: Currency, categoryId: string) {
     const normalizedAmount = Number(amount.toFixed(2));
     const balanceDelta = normalizedAmount - existing.amount;
-    if (!this.databaseAvailable) {
-      const mapped: Transaction = {
-        ...existing,
-        amount: normalizedAmount,
-        currency,
-        categoryId,
-        recurring: true,
-        tags: Array.from(new Set([...(existing.tags ?? []), AUTO_SALARY_TAG, "salary"]))
-      };
-      this.transactions = this.transactions.map((transaction) => (transaction.id === mapped.id ? mapped : transaction));
-      this.accounts = this.accounts.map((account) =>
-        account.id === mapped.accountId
-          ? {
-              ...account,
-              balance: Number((account.balance + balanceDelta).toFixed(2))
-            }
-          : account
-      );
-      return mapped;
-    }
-
     const [updated, updatedAccount] = await this.prisma.$transaction([
       this.prisma.transaction.update({
         where: { id: existing.id },
@@ -551,11 +426,6 @@ export class DataStoreService implements OnModuleInit {
 
   async addInvestmentHolding(holding: InvestmentHolding) {
     this.assertReady();
-    if (!this.databaseAvailable) {
-      this.investmentHoldings.unshift(holding);
-      return holding;
-    }
-
     const created = await this.prisma.investmentHolding.create({
       data: {
         id: holding.id,
@@ -583,11 +453,6 @@ export class DataStoreService implements OnModuleInit {
     this.assertReady();
     const existing = this.investmentHoldings.find((holding) => holding.id === id && holding.userId === userId);
     if (!existing) return undefined;
-    if (!this.databaseAvailable) {
-      this.investmentHoldings = this.investmentHoldings.filter((holding) => holding.id !== id);
-      return existing;
-    }
-
     await this.prisma.investmentHolding.delete({ where: { id } });
     this.investmentHoldings = this.investmentHoldings.filter((holding) => holding.id !== id);
     return existing;
@@ -605,12 +470,6 @@ export class DataStoreService implements OnModuleInit {
     this.assertReady();
     const existing = this.actions.find((item) => item.id === id && item.userId === userId);
     if (!existing) return undefined;
-    if (!this.databaseAvailable) {
-      const mapped = { ...existing, status };
-      this.actions = this.actions.map((item) => (item.id === id ? mapped : item));
-      return mapped;
-    }
-
     const updated = await this.prisma.actionItem.update({
       where: { id },
       data: { status }
@@ -622,11 +481,6 @@ export class DataStoreService implements OnModuleInit {
 
   async addAction(action: ActionItem) {
     this.assertReady();
-    if (!this.databaseAvailable) {
-      this.actions.unshift(action);
-      return action;
-    }
-
     const created = await this.prisma.actionItem.create({
       data: {
         id: action.id,
@@ -644,14 +498,81 @@ export class DataStoreService implements OnModuleInit {
     return mapped;
   }
 
-  async saveFcmToken(input: { userId: string; token: string; platform: string }) {
+  async upsertSubscription(
+    userId: string,
+    input: Pick<Subscription, "merchant" | "categoryId" | "amount" | "currency" | "cadence" | "lastUsedAt">
+  ) {
     this.assertReady();
-    if (!this.databaseAvailable) {
-      const mapped = { userId: input.userId, token: input.token, platform: input.platform };
-      this.fcmTokens = [mapped, ...this.fcmTokens.filter((item) => item.token !== mapped.token)];
-      return mapped;
+    const merchant = input.merchant.trim();
+    if (!merchant) throw new BadRequestException("subscription merchant is required.");
+    const category = this.categories.find((item) => item.id === input.categoryId && item.kind === "expense");
+    if (!category) throw new BadRequestException("subscription category is invalid.");
+    if (!Number.isFinite(input.amount) || input.amount <= 0) throw new BadRequestException("subscription amount must be greater than zero.");
+    const lastUsedAt = input.lastUsedAt ? normalizeDateOnly(input.lastUsedAt, "subscription lastUsedAt") : undefined;
+    const existing = this.subscriptions.find(
+      (subscription) =>
+        subscription.userId === userId &&
+        subscription.categoryId === input.categoryId &&
+        normalizeSubscriptionMerchant(subscription.merchant) === normalizeSubscriptionMerchant(merchant)
+    );
+
+    if (existing) {
+      const mapped: Subscription = {
+        ...existing,
+        merchant,
+        categoryId: input.categoryId,
+        amount: Number(input.amount.toFixed(2)),
+        currency: input.currency,
+        cadence: input.cadence,
+        lastUsedAt,
+        previousAmount: existing.amount !== input.amount ? existing.amount : existing.previousAmount
+      };
+      const updated = await this.prisma.subscription.update({
+        where: { id: existing.id },
+        data: {
+          merchant: mapped.merchant,
+          categoryId: mapped.categoryId,
+          amount: mapped.amount,
+          currency: mapped.currency,
+          cadence: mapped.cadence,
+          lastUsedAt: mapped.lastUsedAt ? new Date(`${mapped.lastUsedAt}T12:00:00.000Z`) : null,
+          previousAmount: mapped.previousAmount ?? null
+        }
+      });
+      const persisted = this.mapSubscription(updated);
+      this.subscriptions = this.subscriptions.map((subscription) => (subscription.id === persisted.id ? persisted : subscription));
+      return persisted;
     }
 
+    const subscription: Subscription = {
+      id: `sub-${randomUUID()}`,
+      userId,
+      merchant,
+      categoryId: input.categoryId,
+      amount: Number(input.amount.toFixed(2)),
+      currency: input.currency,
+      cadence: input.cadence,
+      lastUsedAt
+    };
+    const created = await this.prisma.subscription.create({
+      data: {
+        id: subscription.id,
+        userId,
+        merchant: subscription.merchant,
+        categoryId: subscription.categoryId,
+        amount: subscription.amount,
+        currency: subscription.currency,
+        cadence: subscription.cadence,
+        lastUsedAt: subscription.lastUsedAt ? new Date(`${subscription.lastUsedAt}T12:00:00.000Z`) : null
+      }
+    });
+    const mapped = this.mapSubscription(created);
+    this.subscriptions.unshift(mapped);
+    return mapped;
+  }
+
+  async saveFcmToken(input: { userId: string; token: string; platform: string }) {
+    this.assertReady();
     const saved = await this.prisma.fcmToken.upsert({
       where: { token: input.token },
       update: { userId: input.userId, platform: input.platform },
@@ -664,45 +585,6 @@ export class DataStoreService implements OnModuleInit {
 
   private async ensureSeedData() {
     await this.seedCategories();
-  }
-
-  private loadDemoFallback(): void {
-    this.databaseAvailable = false;
-    this.categories = [...categories];
-    this.users = [
-      {
-        ...demoUser,
-        passwordHash: fallbackPasswordHash
-      },
-      {
-        id: fallbackBusinessUserId,
-        name: "KOBİ Demo",
-        email: "kobi.owner@example.com",
-        persona: "business_owner",
-        accountType: "business",
-        monthlyIncome: 0,
-        payday: 5,
-        currency: "TRY",
-        passwordHash: fallbackPasswordHash
-      }
-    ];
-    this.accounts = demoAccounts.map((account) => ({ ...account }));
-    this.budgets = demoBudgets.map((budget) => ({ ...budget }));
-    this.goals = demoGoals.map((goal) => ({ ...goal }));
-    this.subscriptions = demoSubscriptions.map((subscription) => ({ ...subscription }));
-    this.transactions = demoTransactions.map((transaction) => ({ ...transaction, tags: transaction.tags ? [...transaction.tags] : undefined }));
-    this.actions = demoActions.map((action) => ({ ...action }));
-    this.investmentHoldings = demoInvestmentHoldings.map((holding) => ({ ...holding }));
-    this.businesses = [
-      {
-        ...demoBusiness,
-        ownerUserId: fallbackBusinessUserId,
-        name: "Fintwin KOBİ Studio"
-      }
-    ];
-    this.businessCustomers = demoBusinessCustomers.map((customer) => ({ ...customer }));
-    this.businessCashEvents = demoBusinessCashEvents.map((event) => ({ ...event }));
-    this.fcmTokens = [];
   }
 
   private async seedCategories() {
@@ -750,13 +632,30 @@ export class DataStoreService implements OnModuleInit {
     }
   }
 
-  private addStarterAccountsToCache(userId: string, currency: Currency): void {
-    const starterAccounts: Account[] = [
-      { id: `acc-main-${userId}`, userId, name: "Vadesiz Hesap", type: "debit", balance: 0, currency },
-      { id: `acc-card-${userId}`, userId, name: "Kredi Kartı", type: "credit", balance: 0, currency, creditLimit: 0 },
-      { id: `acc-save-${userId}`, userId, name: "Birikim", type: "savings", balance: 0, currency }
-    ];
-    this.accounts.push(...starterAccounts);
+  private async hydrateFromDatabaseWithRetry() {
+    const attempts = positiveIntegerEnv("DATASTORE_DB_STARTUP_RETRY_ATTEMPTS", defaultDatabaseStartupRetryAttempts);
+    const baseDelayMs = positiveIntegerEnv("DATASTORE_DB_STARTUP_RETRY_DELAY_MS", defaultDatabaseStartupRetryDelayMs);
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        await this.prisma.ensureConnected();
+        await this.ensureSeedData();
+        await this.reload();
+        return;
+      } catch (error) {
+        this.ready = false;
+        lastError = error;
+        if (attempt === attempts) break;
+        const delayMs = Math.min(baseDelayMs * attempt, 15000);
+        this.logger.warn(`Database hydration attempt ${attempt}/${attempts} failed; retrying in ${delayMs}ms. ${errorMessage(error)}`);
+        await delay(delayMs);
+      }
+    }
+
+    throw new Error(
+      `DataStoreService database hydration failed after ${attempts} attempts. Supabase DATABASE_URL/DIRECT_URL must be reachable before API startup. ${errorMessage(lastError)}`
+    );
   }
 
   private async reload() {
@@ -820,17 +719,7 @@ export class DataStoreService implements OnModuleInit {
       currentAmount: Number(goal.currentAmount),
       deadline: this.dateOnly(goal.deadline)
     }));
-    this.subscriptions = storedSubscriptions.map((subscription) => ({
-      id: subscription.id,
-      userId: subscription.userId,
-      merchant: subscription.merchant,
-      categoryId: subscription.categoryId,
-      amount: Number(subscription.amount),
-      currency: subscription.currency as Currency,
-      cadence: subscription.cadence as Subscription["cadence"],
-      lastUsedAt: subscription.lastUsedAt ? this.dateOnly(subscription.lastUsedAt) : undefined,
-      previousAmount: subscription.previousAmount === null ? undefined : Number(subscription.previousAmount)
-    }));
+    this.subscriptions = storedSubscriptions.map((subscription) => this.mapSubscription(subscription));
     this.transactions = storedTransactions.map((transaction) => this.mapTransaction(transaction));
     this.actions = storedActions.map((action) => this.mapAction(action));
     this.investmentHoldings = holdings.map((holding) => this.mapInvestmentHolding(holding));
@@ -919,6 +808,30 @@ export class DataStoreService implements OnModuleInit {
       dueAt: action.dueAt?.toISOString(),
       status: action.status as ActionItem["status"],
       source: action.source as ActionItem["source"]
+    };
+  }
+
+  private mapSubscription(subscription: {
+    id: string;
+    userId: string;
+    merchant: string;
+    categoryId: string;
+    amount: unknown;
+    currency: string;
+    cadence: string;
+    lastUsedAt: Date | null;
+    previousAmount: unknown | null;
+  }): Subscription {
+    return {
+      id: subscription.id,
+      userId: subscription.userId,
+      merchant: subscription.merchant,
+      categoryId: subscription.categoryId,
+      amount: Number(subscription.amount),
+      currency: subscription.currency as Currency,
+      cadence: subscription.cadence as Subscription["cadence"],
+      lastUsedAt: subscription.lastUsedAt ? this.dateOnly(subscription.lastUsedAt) : undefined,
+      previousAmount: subscription.previousAmount === null ? undefined : Number(subscription.previousAmount)
     };
   }
 
@@ -1037,6 +950,23 @@ function customCategoryColor(name: string) {
   return customCategoryColors[charTotal % customCategoryColors.length]!;
 }
 
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function positiveIntegerEnv(key: string, fallback: number) {
+  const raw = process.env[key];
+  if (!raw?.trim()) return fallback;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function normalizePersona(persona: string): StoredUser["persona"] {
   if (persona === "student" || persona === "young_professional" || persona === "family" || persona === "senior" || persona === "business_owner") return persona;
   return "young_professional";
@@ -1044,4 +974,23 @@ function normalizePersona(persona: string): StoredUser["persona"] {
 
 function accountTypeFromPersona(persona: StoredUser["persona"]): AccountType {
   return persona === "business_owner" ? "business" : "personal";
+}
+
+function normalizeDateOnly(value: string, field: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new BadRequestException(`${field} must be YYYY-MM-DD.`);
+  const date = new Date(`${value}T12:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new BadRequestException(`${field} must be a valid date.`);
+  }
+  return value;
+}
+
+function normalizeSubscriptionMerchant(value: string) {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\u0131/g, "i")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }

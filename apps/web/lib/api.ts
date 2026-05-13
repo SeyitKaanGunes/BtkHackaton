@@ -25,12 +25,14 @@ import type {
   StatementPreviewResult,
   SpeechToTextRequest,
   SpeechToTextResult,
+  SpeechCapabilities,
   SubscriptionLeak,
   SubscriptionReminderResult,
   TextToSpeechRequest,
   TextToSpeechResult,
   Transaction,
   TransactionType,
+  WhatIfRequest,
   WhatIfResponse
 } from "@fintwin/shared";
 import { resolveApiUrl } from "./api-url";
@@ -218,14 +220,21 @@ export function getSubscriptionLeaks(options?: AuthOptions) {
   return request<SubscriptionLeak[]>("/subscriptions/leakage", undefined, options);
 }
 
-export function getWhatIf(options?: AuthOptions) {
+export function getWhatIf(options?: AuthOptions & WhatIfRequest) {
+  const body: WhatIfRequest = {
+    ...(options?.amount !== undefined ? { amount: options.amount } : {}),
+    ...(options?.categoryId ? { categoryId: options.categoryId } : {}),
+    ...(options?.decisionDate ? { decisionDate: options.decisionDate } : {}),
+    ...(options?.description ? { description: options.description } : {}),
+    ...(options?.timeZone ? { timeZone: options.timeZone } : {})
+  };
   return request<WhatIfResponse>(
     "/simulations/what-if",
     {
       method: "POST",
-      body: JSON.stringify({})
+      body: JSON.stringify(body)
     },
-    options
+    options?.token ? { token: options.token } : undefined
   );
 }
 
@@ -347,6 +356,10 @@ export function transcribeSpeech(input: SpeechToTextRequest, options?: AuthOptio
     },
     options
   );
+}
+
+export function getSpeechCapabilities(options?: AuthOptions): Promise<SpeechCapabilities> {
+  return request<SpeechCapabilities>("/speech/capabilities", undefined, options);
 }
 
 export async function postReceiptScan(imageBase64?: string, mimeType?: string, options?: AuthOptions): Promise<ReceiptScanResult> {

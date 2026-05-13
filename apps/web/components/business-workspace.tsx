@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowRightLeft, Bot, Building2, CalendarPlus, CheckCircle2, CircleDollarSign, Clock3, Landmark, MessageSquareText, Send, ShieldAlert, Sparkles, TrendingUp, UserPlus } from "lucide-react";
 import {
   buildBusinessInsights,
+  type AiCfoSimulation,
   type Business,
   type BusinessCashflowPoint,
   type BusinessCoverageAnalysis,
@@ -16,7 +17,7 @@ import {
   type CollectionPriority,
   type CollectionScore
 } from "@fintwin/shared";
-import { createBusiness, createBusinessCashEvent, createBusinessCustomer } from "../lib/api";
+import { createBusiness, createBusinessCashEvent, createBusinessCustomer, simulateBusinessDecision } from "../lib/api";
 
 export type BusinessWorkspaceData = {
   business: Business;
@@ -169,7 +170,7 @@ function BusinessSectionContent({
       {activeSection === "cashflow" ? <CashflowForecastPanel detail={detail} points={insights.cashflow} /> : null}
       {activeSection === "coverage" ? <CoveragePanel coverage={insights.coverage} detail={detail} /> : null}
       {activeSection === "collections" ? <CollectionPriorityPanel detail={detail} priorities={insights.collectionPriorities} /> : null}
-      {activeSection === "scenarios" ? <ScenarioSimulatorPanel detail={detail} scenarios={insights.scenarios} /> : null}
+      {activeSection === "scenarios" ? <ScenarioSimulatorPanel businessId={businessId} detail={detail} scenarios={insights.scenarios} /> : null}
       {activeSection === "assistant" ? <BusinessAssistantPanel dashboard={dashboard} detail={detail} insights={insights} /> : null}
       {activeSection === "records" ? (
         <>
@@ -463,8 +464,13 @@ function CollectionPriorityPanel({ detail, priorities }: { detail: boolean; prio
   );
 }
 
-function ScenarioSimulatorPanel({ detail, scenarios }: { detail: boolean; scenarios: BusinessScenarioAnalysis[] }) {
+function ScenarioSimulatorPanel({ businessId, detail, scenarios }: { businessId: string; detail: boolean; scenarios: BusinessScenarioAnalysis[] }) {
   const [selectedScenarioId, setSelectedScenarioId] = useState<BusinessScenarioAnalysis["id"]>(scenarios[0]?.id ?? "collection_delay");
+  const [decision, setDecision] = useState("");
+  const [amount, setAmount] = useState("");
+  const [simulation, setSimulation] = useState<AiCfoSimulation | null>(null);
+  const [pending, setPending] = useState(false);
+  const [status, setStatus] = useState<Status>(null);
   const selectedScenario = scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? scenarios[0];
   const bestScenario = [...scenarios].sort((left, right) => right.cashImpact - left.cashImpact)[0];
   const worstScenario = [...scenarios].sort((left, right) => left.cashImpact - right.cashImpact)[0];
@@ -474,6 +480,27 @@ function ScenarioSimulatorPanel({ detail, scenarios }: { detail: boolean; scenar
     { label: "En zayıf etki", value: worstScenario ? formatTry(worstScenario.cashImpact) : "Veri yok", tone: worstScenario && worstScenario.cashImpact < 0 ? "warning" : "positive" },
     { label: "Seçili risk", value: selectedScenario ? riskLabel(selectedScenario.riskLevel) : "Veri yok" }
   ];
+
+  async function submitCustomScenario(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedDecision = decision.trim();
+    setPending(true);
+    setStatus(null);
+    try {
+      if (!trimmedDecision) throw new Error("Karar açıklaması zorunlu.");
+      const result = await simulateBusinessDecision(businessId, {
+        amount: parseRequiredMoney(amount, "Tutar"),
+        decision: trimmedDecision
+      });
+      setSimulation(result);
+      setStatus({ tone: "ok", text: "Özel senaryo hesaplandı." });
+    } catch (error) {
+      setSimulation(null);
+      setStatus({ tone: "error", text: error instanceof Error ? error.message : "Özel senaryo hesaplanamadı." });
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
     <section className={detail ? "panel business-scenario-panel detail-panel" : "panel business-scenario-panel"}>
@@ -510,6 +537,34 @@ function ScenarioSimulatorPanel({ detail, scenarios }: { detail: boolean; scenar
       ) : (
         <div className="empty-state">Senaryo için nakit verisi bekleniyor.</div>
       )}
+      <form className="business-form compact scenario-custom-form" onSubmit={submitCustomScenario}>
+        <label className="field">
+          <span>Karar</span>
+          <input value={decision} onChange={(event) => setDecision(event.target.value)} required minLength={2} placeholder="Espresso makinesi alımı" />
+        </label>
+        <label className="field">
+          <span>Tutar</span>
+          <input value={amount} onChange={(event) => setAmount(event.target.value)} required inputMode="decimal" placeholder="65000" />
+        </label>
+        <button className="secondary-button" type="submit" disabled={pending}>
+          <ArrowRightLeft size={16} />
+          {pending ? "Hesaplanıyor" : "Özel senaryoyu çalıştır"}
+        </button>
+      </form>
+      {status ? <p className={`form-message ${status.tone === "error" ? "danger" : ""}`}>{status.text}</p> : null}
+      {simulation ? (
+        <div className={`scenario-result custom-scenario-result ${riskToneClass(simulation.riskLevel)}`}>
+          <ArrowRightLeft size={20} />
+          <div>
+            <strong>{simulation.summary}</strong>
+            <span>{simulation.recommendedPlan}</span>
+            {simulation.evidence.length > 0 ? (
+              <p>{simulation.evidence.map((item) => `${item.label}: ${item.value}`).join(" · ")}</p>
+            ) : null}
+          </div>
+          <b>{simulation.cashImpact >= 0 ? "+" : ""}{formatTry(simulation.cashImpact)}</b>
+        </div>
+      ) : null}
       {detail && selectedScenario ? (
         <>
           <div className="scenario-decision-grid">
@@ -550,7 +605,12 @@ const businessAssistantPrompts: Array<{ id: BusinessAssistantPromptId; label: st
 
 function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: BusinessDashboard; detail: boolean; insights: BusinessInsights }) {
   const [selectedPrompt, setSelectedPrompt] = useState<BusinessAssistantPromptId>("coverage");
-  const answer = businessAssistantAnswer(selectedPrompt, dashboard, insights);
+  const [question, setQuestion] = useState("");
+  const [customQuestion, setCustomQuestion] = useState<string | null>(null);
+  const [customPrompt, setCustomPrompt] = useState<BusinessAssistantPromptId | null>(null);
+  const activePrompt = customPrompt ?? selectedPrompt;
+  const answer = businessAssistantAnswer(activePrompt, dashboard, insights);
+  const activeQuestionLabel = customQuestion ?? businessAssistantPrompts.find((prompt) => prompt.id === selectedPrompt)?.label ?? "KOBİ sorusu";
   const criticalDate = insights.twin.criticalDates[0];
   const facts: DetailFact[] = [
     { label: "Risk skoru", value: `${insights.summary.cashRiskScore}/100`, tone: riskFactTone(insights.summary.riskLevel) },
@@ -558,6 +618,21 @@ function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: Bu
     { label: "Tahsilat", value: formatTry(insights.summary.expectedCollections30Days), tone: "positive" },
     { label: "Kritik gün", value: criticalDate ? formatDateLabel(criticalDate.date) : "Görünmüyor" }
   ];
+
+  function selectPrompt(prompt: BusinessAssistantPromptId) {
+    setSelectedPrompt(prompt);
+    setCustomPrompt(null);
+    setCustomQuestion(null);
+  }
+
+  function submitQuestion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedQuestion = question.trim();
+    if (!trimmedQuestion) return;
+    setCustomQuestion(trimmedQuestion);
+    setCustomPrompt(inferBusinessAssistantPrompt(trimmedQuestion));
+    setQuestion("");
+  }
 
   return (
     <section className={detail ? "panel business-assistant-panel detail-panel" : "panel business-assistant-panel"}>
@@ -585,18 +660,28 @@ function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: Bu
             </div>
           </div>
           {businessAssistantPrompts.map((prompt) => (
-            <button className={prompt.id === selectedPrompt ? "business-assistant-question active" : "business-assistant-question"} key={prompt.id} type="button" onClick={() => setSelectedPrompt(prompt.id)}>
+            <button className={!customPrompt && prompt.id === selectedPrompt ? "business-assistant-question active" : "business-assistant-question"} key={prompt.id} type="button" onClick={() => selectPrompt(prompt.id)}>
               <MessageSquareText size={17} />
               <span>{prompt.label}</span>
             </button>
           ))}
+          <form className="business-assistant-freeform" onSubmit={submitQuestion}>
+            <label className="field">
+              <span>Serbest soru</span>
+              <input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Nakit sıkışır mı?" />
+            </label>
+            <button className="secondary-button" type="submit">
+              <Send size={16} />
+              Sor
+            </button>
+          </form>
         </div>
 
         <div className="business-assistant-answer">
           <div className="business-assistant-answer-head">
             <Bot size={20} />
             <div>
-              <span>{businessAssistantPrompts.find((prompt) => prompt.id === selectedPrompt)?.label}</span>
+              <span>{activeQuestionLabel}</span>
               <strong>{answer.result}</strong>
             </div>
           </div>
@@ -659,7 +744,7 @@ function CashEventsPanel({ businessId, dashboard }: { businessId: string; dashbo
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<"inflow" | "outflow">("inflow");
-  const [dueAt, setDueAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dueAt, setDueAt] = useState(() => localDateInputValue());
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<Status>(null);
 
@@ -942,6 +1027,18 @@ type BusinessAssistantAnswer = {
   result: string;
 };
 
+function inferBusinessAssistantPrompt(question: string): BusinessAssistantPromptId {
+  const normalized = question.toLocaleLowerCase("tr-TR");
+  if (includesAny(normalized, ["tahsil", "müşteri", "musteri", "fatura", "alacak", "vade", "gecik"])) return "collections";
+  if (includesAny(normalized, ["maaş", "maas", "kira", "zorunlu", "ödeyebilir", "odeyebilir", "karşıla", "karsila"])) return "coverage";
+  if (includesAny(normalized, ["kritik", "tarih", "gün", "gun", "ne zaman", "deadline", "takvim"])) return "critical";
+  return "risk";
+}
+
+function includesAny(value: string, needles: string[]) {
+  return needles.some((needle) => value.includes(needle));
+}
+
 function businessAssistantAnswer(prompt: BusinessAssistantPromptId, dashboard: BusinessDashboard, insights: BusinessInsights): BusinessAssistantAnswer {
   if (prompt === "coverage") {
     return {
@@ -1036,6 +1133,13 @@ function parseOptionalInteger(value: string, field: string) {
   const parsed = Number(raw);
   if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${field} geçerli sıfır veya pozitif tam sayı olmalı.`);
   return parsed;
+}
+
+function localDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function riskLabel(level: string) {

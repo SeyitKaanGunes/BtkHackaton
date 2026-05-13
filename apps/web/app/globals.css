@@ -890,6 +890,24 @@ h1 {
   gap: 10px;
 }
 
+.portfolio-empty-state {
+  min-height: 180px;
+  align-content: center;
+  gap: 8px;
+  padding: 28px;
+  text-align: center;
+}
+
+.portfolio-empty-state strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.portfolio-empty-state span {
+  max-width: 380px;
+  line-height: 1.5;
+}
+
 .position-row {
   display: grid;
   grid-template-columns: minmax(120px, 1.2fr) 80px 110px 120px 130px 40px;
@@ -1468,6 +1486,15 @@ h1 {
   line-height: 1.45;
 }
 
+.business-assistant-freeform {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
 .critical-date-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1673,6 +1700,18 @@ h1 {
   display: grid;
   gap: 12px;
   padding-top: 14px;
+}
+
+.scenario-custom-form {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.custom-scenario-result {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .scenario-comparison-grid {
@@ -2006,6 +2045,12 @@ h1 {
   font-weight: 800;
 }
 
+.voice-status-muted {
+  align-items: flex-start;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
 .recording-dot {
   width: 9px;
   height: 9px;
@@ -2247,6 +2292,11 @@ h1 {
 
 .subscription-row small {
   color: var(--muted);
+}
+
+.subscription-reminder-error {
+  color: var(--danger) !important;
+  font-weight: 800;
 }
 
 .subscription-row input {
@@ -3162,6 +3212,27 @@ h1 {
   align-content: start;
 }
 
+.decision-simulator {
+  display: grid;
+  gap: 16px;
+}
+
+.decision-input-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.decision-simulator-form {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.75fr) minmax(150px, 0.9fr) minmax(150px, 0.85fr) minmax(180px, 1.1fr) max-content;
+  gap: 12px;
+  align-items: end;
+}
+
+.decision-simulator-form .secondary-button {
+  min-width: 190px;
+}
+
 .panel-copy {
   margin: 0;
   max-width: 720px;
@@ -3592,6 +3663,14 @@ h1 {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .decision-simulator-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .decision-simulator-form .secondary-button {
+    width: 100%;
+  }
+
   .delay-orb {
     justify-self: start;
   }
@@ -3651,6 +3730,10 @@ h1 {
 
   .cashflow-chart {
     min-width: 680px;
+  }
+
+  .decision-simulator-form {
+    grid-template-columns: 1fr;
   }
 
   .cashflow-forecast-panel {

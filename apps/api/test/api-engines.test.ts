@@ -11,6 +11,7 @@ import {
   type Category,
   type Currency,
   type InvestmentHolding,
+  type Subscription,
   type Transaction
 } from "@fintwin/shared";
 import {
@@ -88,6 +89,18 @@ describe("API feature services", () => {
     expect(result.routedAgents).toContain("Simulation Agent");
     expect(result.answer).toContain("tutarı");
     expect(result.suggestedActions).toEqual([]);
+  });
+
+  it("does not mention undefined subscription recommendations when no leakage exists", async () => {
+    const store = createTestStore();
+    store.subscriptions = [];
+    const agent = new AgentService(store, new QwenService());
+
+    const result = await agent.chat(authUser.id, "Abonelik sızıntım var mı?");
+
+    expect(result.routedAgents).toContain("Risk Agent");
+    expect(result.answer).toContain("sızıntı görünmüyor");
+    expect(result.answer).not.toContain("undefined");
   });
 
   it("fails fast for assistant chat when Qwen is unavailable", async () => {
@@ -245,6 +258,7 @@ describe("API feature services", () => {
     expect(result.recurringSubscriptions.length).toBeGreaterThan(0);
     expect(result.transactions.every((transaction) => transaction.type === "expense")).toBe(true);
     expect(store.transactions.length).toBe(before + result.importedCount);
+    expect(store.subscriptions.find((subscription) => subscription.merchant === "StreamPlus")?.lastUsedAt).toBe("2026-05-01");
   });
 
   it("rejects invalid statement selections without marking the document imported", async () => {
@@ -499,17 +513,21 @@ describe("API feature services", () => {
     expect(controller.dashboard(authUser, createdBusiness.id).expectedCollections).toHaveLength(1);
   });
 
-  it("hydrates local KOBI demo data when Prisma is unavailable", async () => {
-    const store = new DataStoreService({ ensureConnected: vi.fn(async () => undefined), isConnected: () => false } as unknown as ConstructorParameters<typeof DataStoreService>[0]);
+  it("fails fast instead of hydrating local demo data when Prisma is unavailable", async () => {
+    const previousAttempts = process.env.DATASTORE_DB_STARTUP_RETRY_ATTEMPTS;
+    process.env.DATASTORE_DB_STARTUP_RETRY_ATTEMPTS = "1";
+    const store = new DataStoreService({
+      ensureConnected: vi.fn(async () => {
+        throw new Error("db down");
+      })
+    } as unknown as ConstructorParameters<typeof DataStoreService>[0]);
 
-    await store.onModuleInit();
-
-    const businessUser = await store.findUserByEmail("kobi.owner@example.com");
-    expect(businessUser?.accountType).toBe("business");
-    const businesses = store.getBusinessesForUser(businessUser!.id);
-    expect(businesses[0]?.name).toContain("KOBİ");
-    expect(store.getBusinessCustomers(businesses[0]!.id)).toHaveLength(3);
-    expect(store.getBusinessCashEvents(businesses[0]!.id).length).toBeGreaterThan(0);
+    try {
+      await expect(store.onModuleInit()).rejects.toThrow("db down");
+    } finally {
+      if (previousAttempts === undefined) delete process.env.DATASTORE_DB_STARTUP_RETRY_ATTEMPTS;
+      else process.env.DATASTORE_DB_STARTUP_RETRY_ATTEMPTS = previousAttempts;
+    }
   });
 
   it("rejects invalid cached statement documents before they can be imported", async () => {
@@ -708,6 +726,33 @@ function createTestStore(): DataStoreService {
     async addAction(action: ActionItem) {
       this.actions.unshift(action);
       return action;
+    },
+    async upsertSubscription(userId: string, input: Pick<Subscription, "merchant" | "categoryId" | "amount" | "currency" | "cadence" | "lastUsedAt">) {
+      const existing = this.subscriptions.find(
+        (subscription) =>
+          subscription.userId === userId &&
+          subscription.categoryId === input.categoryId &&
+          subscription.merchant.toLocaleLowerCase("tr-TR") === input.merchant.toLocaleLowerCase("tr-TR")
+      );
+      if (existing) {
+        Object.assign(existing, {
+          merchant: input.merchant,
+          categoryId: input.categoryId,
+          amount: input.amount,
+          currency: input.currency,
+          cadence: input.cadence,
+          lastUsedAt: input.lastUsedAt,
+          previousAmount: existing.amount !== input.amount ? existing.amount : existing.previousAmount
+        });
+        return existing;
+      }
+      const created: Subscription = {
+        id: `sub-${this.subscriptions.length + 1}`,
+        userId,
+        ...input
+      };
+      this.subscriptions.unshift(created);
+      return created;
     },
     async addInvestmentHolding(holding: InvestmentHolding) {
       this.investmentHoldings.unshift(holding);

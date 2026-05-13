@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { QwenService } from "../src/ai/qwen.service.js";
 import type { PdfExtractorService } from "../src/documents/pdf-extractor.service.js";
+import { isTextExtractionWeak } from "../src/documents/pdf-extractor.service.js";
 import { StatementExtractorService } from "../src/documents/statement-extractor.service.js";
 import { StatementImportException } from "../src/documents/statement-import.exception.js";
 
@@ -91,6 +92,11 @@ describe("StatementExtractorService extractFromText parsing", () => {
     expect(result.items).toHaveLength(1);
     expect(result.warnings).toContain("PDF metni zayıf olduğu için vision OCR fallback kullanıldı.");
     expect(result.tokenUsage.totalTokens).toBe(15);
+  });
+
+  it("keeps short but structurally valid PDF text on the text path", () => {
+    expect(isTextExtractionWeak(["2026-05-01 STREAMPLUS 219,00 TL", "2026-05-03 MIGROS 845,50 TL"].join("\n"))).toBe(false);
+    expect(isTextExtractionWeak("Fintwin Bank\nSayfa 1")).toBe(true);
   });
 });
 

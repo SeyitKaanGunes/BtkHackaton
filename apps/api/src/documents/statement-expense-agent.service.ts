@@ -50,8 +50,14 @@ export class StatementExpenseAgentService {
     const uniqueItems = dedupeItems(extraction.items);
     const userTransactions = this.store.getPersonalData(userId).transactions;
     const items = markDuplicates(uniqueItems, userId, userTransactions);
-    const consistency = analyzeConsistency(items, extraction.avgConfidence, extraction.statementMonth);
-    const warnings = [...extraction.warnings, ...consistency.warnings];
+    const consistency = analyzeConsistency({
+      items,
+      avgConfidence: extraction.avgConfidence,
+      statementMonth: extraction.statementMonth,
+      candidateLineCount: extraction.candidateLineCount,
+      expectedTotalAmount: extraction.expectedTotalAmount
+    });
+    const warnings = uniqueWarnings([...extraction.warnings, ...consistency.warnings]);
     const totalAmount = Number(items.reduce((total, item) => total + item.amount, 0).toFixed(2));
     const document = await this.documentRepository.create({
       userId,
@@ -59,6 +65,8 @@ export class StatementExpenseAgentService {
       fileName: input.fileName,
       statementMonth: extraction.statementMonth,
       totalAmount,
+      candidateLineCount: extraction.candidateLineCount,
+      expectedTotalAmount: extraction.expectedTotalAmount,
       items,
       warnings,
       sourceType: extraction.sourceType,
@@ -118,6 +126,16 @@ export class StatementExpenseAgentService {
 
     await this.documentRepository.markImported(document.id, new Date());
     const recurringSubscriptions = this.detectRecurringSubscriptions(userId, itemsToImport);
+    for (const subscription of recurringSubscriptions) {
+      await this.store.upsertSubscription(userId, {
+        merchant: subscription.merchant,
+        categoryId: mapCategoryNameToId(subscription.categoryName, subscription.merchant, this.store.categories),
+        amount: subscription.amount,
+        currency: "TRY",
+        cadence: "monthly",
+        lastUsedAt: subscription.lastChargedAt
+      });
+    }
 
     return {
       agentName: "Statement Agent",
@@ -214,6 +232,10 @@ function dedupeItems(items: StatementLineItem[]) {
     seen.add(key);
     return true;
   });
+}
+
+function uniqueWarnings(warnings: string[]) {
+  return [...new Set(warnings.map((warning) => warning.trim()).filter(Boolean))];
 }
 
 function stripExistingTransactionId(item: StatementPreviewItem): StatementLineItem {

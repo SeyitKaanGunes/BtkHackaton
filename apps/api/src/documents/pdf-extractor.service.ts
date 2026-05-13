@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PDFParse } from "pdf-parse";
 import { StatementImportException } from "./statement-import.exception.js";
+import { cleanStatementText } from "./statement-line-cleaner.js";
 
 export interface PdfPageImage {
   pageNumber: number;
@@ -68,5 +69,7 @@ export class PdfExtractorService {
 }
 
 export function isTextExtractionWeak(text: string): boolean {
-  return text.trim().length < 200;
+  if (!text.trim()) return true;
+  const analysis = cleanStatementText(text);
+  return analysis.dateAmountLineCount === 0;
 }

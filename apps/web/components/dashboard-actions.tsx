@@ -222,6 +222,7 @@ export function ActionCenterPanel({ initialActions }: { initialActions: ActionIt
   const [actions, setActions] = useState(initialActions);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const pendingActions = actions.filter((action) => action.status === "pending");
 
   useEffect(() => {
     setActions(initialActions);
@@ -245,7 +246,7 @@ export function ActionCenterPanel({ initialActions }: { initialActions: ActionIt
     <div className="panel">
       <div className="section-title">
         <span>Finansal Aksiyon Merkezi</span>
-        <span className="chip warn">{actions.length} açık aksiyon</span>
+        <span className={pendingActions.length ? "chip warn" : "chip success"}>{pendingActions.length} bekleyen aksiyon</span>
       </div>
       {actions.length ? (
         <div className="action-list">

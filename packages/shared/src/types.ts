@@ -446,6 +446,17 @@ export interface SpeechToTextResult {
   model: string;
 }
 
+export interface SpeechCapabilities {
+  stt: {
+    available: boolean;
+    reason?: string;
+  };
+  tts: {
+    available: boolean;
+    reason?: string;
+  };
+}
+
 export interface Business {
   id: string;
   ownerUserId: string;

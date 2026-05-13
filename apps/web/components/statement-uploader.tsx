@@ -2,9 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Camera, CheckCircle2, FileUp, RotateCcw, Upload } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle2, FileUp, Loader2, RotateCcw, Upload } from "lucide-react";
 import { statementErrorMessage, type StatementConfirmResult, type StatementPreviewResult } from "@fintwin/shared";
-import { postStatementConfirm, postStatementPreview, postSubscriptionReminder, StatementApiError } from "../lib/api";
+import { ApiRequestError, postStatementConfirm, postStatementPreview, postSubscriptionReminder, StatementApiError } from "../lib/api";
 
 type UploaderState =
   | { phase: "idle" }
@@ -13,6 +13,7 @@ type UploaderState =
   | { phase: "confirming" }
   | { phase: "confirmed"; data: StatementConfirmResult }
   | { phase: "error"; message: string; code?: string };
+type ReminderStatus = { phase: "saving" | "saved" | "error"; message?: string };
 
 function readFileAsBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -35,12 +36,12 @@ export function StatementUploader() {
   const [state, setState] = useState<UploaderState>({ phase: "idle" });
   const [statementTab, setStatementTab] = useState<"transactions" | "subscriptions">("transactions");
   const [reminderDates, setReminderDates] = useState<Record<string, string>>({});
-  const [scheduledReminderId, setScheduledReminderId] = useState<string | null>(null);
+  const [reminderStatuses, setReminderStatuses] = useState<Record<string, ReminderStatus>>({});
 
   async function onStatementFile(file?: File) {
     if (!file) return;
     setState({ phase: "uploading" });
-    setScheduledReminderId(null);
+    setReminderStatuses({});
     try {
       const fileBase64 = await readFileAsBase64(file);
       const data = await postStatementPreview({
@@ -92,14 +93,22 @@ export function StatementUploader() {
     const subscription = state.data.recurringSubscriptions.find((item) => item.id === subscriptionId);
     if (!subscription) return;
     const remindAt = reminderDates[subscriptionId] ?? subscription.nextEstimatedAt;
-    await postSubscriptionReminder({
-      merchant: subscription.merchant,
-      amount: subscription.amount,
-      remindAt,
-      note: `${state.data.statementMonth} ekstresinden tespit edildi`
-    });
-    setScheduledReminderId(subscriptionId);
-    router.refresh();
+    setReminderStatuses((current) => ({ ...current, [subscriptionId]: { phase: "saving" } }));
+    try {
+      await postSubscriptionReminder({
+        merchant: subscription.merchant,
+        amount: subscription.amount,
+        remindAt,
+        note: `${state.data.statementMonth} ekstresinden tespit edildi`
+      });
+      setReminderStatuses((current) => ({ ...current, [subscriptionId]: { phase: "saved" } }));
+      router.refresh();
+    } catch (error) {
+      setReminderStatuses((current) => ({
+        ...current,
+        [subscriptionId]: { phase: "error", message: toReminderErrorMessage(error) }
+      }));
+    }
   }
 
   if (state.phase === "preview") {
@@ -240,24 +249,30 @@ export function StatementUploader() {
         ) : (
           <div className="transaction-list">
             {state.data.recurringSubscriptions.length ? (
-              state.data.recurringSubscriptions.map((subscription) => (
-                <div className="subscription-row" key={subscription.id}>
-                  <div>
-                    <strong>{subscription.merchant}</strong>
-                    <small>
-                      {subscription.amount.toLocaleString("tr-TR")} TL · {subscription.occurrenceCount} tekrar · %{Math.round(subscription.confidence * 100)} güven
-                    </small>
+              state.data.recurringSubscriptions.map((subscription) => {
+                const reminderStatus = reminderStatuses[subscription.id];
+                const reminderSaving = reminderStatus?.phase === "saving";
+                return (
+                  <div className="subscription-row" key={subscription.id}>
+                    <div>
+                      <strong>{subscription.merchant}</strong>
+                      <small>
+                        {subscription.amount.toLocaleString("tr-TR")} TL · {subscription.occurrenceCount} tekrar · %{Math.round(subscription.confidence * 100)} güven
+                      </small>
+                      {reminderStatus?.phase === "error" ? <small className="subscription-reminder-error">{reminderStatus.message}</small> : null}
+                    </div>
+                    <input
+                      type="date"
+                      value={reminderDates[subscription.id] ?? subscription.nextEstimatedAt}
+                      onChange={(event) => setReminderDates((current) => ({ ...current, [subscription.id]: event.target.value }))}
+                    />
+                    <button className="secondary-button" disabled={reminderSaving} onClick={() => scheduleReminder(subscription.id)}>
+                      {reminderSaving ? <Loader2 className="spin" size={14} /> : null}
+                      {reminderSaving ? "Kuruluyor" : reminderStatus?.phase === "saved" ? "Hatırlatma kuruldu" : "Bu tarihte hatırlat"}
+                    </button>
                   </div>
-                  <input
-                    type="date"
-                    value={reminderDates[subscription.id] ?? subscription.nextEstimatedAt}
-                    onChange={(event) => setReminderDates((current) => ({ ...current, [subscription.id]: event.target.value }))}
-                  />
-                  <button className="secondary-button" onClick={() => scheduleReminder(subscription.id)}>
-                    {scheduledReminderId === subscription.id ? "Hatırlatma kuruldu" : "Bu tarihte hatırlat"}
-                  </button>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="empty-state">Tekrar eden abonelik bulunamadı.</div>
             )}
@@ -331,4 +346,11 @@ function toErrorState(error: unknown, fallback: string): UploaderState {
     return { phase: "error", message: statementErrorMessage(error.code, error.message), code: error.code };
   }
   return { phase: "error", message: error instanceof Error ? error.message : fallback };
+}
+
+function toReminderErrorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError) {
+    return error.code ? `${error.code}: ${error.message}` : error.message;
+  }
+  return error instanceof Error ? error.message : "Hatırlatma kurulamadı.";
 }

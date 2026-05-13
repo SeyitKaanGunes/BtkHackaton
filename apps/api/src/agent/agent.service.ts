@@ -106,8 +106,16 @@ export class AgentService {
       })
       .addNode("subscriptions", async () => {
         const leaks = detectSubscriptionLeakage(data.subscriptions);
+        if (leaks.length === 0) {
+          return {
+            answer: "Şu an kayıtlı aboneliklerde sızıntı görünmüyor. Daha net analiz için ekstre importu yaptıkça kullanılmayan, yinelenen veya fiyatı artan abonelikleri burada işaretlerim.",
+            confidence: 0.86,
+            routedAgents: ["Risk Agent", "Action Agent"]
+          };
+        }
+        const topLeak = leaks[0];
         return {
-          answer: `${leaks.length} abonelik sızıntısı bulundu. En hızlı kazanım: ${leaks[0]?.merchant} için ${leaks[0]?.recommendation}`,
+          answer: `${leaks.length} abonelik sızıntısı bulundu. En hızlı kazanım: ${topLeak.merchant} için ${topLeak.recommendation}`,
           confidence: 0.86,
           routedAgents: ["Risk Agent", "Action Agent"]
         };

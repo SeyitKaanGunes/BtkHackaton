@@ -313,6 +313,12 @@ export function InvestmentPortfolio({ initialPortfolio, mode = "overview" }: Inv
         ) : null}
 
         <div className="position-list">
+          {portfolio.positions.length === 0 ? (
+            <div className="empty-state portfolio-empty-state">
+              <strong>Pozisyon yok</strong>
+              <span>Varlık eklendiğinde portföy değeri, dağılım ve kar/zarar burada görünür.</span>
+            </div>
+          ) : null}
           {portfolio.positions.map((position) => {
             const isUp = position.profitLossTry >= 0;
             return (

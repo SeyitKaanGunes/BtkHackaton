@@ -22,6 +22,9 @@ export interface RawExtraction {
   warnings: string[];
   statementMonth: string;
   totalAmount: number;
+  candidateLineCount?: number;
+  dateAmountLineCount?: number;
+  expectedTotalAmount?: number;
   tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number };
   avgConfidence: number;
 }
@@ -41,7 +44,8 @@ export class StatementExtractorService {
   async extractFromText(text: string): Promise<RawExtraction> {
     this.ensureQwenConfigured();
 
-    const { candidateLines, droppedCount } = cleanStatementText(text);
+    const textAnalysis = cleanStatementText(text);
+    const { candidateLines, droppedCount } = textAnalysis;
     const chunks = chunkLines(candidateLines);
     if (chunks.length === 0) {
       throw new StatementImportException("STATEMENT_NO_VALID_ITEMS", "Ekstre metninden işlenebilir harcama satırı bulunamadı.");
@@ -83,7 +87,11 @@ export class StatementExtractorService {
 
     const validated = validateItems(rawItems);
     warnings.push(...validated.warnings);
-    return buildRawExtraction(validated.valid, warnings, tokenUsage);
+    return buildRawExtraction(validated.valid, warnings, tokenUsage, {
+      candidateLineCount: textAnalysis.candidateLines.length,
+      dateAmountLineCount: textAnalysis.dateAmountLineCount,
+      expectedTotalAmount: textAnalysis.expectedTotalAmount
+    });
   }
 
   async extractFromImage(base64: string, mimeType: string): Promise<RawExtraction> {
@@ -226,7 +234,8 @@ function normalizeWarnings(warnings: unknown): string[] {
 function buildRawExtraction(
   items: StatementLineItem[],
   warnings: string[],
-  tokenUsage: RawExtraction["tokenUsage"]
+  tokenUsage: RawExtraction["tokenUsage"],
+  textSignals?: Pick<RawExtraction, "candidateLineCount" | "dateAmountLineCount" | "expectedTotalAmount">
 ): RawExtraction {
   if (items.length === 0) {
     throw new StatementImportException("STATEMENT_NO_VALID_ITEMS", "Ekstre içinde geçerli harcama kalemi bulunamadı.");
@@ -237,6 +246,7 @@ function buildRawExtraction(
     warnings,
     statementMonth: detectStatementMonth(items),
     totalAmount: Number(items.reduce((total, item) => total + item.amount, 0).toFixed(2)),
+    ...textSignals,
     tokenUsage,
     avgConfidence: Number((items.reduce((total, item) => total + item.confidence, 0) / items.length).toFixed(3))
   };

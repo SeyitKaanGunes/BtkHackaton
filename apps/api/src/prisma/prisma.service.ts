@@ -1,42 +1,48 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 
-const defaultConnectTimeoutMs = 8000;
+const defaultConnectTimeoutMs = 30000;
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private connected = false;
-  private connectPromise?: Promise<void>;
+  private connectionPromise?: Promise<void>;
 
   async onModuleInit(): Promise<void> {
     await this.ensureConnected();
-  }
-
-  async ensureConnected(): Promise<void> {
-    if (this.connected) return;
-    if (!this.connectPromise) {
-      this.connectPromise = this.connectWithTimeout();
-    }
-    await this.connectPromise;
-  }
-
-  private async connectWithTimeout(): Promise<void> {
-    try {
-      await withTimeout(this.$connect(), Number(process.env.PRISMA_CONNECT_TIMEOUT_MS ?? defaultConnectTimeoutMs));
-      this.connected = true;
-    } catch (error) {
-      this.connected = false;
-      if (process.env.NODE_ENV === "production") throw error;
-      console.warn(`Prisma connection skipped; API will use local demo cache. ${error instanceof Error ? error.message : "Unknown database error"}`);
-    }
   }
 
   async onModuleDestroy(): Promise<void> {
     if (this.connected) await this.$disconnect();
   }
 
+  async ensureConnected(): Promise<void> {
+    if (this.connected) return;
+
+    this.connectionPromise ??= withTimeout(this.connectAndValidate(), Number(process.env.PRISMA_CONNECT_TIMEOUT_MS ?? defaultConnectTimeoutMs))
+      .then(() => {
+        this.connected = true;
+      })
+      .catch((error: unknown) => {
+        this.connected = false;
+        this.connectionPromise = undefined;
+        throw new Error(
+          `Prisma database connection failed. Supabase DATABASE_URL/DIRECT_URL must be reachable before API startup. ${
+            error instanceof Error ? error.message : "Unknown database error"
+          }`
+        );
+      });
+
+    await this.connectionPromise;
+  }
+
   isConnected(): boolean {
     return this.connected;
+  }
+
+  private async connectAndValidate(): Promise<void> {
+    await this.$connect();
+    await this.$queryRawUnsafe("select 1");
   }
 }
 

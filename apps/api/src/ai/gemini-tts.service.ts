@@ -75,7 +75,7 @@ export class GeminiTtsService {
 
     const payload = (await response.json().catch(() => ({}))) as GeminiTtsResponse;
     if (!response.ok) {
-      throw new ServiceUnavailableException(payload.error?.message ?? "Gemini TTS ses üretemedi.");
+      throw new ServiceUnavailableException(actionableGeminiError(payload.error?.message));
     }
 
     const inlineData = payload.candidates?.[0]?.content?.parts?.find((part) => part.inlineData?.data || part.inline_data?.data);
@@ -103,6 +103,13 @@ export class GeminiTtsService {
   private apiKey() {
     return process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim() || process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim();
   }
+}
+
+function actionableGeminiError(message?: string) {
+  if (message?.toLowerCase().includes("denied access")) {
+    return "Gemini TTS project erişimi reddedildi. Google AI Studio/Cloud projesinde Generative Language API ve seçili TTS model erişimini etkinleştir.";
+  }
+  return message ?? "Gemini TTS ses üretemedi.";
 }
 
 function isPcmMimeType(mimeType: string) {

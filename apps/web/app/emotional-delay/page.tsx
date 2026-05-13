@@ -1,6 +1,6 @@
 import { Clock3 } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
-import { EmotionalDelayDetailPanel } from "../../components/insight-detail-panels";
+import { EmotionalDelaySimulator } from "../../components/decision-simulator";
 import { getCampaignReadiness, getWhatIf } from "../../lib/api";
 import { requirePersonalSession } from "../../lib/server-auth";
 
@@ -23,7 +23,7 @@ export default async function EmotionalDelayPage() {
         </div>
       </header>
 
-      <EmotionalDelayDetailPanel whatIf={whatIf} campaign={campaign} />
+      <EmotionalDelaySimulator initialWhatIf={whatIf} campaign={campaign} />
     </AppShell>
   );
 }

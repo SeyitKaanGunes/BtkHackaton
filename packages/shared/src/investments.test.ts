@@ -3,15 +3,15 @@ import { calculateInvestmentPortfolio, createInvestmentHolding, suggestInvestmen
 import type { InvestmentQuote } from "./types.js";
 
 const marketQuotes: InvestmentQuote[] = [
-  liveQuote("XAG/USD", 28.4, "USD", "Silver Spot / US Dollar"),
-  liveQuote("USD/TRY", 32.4, "TRY", "US Dollar / Turkish Lira")
+  liveQuote("XAG/USD", 28.4, "USD", "Gümüş Spot / ABD Doları"),
+  liveQuote("USD/TRY", 32.4, "TRY", "ABD Doları / Türk Lirası")
 ];
 
 describe("investment portfolio engine", () => {
   it("values holdings and calculates profit/loss in TRY", () => {
     const holding = createInvestmentHolding({
       symbol: "XAG/USD",
-      name: "Silver Spot / US Dollar",
+      name: "Gümüş Spot / ABD Doları",
       assetType: "commodity",
       quantity: 10,
       averageCost: 25,
@@ -53,7 +53,7 @@ describe("investment portfolio engine", () => {
   it("does not calculate market value or profit/loss from missing prices", () => {
     const holding = createInvestmentHolding({
       symbol: "THYAO",
-      name: "Turk Hava Yollari",
+      name: "Türk Hava Yolları",
       assetType: "stock",
       quantity: 10,
       averageCost: 100,
@@ -67,7 +67,7 @@ describe("investment portfolio engine", () => {
     expect(portfolio.totalMarketValueTry).toBe(0);
     expect(portfolio.totalProfitLossTry).toBe(0);
     expect(portfolio.hasMarketDataGap).toBe(true);
-    expect(portfolio.warning).toContain("piyasa verisi alinamadi");
+    expect(portfolio.warning).toContain("piyasa verisi alınamadı");
   });
 });
 

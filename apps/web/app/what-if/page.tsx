@@ -1,6 +1,6 @@
 import { WandSparkles } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
-import { WhatIfDetailPanel } from "../../components/insight-detail-panels";
+import { WhatIfSimulator } from "../../components/decision-simulator";
 import { getWhatIf } from "../../lib/api";
 import { requirePersonalSession } from "../../lib/server-auth";
 
@@ -23,7 +23,7 @@ export default async function WhatIfPage() {
         </div>
       </header>
 
-      <WhatIfDetailPanel whatIf={whatIf} />
+      <WhatIfSimulator initialWhatIf={whatIf} />
     </AppShell>
   );
 }
