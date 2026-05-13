@@ -18,7 +18,7 @@ export function composeSimulationAnswer({ simulation, parsedAmount, parsedCatego
   return [
     `${amountLabel} ${categoryLabel.toLocaleLowerCase("tr-TR")} harcaması için 3 senaryo çıkardım:`,
     "",
-    "Güvenli senaryo:",
+    "Daha temkinli senaryo:",
     `${formatMoney(safe.spendAmount, parsedAmount.currency)} seviyesinde kalırsan bütçeni daha az zorlarsın. Ay sonu tahmini bakiyen ${formatMoney(safe.monthEndBalance, parsedAmount.currency)} olur.`,
     "",
     "Dengeli senaryo:",

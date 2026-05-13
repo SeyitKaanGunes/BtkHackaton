@@ -65,7 +65,7 @@ describe("API feature services", () => {
     expect(result.routedAgents).toContain("Simulation Agent");
     expect(result.evidence.length).toBeGreaterThan(0);
     expect(result.suggestedActions[0]?.type).toBe("delay_purchase");
-    expect(result.answer).toContain("Güvenli senaryo");
+    expect(result.answer).toContain("Daha temkinli senaryo");
     expect(result.answer).toContain("Dengeli senaryo");
     expect(result.answer).toContain("Riskli senaryo");
     expect(result.answer).toContain("Varsayımlar");
@@ -325,6 +325,13 @@ describe("API feature services", () => {
     expect(categoriesController.list("expense").some((category) => category.id === result.categoryId && category.name === "Spor")).toBe(true);
   });
 
+  it("exposes a default one-time income category next to salary", () => {
+    const store = createTestStore();
+    const categoriesController = new CategoriesController(store);
+
+    expect(categoriesController.list("income").map((category) => category.name)).toEqual(expect.arrayContaining(["Maaş", "Diğer gelir"]));
+  });
+
   it("updates salary profile and schedules deterministic monthly salary IDs", async () => {
     const store = createTestStore();
     const google = { isConfigured: () => false, verifyIdToken: vi.fn() } as unknown as GoogleOAuthService;
@@ -493,7 +500,7 @@ describe("API feature services", () => {
   });
 
   it("hydrates local KOBI demo data when Prisma is unavailable", async () => {
-    const store = new DataStoreService({ isConnected: () => false } as unknown as ConstructorParameters<typeof DataStoreService>[0]);
+    const store = new DataStoreService({ ensureConnected: vi.fn(async () => undefined), isConnected: () => false } as unknown as ConstructorParameters<typeof DataStoreService>[0]);
 
     await store.onModuleInit();
 

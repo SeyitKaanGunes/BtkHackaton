@@ -158,6 +158,7 @@ const periodNetCaptions: Record<DashboardPeriod, string> = {
 };
 const fallbackTransactionCategories: Category[] = [
   { id: "cat-salary", name: "Maaş", kind: "income", color: "#16a34a" },
+  { id: "cat-other-income", name: "Diğer gelir", kind: "income", color: "#0d9488" },
   { id: "cat-market", name: "Market", kind: "expense", color: "#f59e0b" },
   { id: "cat-food", name: "Yemek", kind: "expense", color: "#ef4444" },
   { id: "cat-transport", name: "Ulaşım", kind: "expense", color: "#0891b2" },
@@ -577,11 +578,6 @@ function HomeScreen({
         <PeriodSwitcher activePeriod={activePeriod} periodLabel={dashboard.periodLabel} onChange={onPeriodChange} />
         <CategoryDistributionPanel dashboard={dashboard} />
         <CategoryRiskList dna={dna} periodLabel={dashboard.periodLabel} />
-        <Panel>
-          <SectionTitle title="Kategori verisini besle" meta="fiş / ekstre" />
-          <Text style={styles.bodyMuted}>Fiş okutunca tek gider kaydı; banka ekstresi yükleyince seçtiğin satırlar kategori dağılımına otomatik yansır.</Text>
-        </Panel>
-        <ScanScreen onImported={onRefresh} />
       </>
     );
   }
@@ -689,9 +685,9 @@ function HomeScreen({
         />
         <MetricCard
           icon={<ShieldAlert size={18} color={palette.danger} />}
-          label="Güvenli limit"
+          label="Harcama sınırı"
           value={hasFinancialData ? money(campaign.safeLimit) : "Beklemede"}
-          caption={hasFinancialData ? `kampanya skoru ${campaign.score}` : primaryRiskCategory?.categoryName ?? "veri bekleniyor"}
+          caption={hasFinancialData ? "Üstünü tekrar düşün" : primaryRiskCategory?.categoryName ?? "veri bekleniyor"}
           tone="danger"
         />
       </View>
@@ -702,6 +698,7 @@ function HomeScreen({
         onOpenPortfolio={onOpenPortfolio}
         onOpenBusiness={onOpenBusiness}
       />
+      <ScanScreen onImported={onRefresh} />
       <ManualTransactionPanel user={user} onChanged={onRefresh} />
     </>
   );
@@ -1231,7 +1228,7 @@ function ManualTransactionPanel({ user, onChanged }: { user: AuthUserProfile; on
 
   return (
     <Panel>
-      <SectionTitle title="Gelir ve Gider Akışı" meta="maaş/manuel" />
+      <SectionTitle title="Gelir ve Gider Akışı" meta="maaş/tek seferlik" />
       <View style={localStyles.salaryBox}>
         <Text style={localStyles.cardTitle}>Aylık maaş</Text>
         <View style={localStyles.formGrid}>
@@ -1242,7 +1239,7 @@ function ManualTransactionPanel({ user, onChanged }: { user: AuthUserProfile; on
         {salaryStatus ? <Text style={salaryStatus.includes("kaydedildi") ? localStyles.formSuccess : localStyles.authError}>{salaryStatus}</Text> : null}
       </View>
       <View style={localStyles.formGrid}>
-        <TextInput value={merchant} onChangeText={setMerchant} placeholder="Satıcı veya açıklama" placeholderTextColor={palette.muted} style={[localStyles.authInput, localStyles.formInput]} />
+        <TextInput value={merchant} onChangeText={setMerchant} placeholder={type === "income" ? "Gelir kaynağı veya açıklama" : "Satıcı veya açıklama"} placeholderTextColor={palette.muted} style={[localStyles.authInput, localStyles.formInput]} />
         <TextInput value={amount} onChangeText={setAmount} placeholder="Tutar" placeholderTextColor={palette.muted} keyboardType="decimal-pad" style={[localStyles.authInput, localStyles.formInput]} />
       </View>
       <View style={localStyles.segmentedInline}>
@@ -1271,7 +1268,7 @@ function ManualTransactionPanel({ user, onChanged }: { user: AuthUserProfile; on
       </View>
       <TextInput value={newCategoryName} onChangeText={setNewCategoryName} placeholder="Yeni kategori yaz (isteğe bağlı)" placeholderTextColor={palette.muted} style={localStyles.authInput} />
       <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: recurring }} onPress={() => setRecurring((current) => !current)} style={[localStyles.recurringToggle, recurring && localStyles.recurringToggleActive]}>
-        <Text style={[localStyles.segmentButtonText, recurring && localStyles.segmentButtonTextActive]}>Tekrar eden işlem</Text>
+        <Text style={[localStyles.segmentButtonText, recurring && localStyles.segmentButtonTextActive]}>{type === "income" ? "Tekrar eden gelir" : "Tekrar eden işlem"}</Text>
       </Pressable>
       <Button label={pending ? "Ekleniyor" : "İşlem ekle"} onPress={() => void addManual()} disabled={pending} icon={<Plus size={15} color={palette.surface} />} />
       {status ? <Text style={status.includes("gerekli") || status.includes("zorunlu") || status.includes("olmalı") || status.includes("edilemedi") ? localStyles.authError : localStyles.formSuccess}>{status}</Text> : null}

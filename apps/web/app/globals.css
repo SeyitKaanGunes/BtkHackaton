@@ -1966,6 +1966,17 @@ h1 {
   opacity: 0.55;
 }
 
+.text-link {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.text-link:hover {
+  color: var(--ink);
+}
+
 .small-button {
   min-height: 36px;
   padding: 8px 10px;
@@ -3158,19 +3169,19 @@ h1 {
   line-height: 1.55;
 }
 
-.category-ingest-panel {
+.document-ingest-panel {
   gap: 16px;
 }
 
-.category-ingest-panel .receipt-grid {
+.document-ingest-panel .receipt-grid {
   max-width: none;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.category-ingest-panel .receipt-result,
-.category-ingest-panel .statement-preview,
-.category-ingest-panel .statement-error,
-.category-ingest-panel .form-message {
+.document-ingest-panel .receipt-result,
+.document-ingest-panel .statement-preview,
+.document-ingest-panel .statement-error,
+.document-ingest-panel .form-message {
   grid-column: 1 / -1;
 }
 
@@ -3261,6 +3272,72 @@ h1 {
   flex: 0 0 auto;
   color: var(--accent-2);
   margin-top: 1px;
+}
+
+.portfolio-grid-overview {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.portfolio-title-row {
+  align-items: center;
+}
+
+.portfolio-title-row > div {
+  display: grid;
+  gap: 3px;
+}
+
+.portfolio-add-cta {
+  min-width: max-content;
+  justify-self: end;
+  text-decoration: none;
+}
+
+.portfolio-add-intro h2 {
+  margin: 6px 0 8px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(24px, 2.4vw, 36px);
+  line-height: 1.04;
+  letter-spacing: 0;
+}
+
+.portfolio-add-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.78fr) minmax(360px, 1.12fr) minmax(260px, 0.48fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.portfolio-add-intro,
+.portfolio-add-preview {
+  align-content: start;
+}
+
+.investment-form-focused {
+  min-height: 520px;
+}
+
+.portfolio-summary.compact {
+  grid-template-columns: 1fr;
+}
+
+.back-link {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+@media (max-width: 1180px) {
+  .portfolio-add-layout,
+  .portfolio-grid-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-add-cta {
+    justify-self: stretch;
+  }
 }
 
 .hero-insight {
@@ -3497,7 +3574,7 @@ h1 {
   .scenario-list.detailed,
   .cashflow-grid,
   .cashflow-grid.compact,
-  .category-ingest-panel .receipt-grid,
+  .document-ingest-panel .receipt-grid,
   .business-summary-grid,
   .business-detail-facts,
   .business-detail-grid,
@@ -3560,7 +3637,7 @@ h1 {
   .scenario-list.detailed,
   .cashflow-grid,
   .cashflow-grid.compact,
-  .category-ingest-panel .receipt-grid,
+  .document-ingest-panel .receipt-grid,
   .business-summary-grid,
   .business-detail-facts,
   .business-detail-grid,

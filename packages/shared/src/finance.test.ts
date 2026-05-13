@@ -289,7 +289,7 @@ describe("Fintwin finance engines", () => {
       { amount: 5000, categoryId: "cat-tech", decisionDate: "2026-05-10" },
       { accounts: [account(2000)], actions: [], budgets: [budget("cat-tech", 10000)], goals: [], transactions: [expense("tx-market", "cat-market", 100, "2026-05-02")] }
     );
-    expect(simulation.cards.find((card) => card.id === "risky")?.warning).toContain("güvenli limitin üzerinde");
+    expect(simulation.cards.find((card) => card.id === "risky")?.warning).toContain("harcama sınırının üzerinde");
   });
 
   it("detects subscription leakage", () => {

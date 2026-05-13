@@ -548,7 +548,7 @@ export function calculateCampaignReadiness(
       "Kampanya döneminde kayıtlı gelir, gider ve bütçe limitleri birlikte izlenmeli.",
       riskCategory && riskCategory.riskScore >= 65
         ? `${riskCategory.categoryName} kategorisinde satın alma öncesi Emotional Delay önerilir.`
-        : "Belirgin kategori riski oluşana kadar güvenli limit kontrollü tutulur."
+        : "Belirgin kategori riski oluşana kadar harcama sınırı kontrollü tutulur."
     ]
   };
 }
@@ -673,7 +673,7 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
     const monthEndBalance = dashboard.balance - spendAmount;
     const savingsImpactPercent = currentSavingsGap > 0 ? Math.round((spendAmount / currentSavingsGap) * 100) : 0;
     const riskLevel = id === "safe" ? "low" : id === "balanced" ? riskFromScore(Math.max(categoryRisk, 45)) : riskFromScore(Math.max(categoryRisk, 70));
-    const warning = spendAmount > safeLimit ? "Bu senaryo güvenli limitin üzerinde kalıyor." : undefined;
+    const warning = spendAmount > safeLimit ? "Bu senaryo dikkatli harcama sınırının üzerinde kalıyor." : undefined;
     return {
       id,
       scenarioId: stableScenarioId(resolvedCategoryId, amount, id),
@@ -685,7 +685,7 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
       recommendation,
       riskLevel,
       reasons: [
-        `${getCategoryName(resolvedCategoryId, categoryCatalog)} kategorisi için güvenli limit ${safeLimit.toLocaleString("tr-TR")} TL.`,
+        `${getCategoryName(resolvedCategoryId, categoryCatalog)} kategorisi için dikkatli harcama sınırı ${safeLimit.toLocaleString("tr-TR")} TL.`,
         `Harcanabilir nakit ${availableCash.toLocaleString("tr-TR")} TL olarak hesaplandı.`,
         categoryBudgetRemaining !== undefined ? `Kategori bütçesinde kalan tutar ${categoryBudgetRemaining.toLocaleString("tr-TR")} TL.` : "Bu kategori için bütçe tanımlı değil.",
         currentSavingsGap > 0 ? `Aktif hedeflerin kalan tutarına etkisi yaklaşık %${savingsImpactPercent}.` : undefined
@@ -700,7 +700,7 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
     safeLimit,
     emotionalDelayMinutes: categoryRisk >= 65 || amount > safeLimit ? 10 : 0,
     cards: [
-      makeCard("safe", Math.min(safeLimit, amount), "Güvenli senaryo", "Güvenli limitte kal, hedefleri bozma."),
+      makeCard("safe", Math.min(safeLimit, amount), "Daha temkinli senaryo", "Harcama sınırında kal, hedefleri bozma."),
       makeCard("balanced", Math.min(balancedAmount, amount), "Dengeli senaryo", "Harcamayı kıs ve kalanını hedefe aktar."),
       makeCard("risky", amount, "Riskli senaryo", "Satın almadan önce 10 dakika bekleme ve alternatif fiyat kontrolü önerilir.")
     ],

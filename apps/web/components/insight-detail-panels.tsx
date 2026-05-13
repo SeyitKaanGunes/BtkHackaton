@@ -7,7 +7,7 @@ export function WhatIfDetailPanel({ whatIf }: { whatIf: WhatIfResponse }) {
   return (
     <section className="detail-stack">
       <div className="insight-grid three">
-        <StatTile label="Güvenli limit" value={formatMoney(whatIf.safeLimit)} caption="Bu limitin üzeri daha dikkatli değerlendirilir." />
+        <StatTile label="Dikkatli harcama sınırı" value={formatMoney(whatIf.safeLimit)} caption="Bu tutarın üstündeyse önce etkisini kontrol et." />
         <StatTile label="Emotional Delay" value={`${whatIf.emotionalDelayMinutes || 0} dk`} caption="Riskli harcama öncesi bekleme önerisi." />
         <StatTile label="Veri güveni" value={confidenceLabel(whatIf.dataConfidenceLevel, whatIf.dataConfidence)} caption="Eksik veri varsa sonuç daha temkinli okunmalı." />
       </div>
@@ -54,7 +54,7 @@ export function EmotionalDelayDetailPanel({ whatIf, campaign }: { whatIf: WhatIf
           <p className="eyebrow">Dürtüsel harcama freni</p>
           <h2>{delay > 0 ? `${delay} dakika bekle, sonra tekrar değerlendir.` : "Bekleme süresi için yeterli risk sinyali yok."}</h2>
           <p>
-            Emotional Delay; kampanya hassasiyeti, nakit akışı, güvenli limit ve veri güvenini birlikte okuyarak karar anında kısa bir soğuma süresi önerir.
+            Emotional Delay; kampanya hassasiyeti, nakit akışı, harcama sınırı ve veri güvenini birlikte okuyarak karar anında kısa bir soğuma süresi önerir.
           </p>
         </div>
         <div className="delay-orb">
@@ -65,7 +65,7 @@ export function EmotionalDelayDetailPanel({ whatIf, campaign }: { whatIf: WhatIf
       </div>
 
       <div className="insight-grid three">
-        <StatTile label="Güvenli limit" value={formatMoney(whatIf.safeLimit)} caption="Senaryo motorundan gelen üst sınır." />
+        <StatTile label="Dikkatli harcama sınırı" value={formatMoney(whatIf.safeLimit)} caption="Harcamayı tekrar düşünmen gereken eşik." />
         <StatTile label="Kampanya skoru" value={`${campaign.score}/100`} caption={campaign.notes[0] ?? "Kampanya tetikleyicisi izleniyor."} />
         <StatTile label="Risk seviyesi" value={riskTitle(campaign.riskLevel)} caption="Karar destek seviyesidir, kesin tavsiye değildir." />
       </div>

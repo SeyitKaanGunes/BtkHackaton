@@ -3,6 +3,7 @@ import type { DashboardPeriod } from "@fintwin/shared";
 import { Landmark, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
 import { AppShell } from "../components/app-shell";
 import { ManualTransactionPanel } from "../components/dashboard-actions";
+import { ReceiptScanner } from "../components/receipt-scanner";
 import { getCampaignReadiness, getInvestmentPortfolio, getPersonalDashboard } from "../lib/api";
 import { requirePersonalSession } from "../lib/server-auth";
 
@@ -88,11 +89,22 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         <Metric icon={<PiggyBank size={18} />} label="Bakiye" value={`${dashboard.balance.toLocaleString("tr-TR")} TL`} caption={periodNetCaptions[dashboard.period]} tone="success" />
         <Metric
           icon={<ShieldAlert size={18} />}
-          label="Güvenli limit"
+          label="Dikkatli harcama sınırı"
           value={hasFinancialData ? `${campaign.safeLimit.toLocaleString("tr-TR")} TL` : "Beklemede"}
-          caption={hasFinancialData ? `kampanya skoru ${campaign.score}` : "veri bekleniyor"}
+          caption={hasFinancialData ? "Üstündeki alışverişleri tekrar düşün" : "gelir/gider verisi bekleniyor"}
           tone="danger"
         />
+      </section>
+
+      <section className="panel document-ingest-panel">
+        <div className="section-title">
+          <span>Belgeyle hızlı kayıt</span>
+          <strong>fiş / ay sonu ekstresi</strong>
+        </div>
+        <p className="panel-copy">
+          Fiş okutunca tek bir gider, ay sonu ekstresi yükleyince seçtiğin satırlar gider geçmişine ve kategori dağılımına otomatik eklenir.
+        </p>
+        <ReceiptScanner />
       </section>
 
       <section className="module-grid personal-module-grid">

@@ -127,7 +127,7 @@ export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserP
     <div className="panel manual-transaction-panel">
       <div className="section-title">
         <span>Gelir ve gider akışı</span>
-        <strong>maaş / manuel işlem</strong>
+        <strong>maaş / tek seferlik işlem</strong>
       </div>
       <div className="manual-panel-grid">
         <form className="salary-profile-form" onSubmit={submitSalary}>
@@ -162,8 +162,8 @@ export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserP
 
         <form className="manual-transaction-form" onSubmit={submit}>
           <label className="field">
-            <span>Satıcı veya açıklama</span>
-            <input value={merchant} onChange={(event) => setMerchant(event.target.value)} required placeholder="Migros, kira, fatura" />
+            <span>{type === "income" ? "Gelir kaynağı veya açıklama" : "Satıcı veya açıklama"}</span>
+            <input value={merchant} onChange={(event) => setMerchant(event.target.value)} required placeholder={type === "income" ? "Prim, freelance, iade" : "Migros, kira, fatura"} />
           </label>
           <label className="field">
             <span>Tutar</span>
@@ -204,7 +204,7 @@ export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserP
           </label>
           <label className="inline-toggle recurring-toggle">
             <input checked={recurring} onChange={(event) => setRecurring(event.target.checked)} type="checkbox" />
-            <span>Tekrar eden işlem</span>
+            <span>{type === "income" ? "Tekrar eden gelir" : "Tekrar eden işlem"}</span>
           </label>
           <button className="secondary-button manual-transaction-submit" type="submit" disabled={pending}>
             <Plus size={16} />
@@ -294,4 +294,3 @@ function actionStatusLabel(status: ActionItem["status"]) {
 function formatShortDate(value: string) {
   return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short" }).format(new Date(value));
 }
-

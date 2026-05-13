@@ -6,8 +6,21 @@ const defaultConnectTimeoutMs = 8000;
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private connected = false;
+  private connectPromise?: Promise<void>;
 
   async onModuleInit(): Promise<void> {
+    await this.ensureConnected();
+  }
+
+  async ensureConnected(): Promise<void> {
+    if (this.connected) return;
+    if (!this.connectPromise) {
+      this.connectPromise = this.connectWithTimeout();
+    }
+    await this.connectPromise;
+  }
+
+  private async connectWithTimeout(): Promise<void> {
     try {
       await withTimeout(this.$connect(), Number(process.env.PRISMA_CONNECT_TIMEOUT_MS ?? defaultConnectTimeoutMs));
       this.connected = true;

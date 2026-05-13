@@ -97,7 +97,7 @@ export class AgentService {
               userId,
               type: "delay_purchase",
               title: "Satın alma kararına bilinçli mola",
-              description: `${simulation.emotionalDelayMinutes || 10} dakika bekleyip güvenli limiti tekrar değerlendir.`,
+              description: `${simulation.emotionalDelayMinutes || 10} dakika bekleyip harcama sınırını tekrar değerlendir.`,
               status: "pending",
               source: "agent"
             }
@@ -144,7 +144,7 @@ export class AgentService {
     return {
       answer:
         result.answer ??
-        `Finansal sağlık skorun ${dashboard.financialHealthScore}/100. Kampanya hazırlık skorun ${readiness.score}/100 ve güvenli limit ${readiness.safeLimit} TL.`,
+        `Finansal sağlık skorun ${dashboard.financialHealthScore}/100. Dikkatli harcama sınırın ${readiness.safeLimit} TL.`,
       confidence: result.confidence ?? 0.82,
       routedAgents: result.routedAgents,
       evidence: buildAgentEvidence({

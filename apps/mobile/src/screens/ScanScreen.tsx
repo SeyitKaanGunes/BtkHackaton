@@ -38,9 +38,9 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
   return (
     <View style={{ gap: space[4] }}>
       <ScreenHeader
-        eyebrow="Fiş Agent'ı"
-        title="Fişi agent'a okut."
-        subtitle="Fiş veya fatura tek gider olarak doğrulanır ve oturum kullanıcısının gider geçmişine eklenir."
+        eyebrow="Belgeyle hızlı kayıt"
+        title="Fiş ve ekstreyi içe aktar."
+        subtitle="Fiş tek gider olarak, ay sonu ekstresi ise seçtiğin satırlarla gider geçmişine eklenir."
       />
 
       <Card style={{ alignItems: "center", paddingVertical: space[6], gap: space[3], borderStyle: "dashed" }}>
@@ -61,7 +61,7 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
           <Text style={{ color: p.muted, fontSize: 12, textAlign: "center", lineHeight: 17 }}>
             {loading
               ? "AI tutar, KDV, tarih, kategori ve ödeme yöntemini çıkarıyor."
-              : "Kameradan çek veya galeriden yükle. Ekstre PDF akışı bu kategori ekranındaki banka ekstresi kartındadır."}
+              : "Kameradan çek veya galeriden yükle. Ekstre PDF akışı aşağıdaki banka ekstresi kartındadır."}
           </Text>
         </View>
         {!loading ? (
@@ -84,7 +84,7 @@ export function ScanScreen({ onImported }: { onImported: () => void }) {
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ color: p.ink, fontWeight: "800", fontSize: 13 }}>Otomatik gider kaydı</Text>
             <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>
-              Fiş tek işlem olarak kaydedilir. Banka ekstresi çok kalemli olduğu için aşağıdaki seçimli kontrol akışından geçirilir.
+              Fiş tek işlem olarak kaydedilir. Banka ekstresi çok kalemli olduğu için seçimli kontrol akışından geçirilir.
             </Text>
           </View>
         </View>

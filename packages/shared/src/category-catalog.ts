@@ -2,6 +2,7 @@ import type { Category } from "./types.js";
 
 export const categories: Category[] = [
   { id: "cat-salary", name: "Maaş", kind: "income", color: "#16a34a" },
+  { id: "cat-other-income", name: "Diğer gelir", kind: "income", color: "#0d9488" },
   { id: "cat-tech", name: "Teknoloji", kind: "expense", color: "#4f46e5" },
   { id: "cat-clothes", name: "Giyim", kind: "expense", color: "#db2777" },
   { id: "cat-market", name: "Market", kind: "expense", color: "#f59e0b" },
