@@ -181,6 +181,41 @@ export interface Goal {
   deadline: string;
 }
 
+export interface GoalCreateRequest {
+  title: string;
+  targetAmount: number;
+  currentAmount?: number;
+  deadline: string;
+}
+
+export interface BudgetUpsertRequest {
+  categoryId: string;
+  monthlyLimit: number;
+}
+
+export interface SavingsPlanUpsertRequest {
+  monthlyAmount: number;
+  yearlyAmount: number;
+}
+
+export interface PlanningOverview {
+  goals: Goal[];
+  budgets: Budget[];
+  categories: Category[];
+  savingsPlan: {
+    monthly?: Goal;
+    yearly?: Goal;
+  };
+}
+
+export interface GoalAdviceResponse {
+  summary: string;
+  actions: string[];
+  generatedAt: string;
+  model?: string;
+  source: "llm" | "unavailable";
+}
+
 export interface Subscription {
   id: string;
   userId: string;
@@ -333,6 +368,15 @@ export interface SpendingDna {
   timeZone?: string;
   metrics?: SpendingDnaMetrics;
   metadata?: FinancialResultMetadata;
+  commentary?: SpendingDnaCommentary;
+}
+
+export interface SpendingDnaCommentary {
+  summary: string;
+  takeaways: string[];
+  generatedAt: string;
+  model?: string;
+  source: "llm" | "unavailable";
 }
 
 export interface ScenarioCard {

@@ -1,8 +1,8 @@
 import type { DashboardPeriod } from "@fintwin/shared";
 import { BarChart3 } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
-import { CategoryDistributionDetailPanel } from "../../components/insight-detail-panels";
-import { getPersonalDashboard } from "../../lib/api";
+import { CategoryDistributionDetailPanel } from "../../components/category-distribution-detail-panel";
+import { getPersonalDashboard, getTransactions } from "../../lib/api";
 import { requirePersonalSession } from "../../lib/server-auth";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export default async function CategoriesPage({ searchParams }: CategoriesPagePro
   const { token, user } = await requirePersonalSession();
   const params = await searchParams;
   const period = parsePeriod(params?.period);
-  const dashboard = await getPersonalDashboard({ token, period });
+  const [dashboard, transactions] = await Promise.all([getPersonalDashboard({ token, period }), getTransactions({ token })]);
 
   return (
     <AppShell active="/categories" accountType={user.accountType}>
@@ -38,7 +38,7 @@ export default async function CategoriesPage({ searchParams }: CategoriesPagePro
       </header>
 
       <PeriodTabs active={period} />
-      <CategoryDistributionDetailPanel dashboard={dashboard} />
+      <CategoryDistributionDetailPanel dashboard={dashboard} transactions={transactions} />
     </AppShell>
   );
 }

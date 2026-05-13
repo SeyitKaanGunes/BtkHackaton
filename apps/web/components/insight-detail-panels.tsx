@@ -1,5 +1,5 @@
 import type { DashboardSummary, SpendingDna, SpendingDnaCategory, SubscriptionLeak, WhatIfResponse } from "@fintwin/shared";
-import { AlertTriangle, CalendarClock, CheckCircle2, CircleDollarSign, Clock3, Info, PiggyBank, ShieldAlert, TrendingDown, WalletCards } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, CircleDollarSign, Clock3, Info, MessageSquareText, PiggyBank, ShieldAlert, TrendingDown, WalletCards } from "lucide-react";
 import type { CampaignReadiness } from "../lib/api";
 
 export function WhatIfDetailPanel({ whatIf }: { whatIf: WhatIfResponse }) {
@@ -40,7 +40,6 @@ export function WhatIfDetailPanel({ whatIf }: { whatIf: WhatIfResponse }) {
       </div>
 
       <CashflowPanel whatIf={whatIf} />
-      <AssumptionPanel assumptions={whatIf.assumptions} missingData={whatIf.missingData} />
     </section>
   );
 }
@@ -140,6 +139,7 @@ export function SubscriptionHunterDetailPanel({ leaks }: { leaks: SubscriptionLe
 export function SpendingDnaDetailPanel({ dna }: { dna: SpendingDna }) {
   const categories = [...dna.categories].sort((left, right) => right.riskScore - left.riskScore);
   const metrics = dna.metrics;
+  const commentary = dna.commentary;
   return (
     <section className="detail-stack">
       <div className="insight-grid four">
@@ -166,27 +166,51 @@ export function SpendingDnaDetailPanel({ dna }: { dna: SpendingDna }) {
           )}
         </div>
 
-        <div className="panel detail-panel">
-          <div className="section-title">
-            <span>Davranış sinyalleri</span>
-            <strong>{dna.timeZone ?? "Europe/Istanbul"}</strong>
+        <div className="spending-dna-side-stack">
+          <div className="panel detail-panel">
+            <div className="section-title">
+              <span>Davranış sinyalleri</span>
+              <strong>{dna.timeZone ?? "Europe/Istanbul"}</strong>
+            </div>
+            {dna.patterns.length ? (
+              <ul className="detail-list">
+                {dna.patterns.map((pattern) => (
+                  <li key={pattern}>
+                    <CheckCircle2 size={16} />
+                    <span>{pattern}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyDetail message="Yeterli işlem geçmişi oluşunca davranış paterni listelenir." />
+            )}
           </div>
-          {dna.patterns.length ? (
-            <ul className="detail-list">
-              {dna.patterns.map((pattern) => (
-                <li key={pattern}>
-                  <CheckCircle2 size={16} />
-                  <span>{pattern}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyDetail message="Yeterli işlem geçmişi oluşunca davranış paterni listelenir." />
-          )}
+
+          <div className="panel detail-panel spending-dna-commentary-panel">
+            <div className="section-title">
+              <span>Yorum</span>
+              <strong>{commentary?.source === "llm" ? "LLM" : "Beklemede"}</strong>
+            </div>
+            {commentary ? (
+              <div className="spending-dna-commentary">
+                <MessageSquareText size={19} />
+                <p>{commentary.summary}</p>
+                {commentary.takeaways.length ? (
+                  <ul className="reason-list compact">
+                    {commentary.takeaways.map((item) => (
+                      <li key={item}>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : (
+              <EmptyDetail message="Risk skorları geldikten sonra LLM yorumu burada gösterilir." />
+            )}
+          </div>
         </div>
       </div>
-
-      <AssumptionPanel assumptions={dna.reasons ?? []} missingData={dna.missingData} />
     </section>
   );
 }

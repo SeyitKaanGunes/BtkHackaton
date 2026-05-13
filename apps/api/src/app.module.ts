@@ -19,6 +19,7 @@ import { DataStoreService } from "./data/data-store.service.js";
 import { DashboardController } from "./dashboard/dashboard.controller.js";
 import { DocumentsController } from "./documents/documents.controller.js";
 import { DocumentsService } from "./documents/documents.service.js";
+import { GoalsController } from "./goals/goals.controller.js";
 import { PdfExtractorService } from "./documents/pdf-extractor.service.js";
 import { ReceiptExpenseAgentService } from "./documents/receipt-expense-agent.service.js";
 import { StatementDocumentRepository } from "./documents/statement-document.repository.js";
@@ -60,6 +61,7 @@ import { TransactionsController } from "./transactions/transactions.controller.j
     CategoriesController,
     DashboardController,
     DocumentsController,
+    GoalsController,
     InvestmentsController,
     NotificationsController,
     SimulationsController,

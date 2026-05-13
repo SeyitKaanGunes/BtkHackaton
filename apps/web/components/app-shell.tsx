@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRightLeft, BarChart3, Bot, Brain, Building2, CalendarPlus, CheckCircle2, Clock3, LayoutDashboard, ListChecks, MessageSquareText, Repeat2, ShieldCheck, Sparkles, TrendingUp, WandSparkles } from "lucide-react";
+import { ArrowRightLeft, BarChart3, Bot, Brain, Building2, CalendarPlus, CheckCircle2, Clock3, LayoutDashboard, ListChecks, MessageSquareText, Repeat2, ShieldCheck, Sparkles, Target, TrendingUp, WandSparkles } from "lucide-react";
 import { AgentLauncher } from "./agent-launcher";
 import { LogoutButton } from "./logout-button";
 
@@ -10,6 +10,7 @@ const personalNav = [
   { href: "/categories", label: "Kategori Dağılımı", icon: BarChart3 },
   { href: "/spending-dna", label: "Spending DNA", icon: Brain },
   { href: "/what-if", label: "What-if", icon: WandSparkles },
+  { href: "/goals", label: "Hedefler", icon: Target },
   { href: "/emotional-delay", label: "Emotional Delay", icon: Clock3 },
   { href: "/actions", label: "Aksiyon Merkezi", icon: ListChecks },
   { href: "/subscriptions", label: "Abonelik Avcısı", icon: Repeat2 },

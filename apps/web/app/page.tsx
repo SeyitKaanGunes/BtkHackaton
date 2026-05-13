@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import type { DashboardPeriod } from "@fintwin/shared";
-import { Landmark, PiggyBank, ReceiptText, ShieldAlert, WalletCards } from "lucide-react";
+import { Landmark, PiggyBank, ReceiptText, ShieldAlert, Target, WalletCards } from "lucide-react";
 import { AppShell } from "../components/app-shell";
 import { ManualTransactionPanel } from "../components/dashboard-actions";
 import { ReceiptScanner } from "../components/receipt-scanner";
@@ -96,6 +96,25 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         />
       </section>
 
+      <section className="module-grid personal-module-grid">
+        <ModuleCard
+          href="/portfolio"
+          icon={<Landmark size={20} />}
+          label="Yatırım Portföyü"
+          value={portfolio ? `${portfolio.totalMarketValueTry.toLocaleString("tr-TR")} TL` : "Bağlantı bekleniyor"}
+          caption={portfolio ? portfolioCaption(portfolio.positions.length, portfolio.totalProfitLossPercent) : "Portföy ekranına git"}
+        />
+        <ModuleCard
+          href="/goals"
+          icon={<Target size={20} />}
+          label="Hedefler ve Limitler"
+          value={`${dashboard.goals.length} hedef`}
+          caption="Birikim planı ve kategori limitleri"
+        />
+      </section>
+
+      <ManualTransactionPanel initialUser={user} />
+
       <section className="panel document-ingest-panel">
         <div className="section-title">
           <span>Belgeyle hızlı kayıt</span>
@@ -106,18 +125,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </p>
         <ReceiptScanner />
       </section>
-
-      <section className="module-grid personal-module-grid">
-        <ModuleCard
-          href="/portfolio"
-          icon={<Landmark size={20} />}
-          label="Yatırım Portföyü"
-          value={portfolio ? `${portfolio.totalMarketValueTry.toLocaleString("tr-TR")} TL` : "Bağlantı bekleniyor"}
-          caption={portfolio ? portfolioCaption(portfolio.positions.length, portfolio.totalProfitLossPercent) : "Portföy ekranına git"}
-        />
-      </section>
-
-      <ManualTransactionPanel initialUser={user} />
     </AppShell>
   );
 }

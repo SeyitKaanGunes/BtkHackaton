@@ -17,6 +17,10 @@ import type {
   InvestmentHoldingCreateRequest,
   InvestmentPortfolioSummary,
   MarketSymbolResult,
+  BudgetUpsertRequest,
+  GoalAdviceResponse,
+  GoalCreateRequest,
+  PlanningOverview,
   ReceiptExpenseImportResult,
   ReceiptScanResult,
   RiskLevel,
@@ -125,10 +129,10 @@ async function request<T>(path: string, init?: RequestInit, options?: AuthOption
   const isDocumentEndpoint = isStatementEndpoint || isReceiptEndpoint;
   const targetUrl = requestUrl(path, options);
   try {
-    const response = await fetch(targetUrl, {
+    const response = await fetchWithRetry(targetUrl, {
       ...withAuthHeaders(init, options),
       cache: "no-store"
-    });
+    }, retryAttempts(options));
     if (!response.ok) {
       await throwApiError(path, response, isStatementEndpoint);
     }
@@ -146,6 +150,33 @@ async function request<T>(path: string, init?: RequestInit, options?: AuthOption
     }
     throw new Error(`Fintwin API request failed for ${path}: ${message}`);
   }
+}
+
+async function fetchWithRetry(url: string, init: RequestInit, attempts: number) {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fetch(url, init);
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts || !isTransientFetchError(error)) break;
+      await delay(Math.min(1000, 250 * attempt));
+    }
+  }
+  throw lastError;
+}
+
+function retryAttempts(options?: AuthOptions) {
+  return typeof window === "undefined" && options?.token && process.env.NODE_ENV === "development" ? 20 : 1;
+}
+
+function isTransientFetchError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /fetch failed|ECONNREFUSED|refused|socket|network/i.test(message);
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function requestUrl(path: string, options?: AuthOptions) {
@@ -204,8 +235,53 @@ export function getCategories(options?: AuthOptions & { kind?: TransactionType }
   return request<Category[]>(`/categories${query}`, undefined, options);
 }
 
+export function getPlanningOverview(options?: AuthOptions) {
+  return request<PlanningOverview>("/goals", undefined, options);
+}
+
+export function getGoalAdvice(options?: AuthOptions) {
+  return request<GoalAdviceResponse>("/goals/advice", undefined, options);
+}
+
+export function createGoal(input: GoalCreateRequest, options?: AuthOptions) {
+  return request<PlanningOverview["goals"][number]>(
+    "/goals",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
+export function upsertSavingsPlan(input: { monthlyAmount: number; yearlyAmount: number }, options?: AuthOptions) {
+  return request<PlanningOverview["savingsPlan"]>(
+    "/goals/savings-plan",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
+export function upsertBudget(input: BudgetUpsertRequest, options?: AuthOptions) {
+  return request<PlanningOverview["budgets"][number]>(
+    "/goals/budgets",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
 export function getPersonalDashboard(options?: DashboardRequestOptions) {
   return request<DashboardSummary>(periodPath("/dashboard/personal", options), undefined, options);
+}
+
+export function getTransactions(options?: AuthOptions) {
+  return request<Transaction[]>("/transactions", undefined, options);
 }
 
 export function getSpendingDna(options?: DashboardRequestOptions) {

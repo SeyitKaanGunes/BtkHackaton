@@ -15,6 +15,7 @@ import type {
   Category,
   Currency,
   Goal,
+  GoalCreateRequest,
   InvestmentAssetType,
   InvestmentHolding,
   Subscription,
@@ -40,10 +41,15 @@ interface StoredUser extends UserProfile {
 }
 
 type FinanceProfileUpdate = Partial<Pick<UserProfile, "monthlyIncome" | "payday" | "currency">>;
+type SavingsGoalType = "monthly" | "yearly";
 
 const customCategoryColors = ["#0d9488", "#2563eb", "#9333ea", "#f97316", "#be123c", "#64748b", "#16a34a"];
 const defaultDatabaseStartupRetryAttempts = 6;
 const defaultDatabaseStartupRetryDelayMs = 2500;
+const savingsGoalTitles: Record<SavingsGoalType, string> = {
+  monthly: "Aylık birikim hedefi",
+  yearly: "Yıllık birikim hedefi"
+};
 
 export class DataStoreNotReadyError extends Error {
   constructor() {
@@ -498,6 +504,92 @@ export class DataStoreService implements OnModuleInit {
     return mapped;
   }
 
+  async addGoal(userId: string, input: GoalCreateRequest) {
+    this.assertReady();
+    const title = input.title.trim();
+    if (!title) throw new BadRequestException("Hedef adı zorunlu.");
+    const targetAmount = positiveMoney(input.targetAmount, "targetAmount");
+    const currentAmount = nonNegativeMoney(input.currentAmount ?? 0, "currentAmount");
+    const deadline = normalizeDateOnly(input.deadline, "deadline");
+    if (currentAmount > targetAmount) {
+      throw new BadRequestException("Mevcut birikim hedef tutarını aşamaz.");
+    }
+    const created = await this.prisma.goal.create({
+      data: {
+        id: `goal-${randomUUID()}`,
+        userId,
+        title,
+        targetAmount,
+        currentAmount,
+        deadline: new Date(`${deadline}T12:00:00.000Z`)
+      }
+    });
+    const mapped = this.mapGoal(created);
+    this.goals = [...this.goals, mapped].sort((left, right) => left.deadline.localeCompare(right.deadline));
+    return mapped;
+  }
+
+  async upsertBudget(userId: string, input: { categoryId: string; monthlyLimit: number }) {
+    this.assertReady();
+    const category = this.categories.find((item) => item.id === input.categoryId && item.kind === "expense");
+    if (!category) throw new BadRequestException("Geçerli bir gider kategorisi seçilmeli.");
+    const monthlyLimit = nonNegativeMoney(input.monthlyLimit, "monthlyLimit");
+    const existing = this.budgets.find((budget) => budget.userId === userId && budget.categoryId === category.id);
+    const persisted = existing
+      ? await this.prisma.budget.update({
+          where: { id: existing.id },
+          data: { monthlyLimit }
+        })
+      : await this.prisma.budget.create({
+          data: {
+            id: `budget-${randomUUID()}`,
+            userId,
+            categoryId: category.id,
+            monthlyLimit
+          }
+        });
+    const mapped = this.mapBudget(persisted);
+    this.budgets = [mapped, ...this.budgets.filter((budget) => budget.id !== mapped.id)];
+    return mapped;
+  }
+
+  async upsertSavingsPlan(userId: string, input: { monthlyAmount: number; yearlyAmount: number }) {
+    this.assertReady();
+    const monthly = await this.upsertSavingsGoal(userId, "monthly", input.monthlyAmount);
+    const yearly = await this.upsertSavingsGoal(userId, "yearly", input.yearlyAmount);
+    return { monthly, yearly };
+  }
+
+  private async upsertSavingsGoal(userId: string, type: SavingsGoalType, amountInput: number) {
+    const targetAmount = nonNegativeMoney(amountInput, `${type}Amount`);
+    const title = savingsGoalTitles[type];
+    const existing = this.goals.find((goal) => goal.userId === userId && goal.title === title);
+    const deadline = type === "monthly" ? endOfCurrentMonth() : endOfCurrentYear();
+    const currentAmount = existing ? Math.min(existing.currentAmount, targetAmount) : 0;
+    const persisted = existing
+      ? await this.prisma.goal.update({
+          where: { id: existing.id },
+          data: {
+            targetAmount,
+            currentAmount,
+            deadline: new Date(`${deadline}T12:00:00.000Z`)
+          }
+        })
+      : await this.prisma.goal.create({
+          data: {
+            id: `goal-${type}-${randomUUID()}`,
+            userId,
+            title,
+            targetAmount,
+            currentAmount,
+            deadline: new Date(`${deadline}T12:00:00.000Z`)
+          }
+        });
+    const mapped = this.mapGoal(persisted);
+    this.goals = [mapped, ...this.goals.filter((goal) => goal.id !== mapped.id)].sort((left, right) => left.deadline.localeCompare(right.deadline));
+    return mapped;
+  }
+
   async upsertSubscription(
     userId: string,
     input: Pick<Subscription, "merchant" | "categoryId" | "amount" | "currency" | "cadence" | "lastUsedAt">
@@ -711,14 +803,7 @@ export class DataStoreService implements OnModuleInit {
       categoryId: budget.categoryId,
       monthlyLimit: Number(budget.monthlyLimit)
     }));
-    this.goals = storedGoals.map((goal) => ({
-      id: goal.id,
-      userId: goal.userId,
-      title: goal.title,
-      targetAmount: Number(goal.targetAmount),
-      currentAmount: Number(goal.currentAmount),
-      deadline: this.dateOnly(goal.deadline)
-    }));
+    this.goals = storedGoals.map((goal) => this.mapGoal(goal));
     this.subscriptions = storedSubscriptions.map((subscription) => this.mapSubscription(subscription));
     this.transactions = storedTransactions.map((transaction) => this.mapTransaction(transaction));
     this.actions = storedActions.map((action) => this.mapAction(action));
@@ -832,6 +917,26 @@ export class DataStoreService implements OnModuleInit {
       cadence: subscription.cadence as Subscription["cadence"],
       lastUsedAt: subscription.lastUsedAt ? this.dateOnly(subscription.lastUsedAt) : undefined,
       previousAmount: subscription.previousAmount === null ? undefined : Number(subscription.previousAmount)
+    };
+  }
+
+  private mapGoal(goal: { id: string; userId: string; title: string; targetAmount: unknown; currentAmount: unknown; deadline: Date }): Goal {
+    return {
+      id: goal.id,
+      userId: goal.userId,
+      title: goal.title,
+      targetAmount: Number(goal.targetAmount),
+      currentAmount: Number(goal.currentAmount),
+      deadline: this.dateOnly(goal.deadline)
+    };
+  }
+
+  private mapBudget(budget: { id: string; userId: string; categoryId: string; monthlyLimit: unknown }): Budget {
+    return {
+      id: budget.id,
+      userId: budget.userId,
+      categoryId: budget.categoryId,
+      monthlyLimit: Number(budget.monthlyLimit)
     };
   }
 
@@ -983,6 +1088,34 @@ function normalizeDateOnly(value: string, field: string) {
     throw new BadRequestException(`${field} must be a valid date.`);
   }
   return value;
+}
+
+function positiveMoney(value: unknown, field: string) {
+  const parsed = moneyValue(value, field);
+  if (parsed <= 0) throw new BadRequestException(`${field} pozitif olmalı.`);
+  return parsed;
+}
+
+function nonNegativeMoney(value: unknown, field: string) {
+  const parsed = moneyValue(value, field);
+  if (parsed < 0) throw new BadRequestException(`${field} sıfır veya pozitif olmalı.`);
+  return parsed;
+}
+
+function moneyValue(value: unknown, field: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) throw new BadRequestException(`${field} sayı olmalı.`);
+  return Number(parsed.toFixed(2));
+}
+
+function endOfCurrentMonth() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+}
+
+function endOfCurrentYear() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), 11, 31)).toISOString().slice(0, 10);
 }
 
 function normalizeSubscriptionMerchant(value: string) {
