@@ -90,8 +90,6 @@ export function EmotionalDelayDetailPanel({ whatIf, campaign }: { whatIf: WhatIf
         </div>
         <CashflowPanel whatIf={whatIf} compact />
       </div>
-
-      <AssumptionPanel assumptions={[]} missingData={whatIf.missingData} />
     </section>
   );
 }
