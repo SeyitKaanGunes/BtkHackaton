@@ -9,6 +9,9 @@ loadEnvIfMissing(resolve(repoRoot, ".env"));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  turbopack: {
+    root: repoRoot
+  },
   transpilePackages: ["@fintwin/shared"]
 };
 

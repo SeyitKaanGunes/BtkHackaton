@@ -18,11 +18,11 @@ AI-powered Financial Digital Twin platform for personal finance first, with a se
 
 ```bash
 npm install
-docker compose up -d
-npm run dev:api
-npm run dev:web
+npm run dev:local
 npm run dev:mobile
 ```
+
+`npm run dev:local` starts the API on `http://localhost:4000` and the web app on `http://localhost:3000`. On startup it clears stale Fintwin dev processes on ports 3000/4000, then prints readiness lines for both services. Use `npm run dev:local -- --no-clean` only when you intentionally want to keep already-running dev processes.
 
 Never commit `.env` files. Only `.env.example` files belong in git.
 
