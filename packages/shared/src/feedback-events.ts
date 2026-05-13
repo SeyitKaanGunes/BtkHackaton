@@ -1,4 +1,4 @@
-export type UserDecisionAction = "purchased" | "delayed" | "cancelled" | "reduced_amount";
+export type UserDecisionAction = "bought" | "delayed" | "cancelled" | "reduced" | "planned";
 
 export interface UserDecisionEvent {
   scenarioId: string;
@@ -23,7 +23,7 @@ export interface UserDecisionEventValidationResult {
   errors: string[];
 }
 
-const validUserDecisionActions = new Set<UserDecisionAction>(["purchased", "delayed", "cancelled", "reduced_amount"]);
+const validUserDecisionActions = new Set<UserDecisionAction>(["bought", "delayed", "cancelled", "reduced", "planned"]);
 let scenarioIdCounter = 0;
 
 export function generateScenarioId(prefix = "scenario"): string {
@@ -48,13 +48,13 @@ export function validateUserDecisionEvent(event: UserDecisionEvent): UserDecisio
   if (!event.category?.trim()) errors.push("category boş olamaz.");
   if (!(event.timestamp instanceof Date) || Number.isNaN(event.timestamp.getTime())) errors.push("timestamp geçerli bir Date olmalı.");
 
-  if (event.userAction === "reduced_amount") {
+  if (event.userAction === "reduced") {
     if (event.finalAmount === undefined) {
-      errors.push("reduced_amount için finalAmount gerekli.");
+      errors.push("reduced için finalAmount gerekli.");
     } else if (!Number.isFinite(event.finalAmount) || event.finalAmount <= 0) {
       errors.push("finalAmount pozitif olmalı.");
     } else if (event.finalAmount >= event.originalAmount) {
-      errors.push("reduced_amount için finalAmount originalAmount'tan küçük olmalı.");
+      errors.push("reduced için finalAmount originalAmount'tan küçük olmalı.");
     }
   }
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
-import { Clock3, WandSparkles } from "lucide-react";
-import type { Category, WhatIfResponse } from "@fintwin/shared";
-import { getCategories, getWhatIf, type CampaignReadiness } from "../lib/api";
+import { CheckCircle2, Clock3, History, WandSparkles, XCircle } from "lucide-react";
+import type { Category, SimulationHistoryItem, UserDecisionAction, WhatIfResponse } from "@fintwin/shared";
+import { getCategories, getSimulationHistory, getWhatIf, postDecisionEvent, type CampaignReadiness } from "../lib/api";
 import { localDateInputValue, parseMoneyInput } from "../lib/input-format";
 import { EmotionalDelayDetailPanel, WhatIfDetailPanel } from "./insight-detail-panels";
 
@@ -11,6 +11,10 @@ type Status = { tone: "error" | "ok"; text: string } | null;
 
 export function WhatIfSimulator({ initialWhatIf }: { initialWhatIf: WhatIfResponse }) {
   const [whatIf, setWhatIf] = useState(initialWhatIf);
+  const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
+  useEffect(() => {
+    void getSimulationHistory().then(setHistory).catch(() => setHistory([]));
+  }, []);
   return (
     <section className="decision-simulator">
       <DecisionInputPanel
@@ -20,12 +24,17 @@ export function WhatIfSimulator({ initialWhatIf }: { initialWhatIf: WhatIfRespon
         submitLabel="Senaryoyu hesapla"
       />
       <WhatIfDetailPanel whatIf={whatIf} />
+      <DecisionHistoryPanel current={whatIf} history={history} onHistory={setHistory} />
     </section>
   );
 }
 
 export function EmotionalDelaySimulator({ initialWhatIf, campaign }: { initialWhatIf: WhatIfResponse; campaign: CampaignReadiness }) {
   const [whatIf, setWhatIf] = useState(initialWhatIf);
+  const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
+  useEffect(() => {
+    void getSimulationHistory().then(setHistory).catch(() => setHistory([]));
+  }, []);
   return (
     <section className="decision-simulator">
       <DecisionInputPanel
@@ -35,6 +44,7 @@ export function EmotionalDelaySimulator({ initialWhatIf, campaign }: { initialWh
         submitLabel="Bekleme süresini hesapla"
       />
       <EmotionalDelayDetailPanel whatIf={whatIf} campaign={campaign} />
+      <DecisionHistoryPanel current={whatIf} history={history} onHistory={setHistory} />
     </section>
   );
 }
@@ -140,4 +150,100 @@ function DecisionInputPanel({
       {status ? <p className={`form-message ${status.tone === "error" ? "danger" : "success-message"}`}>{status.text}</p> : null}
     </div>
   );
+}
+
+function DecisionHistoryPanel({
+  current,
+  history,
+  onHistory
+}: {
+  current: WhatIfResponse;
+  history: SimulationHistoryItem[];
+  onHistory: (items: SimulationHistoryItem[]) => void;
+}) {
+  const [pending, setPending] = useState<UserDecisionAction | null>(null);
+  const [finalAmount, setFinalAmount] = useState("");
+  const [status, setStatus] = useState<Status>(null);
+  const canRecord = Boolean(current.simulationId);
+
+  async function record(userAction: UserDecisionAction) {
+    if (!current.simulationId) {
+      setStatus({ tone: "error", text: "Önce tutarlı bir senaryo hesapla; boş başlangıç senaryosu karar günlüğüne yazılmaz." });
+      return;
+    }
+    const parsedFinalAmount = userAction === "reduced" ? parseMoneyInput(finalAmount) : undefined;
+    if (userAction === "reduced" && (parsedFinalAmount === undefined || parsedFinalAmount <= 0)) {
+      setStatus({ tone: "error", text: "Azaltılmış karar için yeni tutarı gir." });
+      return;
+    }
+    setPending(userAction);
+    setStatus(null);
+    try {
+      await postDecisionEvent(current.simulationId, { userAction, finalAmount: parsedFinalAmount });
+      onHistory(await getSimulationHistory());
+      setStatus({ tone: "ok", text: "Karar günlüğe işlendi." });
+      setFinalAmount("");
+    } catch (error) {
+      setStatus({ tone: "error", text: error instanceof Error ? error.message : "Karar kaydedilemedi." });
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <div className="panel decision-history-panel">
+      <div className="section-title">
+        <span>Karar günlüğü</span>
+        <strong>{history.length}</strong>
+      </div>
+      <div className="decision-outcome-row">
+        <button className="secondary-button small-button" disabled={!canRecord || Boolean(pending)} type="button" onClick={() => void record("bought")}>
+          <CheckCircle2 size={15} />
+          {pending === "bought" ? "Kaydediliyor" : "Aldım"}
+        </button>
+        <button className="secondary-button small-button" disabled={!canRecord || Boolean(pending)} type="button" onClick={() => void record("delayed")}>
+          <Clock3 size={15} />
+          Erteledim
+        </button>
+        <button className="secondary-button small-button danger-button" disabled={!canRecord || Boolean(pending)} type="button" onClick={() => void record("cancelled")}>
+          <XCircle size={15} />
+          Vazgeçtim
+        </button>
+        <label className="field reduced-amount-field">
+          <span>Azaltılmış tutar</span>
+          <input inputMode="decimal" value={finalAmount} onChange={(event) => setFinalAmount(event.target.value)} placeholder="2500" />
+        </label>
+        <button className="secondary-button small-button" disabled={!canRecord || Boolean(pending)} type="button" onClick={() => void record("reduced")}>
+          Azalttım
+        </button>
+      </div>
+      {status ? <p className={`form-message ${status.tone === "error" ? "danger" : "success-message"}`}>{status.text}</p> : null}
+      {history.length ? (
+        <div className="decision-history-list">
+          {history.slice(0, 6).map((item) => (
+            <article className="decision-history-row" key={item.id}>
+              <History size={16} />
+              <div>
+                <strong>{item.question}</strong>
+                <span>
+                  {item.amount ? `${item.amount.toLocaleString("tr-TR")} TL` : "Tutar yok"} · {item.categoryName ?? "Kategori yok"} · {new Date(item.createdAt).toLocaleDateString("tr-TR")}
+                </span>
+              </div>
+              <small>{item.decisionEvents[0] ? decisionLabel(item.decisionEvents[0].userAction) : "Karar bekliyor"}</small>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state">Gerçek tutarlı senaryolar burada karar geçmişine dönüşür.</div>
+      )}
+    </div>
+  );
+}
+
+function decisionLabel(action: string) {
+  if (action === "bought") return "Alındı";
+  if (action === "delayed") return "Ertelendi";
+  if (action === "cancelled") return "Vazgeçildi";
+  if (action === "reduced") return "Tutar azaltıldı";
+  return "Planlandı";
 }

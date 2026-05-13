@@ -1,4 +1,5 @@
 import type { DataConfidence, FinancialResultMetadata } from "./financial-metadata.js";
+import type { UserDecisionAction } from "./feedback-events.js";
 
 export type Currency = "TRY" | "USD" | "EUR";
 
@@ -23,6 +24,7 @@ export interface DashboardPeriodOptions {
 }
 
 export type ActionStatus = "pending" | "approved" | "dismissed";
+export type SubscriptionStatus = "active" | "watching" | "cancelled" | "ignored";
 
 export type ActionType =
   | "payment_reminder"
@@ -51,6 +53,22 @@ export interface Account {
   balance: number;
   currency: Currency;
   creditLimit?: number;
+}
+
+export interface AccountCreateRequest {
+  name: string;
+  type: Account["type"];
+  balance?: number;
+  currency?: Currency;
+  creditLimit?: number;
+}
+
+export interface AccountUpdateRequest {
+  name?: string;
+  type?: Account["type"];
+  balance?: number;
+  currency?: Currency;
+  creditLimit?: number | null;
 }
 
 export interface MarketSymbolResult {
@@ -172,6 +190,16 @@ export interface Budget {
   monthlyLimit: number;
 }
 
+export interface BudgetCreateRequest {
+  categoryId: string;
+  monthlyLimit: number;
+}
+
+export interface BudgetUpdateRequest {
+  categoryId?: string;
+  monthlyLimit?: number;
+}
+
 export interface Goal {
   id: string;
   userId: string;
@@ -216,6 +244,13 @@ export interface GoalAdviceResponse {
   source: "llm" | "unavailable";
 }
 
+export interface GoalUpdateRequest {
+  title?: string;
+  targetAmount?: number;
+  currentAmount?: number;
+  deadline?: string;
+}
+
 export interface Subscription {
   id: string;
   userId: string;
@@ -226,6 +261,34 @@ export interface Subscription {
   cadence: "monthly" | "yearly";
   lastUsedAt?: string;
   previousAmount?: number;
+  status: SubscriptionStatus;
+  nextExpectedAt?: string;
+  note?: string;
+  source: "statement" | "manual";
+}
+
+export interface SubscriptionUpdateRequest {
+  status?: SubscriptionStatus;
+  nextExpectedAt?: string | null;
+  note?: string | null;
+}
+
+export interface DocumentHistoryItem {
+  id: string;
+  kind: string;
+  merchant?: string;
+  totalAmount?: number;
+  taxAmount?: number;
+  occurredAt?: string;
+  status: string;
+  fileName?: string;
+  statementMonth?: string;
+  sourceType?: string;
+  importedAt?: string;
+  createdAt: string;
+  warnings: string[];
+  itemCount: number;
+  lowConfidenceCount: number;
 }
 
 export interface ActionItem {
@@ -321,6 +384,42 @@ export interface SubscriptionReminderResult {
   scheduled: true;
 }
 
+export interface DecisionEvent {
+  id: string;
+  userId: string;
+  simulationId: string;
+  scenarioId: string;
+  userAction: UserDecisionAction;
+  originalAmount: number;
+  finalAmount?: number;
+  categoryId?: string;
+  categoryName?: string;
+  note?: string;
+  createdAt: string;
+}
+
+export interface DecisionEventCreateRequest {
+  userAction: UserDecisionAction;
+  finalAmount?: number;
+  note?: string;
+}
+
+export interface SimulationHistoryItem {
+  id: string;
+  kind: "what_if" | "emotional_delay" | string;
+  scenarioId?: string;
+  question: string;
+  amount?: number;
+  categoryId?: string;
+  categoryName?: string;
+  decisionDate?: string;
+  riskLevel?: RiskLevel;
+  emotionalDelayMinutes?: number;
+  safeLimit?: number;
+  createdAt: string;
+  decisionEvents: DecisionEvent[];
+}
+
 export interface SpendingDnaCategory {
   categoryId: string;
   categoryName: string;
@@ -402,6 +501,7 @@ export interface WhatIfRequest {
 }
 
 export interface WhatIfResponse {
+  simulationId?: string;
   scenarioId?: string;
   question: string;
   safeLimit: number;
@@ -464,6 +564,20 @@ export interface AgentResponse {
   evidence: AgentEvidence[];
   assumptions: string[];
   suggestedActions: ActionItem[];
+}
+
+export interface AgentConversationSummary {
+  id: string;
+  message: string;
+  answer: string;
+  evidence: AgentEvidence[];
+  createdAt: string;
+}
+
+export interface FinancialProfile {
+  accounts: Account[];
+  budgets: Budget[];
+  goals: Goal[];
 }
 
 export interface TextToSpeechRequest {

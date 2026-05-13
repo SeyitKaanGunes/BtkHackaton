@@ -60,9 +60,9 @@ export const goals: Goal[] = [
 ];
 
 export const subscriptions: Subscription[] = [
-  { id: "sub-stream", userId: DEMO_USER_ID, merchant: "StreamPlus", categoryId: "cat-subscription", amount: 219, currency: "TRY", cadence: "monthly", lastUsedAt: "2026-02-18", previousAmount: 179 },
-  { id: "sub-cloud", userId: DEMO_USER_ID, merchant: "CloudBox", categoryId: "cat-subscription", amount: 149, currency: "TRY", cadence: "monthly", lastUsedAt: "2026-05-01" },
-  { id: "sub-cloud-pro", userId: DEMO_USER_ID, merchant: "CloudBox Pro", categoryId: "cat-subscription", amount: 179, currency: "TRY", cadence: "monthly", lastUsedAt: "2026-05-03" }
+  { id: "sub-stream", userId: DEMO_USER_ID, merchant: "StreamPlus", categoryId: "cat-subscription", amount: 219, currency: "TRY", cadence: "monthly", lastUsedAt: "2026-02-18", previousAmount: 179, status: "active", source: "statement" },
+  { id: "sub-cloud", userId: DEMO_USER_ID, merchant: "CloudBox", categoryId: "cat-subscription", amount: 149, currency: "TRY", cadence: "monthly", lastUsedAt: "2026-05-01", status: "active", source: "statement" },
+  { id: "sub-cloud-pro", userId: DEMO_USER_ID, merchant: "CloudBox Pro", categoryId: "cat-subscription", amount: 179, currency: "TRY", cadence: "monthly", lastUsedAt: "2026-05-03", status: "watching", source: "statement" }
 ];
 
 export const actions: ActionItem[] = [

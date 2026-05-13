@@ -312,6 +312,8 @@ export function InvestmentPortfolio({ initialPortfolio, mode = "overview" }: Inv
           </div>
         ) : null}
 
+        <PortfolioTwinPanel portfolio={portfolio} />
+
         <div className="position-list">
           {portfolio.positions.length === 0 ? (
             <div className="empty-state portfolio-empty-state">
@@ -359,6 +361,53 @@ export function InvestmentPortfolio({ initialPortfolio, mode = "overview" }: Inv
       </div>
 
     </section>
+  );
+}
+
+function PortfolioTwinPanel({ portfolio }: { portfolio: InvestmentPortfolioSummary }) {
+  const topAllocation = [...portfolio.allocation].sort((left, right) => right.weight - left.weight)[0];
+  const cashWeight = portfolio.allocation.find((item) => item.assetType === "cash")?.weight ?? 0;
+  const riskNotes = [
+    topAllocation && topAllocation.weight >= 70 ? `${topAllocation.label} portföyün %${topAllocation.weight.toLocaleString("tr-TR")} kısmını oluşturuyor; yoğunlaşma riski izlenmeli.` : undefined,
+    cashWeight < 10 && portfolio.totalMarketValueTry > 0 ? "Nakit/mevduat oranı düşük; kısa vadeli hedefler için likidite tamponu kontrol edilmeli." : undefined,
+    portfolio.hasMarketDataGap ? `${portfolio.unpricedPositionCount} pozisyon için fiyat alınamadı; kar/zarar yalnızca fiyatlanan varlıklardan hesaplanıyor.` : undefined,
+    portfolio.totalDailyInterestTry > 0 ? `Mevduat/nakit günlük faiz projeksiyonu ${formatTry(portfolio.totalDailyInterestTry)}.` : undefined
+  ].filter((note): note is string => Boolean(note));
+
+  return (
+    <div className="panel portfolio-twin-panel">
+      <div className="section-title">
+        <span>Portföy İkizi</span>
+        <strong>{portfolio.hasMarketDataGap ? "Eksik veri var" : "Dağılım okunuyor"}</strong>
+      </div>
+      {portfolio.positions.length ? (
+        <div className="portfolio-twin-grid">
+          <div>
+            <span>En yoğun varlık sınıfı</span>
+            <strong>{topAllocation ? `${topAllocation.label} · %${topAllocation.weight.toLocaleString("tr-TR")}` : "Yok"}</strong>
+          </div>
+          <div>
+            <span>Fiyatlanamayan maliyet</span>
+            <strong>{formatTry(portfolio.unpricedCostTry)}</strong>
+          </div>
+          <div>
+            <span>Veri güveni</span>
+            <strong>{portfolio.hasMarketDataGap ? "Orta" : "Yüksek"}</strong>
+          </div>
+        </div>
+      ) : (
+        <div className="empty-state">Pozisyon eklendiğinde dağılım riski ve piyasa veri boşlukları burada açıklanır.</div>
+      )}
+      {riskNotes.length ? (
+        <ul className="reason-list">
+          {riskNotes.map((note) => (
+            <li key={note}>
+              <span>{note}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 

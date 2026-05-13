@@ -11,7 +11,7 @@ AI-powered Financial Digital Twin platform for personal finance first, with a se
 - AI: LangChain + LangGraph with Qwen API (DashScope OpenAI-compatible)
 - OCR: Qwen multimodal structured JSON output
 - Auth: JWT plus web Google sign-in via Google Identity Services
-- Notifications: Firebase Cloud Messaging placeholders
+- Notifications: in-app action reminders; FCM token intake is wired but push delivery is a separate production decision
 - Charts: Recharts on web
 
 ## Local Setup
@@ -33,7 +33,7 @@ Demo fallbacks are disabled. Web and mobile must call the API, and the API must 
 Use `.env.production.example` as the deployment checklist. For the API, these values are required when `NODE_ENV=production`:
 
 - `DATABASE_URL`: Supabase transaction pooler URI, used by the running API.
-- `DIRECT_URL`: Supabase direct/session-pooler URI, used by Prisma schema pushes.
+- `DIRECT_URL`: Supabase direct/session-pooler URI, used by Prisma migrations.
 - `JWT_SECRET`: a random secret with at least 32 characters.
 - `API_CORS_ORIGINS`: comma-separated web origins allowed to call the API.
 - `QWEN_API_KEY`: required for production AI/OCR flows.
@@ -43,7 +43,7 @@ Use `.env.production.example` as the deployment checklist. For the API, these va
 - `GEMINI_API_KEY`: required for production text-to-speech. `GOOGLE_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY` can be used by the API service instead.
 
 For the web app, set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. `NEXT_PUBLIC_GOOGLE_CLIENT_ID` must be the same Google OAuth Web Client ID configured as `GOOGLE_OAUTH_CLIENT_ID` on the API.
-The Google OAuth web client must allow `http://localhost:3000` as a JavaScript origin for local development and `http://localhost:3000/login/google` as a redirect URI for the redirect-based sign-in flow.
+The Google OAuth web client must allow `http://localhost:3000` as a JavaScript origin for local development and `http://localhost:3000/login/google` as a redirect URI for the redirect-based sign-in flow. In production, add the deployed web origin and `<web-origin>/login/google`; keep the OAuth consent screen app name/domain aligned with the deployed product.
 Local web auth is best started with `npm run dev:local`; `apps/web/next.config.mjs` also loads the repo-root `.env` so `npm run dev:web` can see `NEXT_PUBLIC_GOOGLE_CLIENT_ID` when it is run by itself.
 The web app stores the session JWT in an HttpOnly `fintwin_token` cookie through `/api/auth/*` routes. Browser-side API calls go through `/api/backend/*`, which attaches that cookie server-side instead of reading a token from `localStorage`.
 The `admin` / `admin` development account is only for local demos; `admin@local.dev` sign-in and registration are rejected when `NODE_ENV=production`.
@@ -54,12 +54,14 @@ Generate a JWT secret with:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-Before deploy, generate Prisma Client and push the current schema:
+Before deploy, generate Prisma Client and apply committed Prisma migrations:
 
 ```bash
 npm run db:generate
-npm run db:push
+npm run db:migrate:deploy
 ```
+
+Use `npm run db:migrate:dev -- --name <change-name>` when changing `apps/api/prisma/schema.prisma` locally. Do not use `prisma db push` for production.
 
 Frontend deployments only need the public API URL:
 
@@ -83,6 +85,13 @@ Market data defaults:
 - Key env name: `TWELVE_DATA_API_KEY`
 - Portfolio API: `GET /investments/portfolio`, `GET /investments/symbols?query=THYAO`, `POST /investments/holdings`
 - Quote cache: 24 hours for successful provider responses only. If the provider/key is unavailable, portfolio positions are explicitly marked unpriced; the app does not calculate profit/loss from static fallback quotes.
+
+Integration smoke checks:
+
+```bash
+npm run smoke:integrations
+npm run smoke:integrations -- --only qwen,twelve
+```
 
 ## Product Focus
 

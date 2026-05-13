@@ -733,7 +733,8 @@ export function buildWhatIfScenarios(input: WhatIfRequest = {}, source: Personal
 export function detectSubscriptionLeakage(sourceSubscriptions: Subscription[], referenceDate = new Date()): SubscriptionLeak[] {
   const unusedBefore = new Date(referenceDate);
   unusedBefore.setUTCDate(unusedBefore.getUTCDate() - 60);
-  return sourceSubscriptions.flatMap((subscription) => {
+  const actionableSubscriptions = sourceSubscriptions.filter((subscription) => subscription.status === "active" || subscription.status === "watching");
+  return actionableSubscriptions.flatMap((subscription) => {
     const leaks: SubscriptionLeak[] = [];
     if (subscription.lastUsedAt && new Date(subscription.lastUsedAt) < unusedBefore) {
       leaks.push({
@@ -754,7 +755,7 @@ export function detectSubscriptionLeakage(sourceSubscriptions: Subscription[], r
       });
     }
     return leaks;
-  }).concat(detectDuplicateSubscriptions(sourceSubscriptions));
+  }).concat(detectDuplicateSubscriptions(actionableSubscriptions));
 }
 
 export function buildAgentEvidence(source: PersonalFinanceData = {}): AgentEvidence[] {

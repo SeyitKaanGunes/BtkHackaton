@@ -149,7 +149,7 @@ export class AgentService {
     const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets, {}, data.categories);
     const readiness = calculateCampaignReadiness(data.transactions, data.budgets, {}, data.categories);
     const suggestedActions = await this.persistSuggestedActions(result.suggestedActions);
-    return {
+    const response = {
       answer:
         result.answer ??
         `Finansal sağlık skorun ${dashboard.financialHealthScore}/100. Dikkatli harcama sınırın ${readiness.safeLimit} TL.`,
@@ -170,6 +170,16 @@ export class AgentService {
       ],
       suggestedActions
     };
+    await this.store.saveAgentConversation(userId, { message, answer: response.answer, evidence: response.evidence });
+    return response;
+  }
+
+  listConversations(userId: string) {
+    return this.store.listAgentConversations(userId);
+  }
+
+  getConversation(userId: string, id: string) {
+    return this.store.getAgentConversation(userId, id);
   }
 
   private async persistSuggestedActions(actions: ActionItem[]) {
@@ -214,9 +224,7 @@ export class AgentService {
 
   private async assistantAnswer(userId: string, message: string): Promise<string> {
     const data = this.store.getPersonalData(userId);
-    const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets, {}, data.categories);
-    const dna = calculateSpendingDna(data.transactions, data.budgets, {}, data.categories);
-    const leaks = detectSubscriptionLeakage(data.subscriptions);
+    const context = this.buildAgentContext(userId);
 
     if (!this.qwen.isConfigured()) {
       throw new ServiceUnavailableException("Fintwin Agent için QWEN_API_KEY tanımlı değil; sessiz özet cevabı üretilmedi.");
@@ -234,17 +242,7 @@ export class AgentService {
             role: "user",
             content: JSON.stringify({
               message,
-              context: {
-                period: dashboard.periodLabel,
-                income: dashboard.income,
-                expenses: dashboard.expenses,
-                balance: dashboard.balance,
-                financialHealthScore: dashboard.financialHealthScore,
-                topRiskCategory: dna.categories[0]?.categoryName,
-                subscriptionLeakCount: leaks.length,
-                upcomingActionCount: dashboard.upcomingActions.length,
-                goalCount: dashboard.goals.length
-              }
+              context
             })
           }
         ],
@@ -256,5 +254,75 @@ export class AgentService {
     } catch {
       throw new ServiceUnavailableException("Qwen Agent cevabı alınamadı; sessiz özet cevabı üretilmedi.");
     }
+  }
+
+  private buildAgentContext(userId: string) {
+    const data = this.store.getPersonalData(userId);
+    const dashboard = calculateDashboardSummary(data.accounts, data.transactions, data.goals, data.actions, data.budgets, {}, data.categories);
+    const dna = calculateSpendingDna(data.transactions, data.budgets, {}, data.categories);
+    const leaks = detectSubscriptionLeakage(data.subscriptions);
+    const categoryName = (categoryId: string) => data.categories.find((category) => category.id === categoryId)?.name ?? categoryId;
+    return {
+      period: dashboard.periodLabel,
+      summary: {
+        income: dashboard.income,
+        expenses: dashboard.expenses,
+        balance: dashboard.balance,
+        savingsRate: dashboard.savingsRate,
+        financialHealthScore: dashboard.financialHealthScore
+      },
+      accounts: data.accounts.slice(0, 6).map((account) => ({
+        name: account.name,
+        type: account.type,
+        balance: account.balance,
+        currency: account.currency,
+        creditLimit: account.creditLimit
+      })),
+      budgets: data.budgets.slice(0, 8).map((budget) => ({
+        category: categoryName(budget.categoryId),
+        monthlyLimit: budget.monthlyLimit
+      })),
+      goals: data.goals.slice(0, 6).map((goal) => ({
+        title: goal.title,
+        targetAmount: goal.targetAmount,
+        currentAmount: goal.currentAmount,
+        deadline: goal.deadline
+      })),
+      topRiskCategories: dna.categories.slice(0, 4).map((category) => ({
+        category: category.categoryName,
+        riskScore: category.riskScore,
+        monthlySpend: category.monthlySpend,
+        budgetLimit: category.budgetLimit
+      })),
+      subscriptions: {
+        leakCount: leaks.length,
+        activeCount: data.subscriptions.filter((subscription) => subscription.status === "active").length,
+        watchingCount: data.subscriptions.filter((subscription) => subscription.status === "watching").length
+      },
+      recentTransactions: data.transactions.slice(0, 8).map((transaction) => ({
+        merchant: transaction.merchant,
+        amount: transaction.amount,
+        type: transaction.type,
+        category: categoryName(transaction.categoryId),
+        occurredAt: transaction.occurredAt.slice(0, 10)
+      })),
+      portfolio: {
+        holdingCount: data.investmentHoldings.length,
+        assets: data.investmentHoldings.slice(0, 8).map((holding) => ({
+          symbol: holding.symbol,
+          name: holding.name,
+          assetType: holding.assetType,
+          quantity: holding.quantity,
+          costCurrency: holding.costCurrency
+        }))
+      },
+      actions: {
+        pending: data.actions.filter((action) => action.status === "pending").slice(0, 5).map((action) => ({
+          type: action.type,
+          title: action.title,
+          dueAt: action.dueAt
+        }))
+      }
+    };
   }
 }

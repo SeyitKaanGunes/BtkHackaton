@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, CheckCircle2, Mic, Send, Sparkles, Volume2, X } from "lucide-react";
-import type { ActionItem, AgentResponse, SpeechCapabilities } from "@fintwin/shared";
-import { approveAction, dismissAction, getSpeechCapabilities, postAgentMessage, synthesizeSpeech, transcribeSpeech } from "../lib/api";
+import type { ActionItem, AgentConversationSummary, AgentResponse, SpeechCapabilities } from "@fintwin/shared";
+import { approveAction, dismissAction, getAgentConversations, getSpeechCapabilities, postAgentMessage, synthesizeSpeech, transcribeSpeech } from "../lib/api";
 
 type AgentConsoleProps = {
   compact?: boolean;
@@ -22,6 +22,7 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
   const [actionPendingId, setActionPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [speechCapabilities, setSpeechCapabilities] = useState<SpeechCapabilities | null>(null);
+  const [history, setHistory] = useState<AgentConversationSummary[]>([]);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -48,6 +49,20 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void getAgentConversations()
+      .then((items) => {
+        if (active) setHistory(items);
+      })
+      .catch(() => {
+        if (active) setHistory([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   async function sendText(text = message) {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -58,6 +73,7 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
       const next = await postAgentMessage(trimmed);
       setResponse(next);
       setTurns((current) => [...current, { role: "agent", text: next.answer }]);
+      void getAgentConversations().then(setHistory).catch(() => setHistory([]));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Agent yanıtı alınamadı.");
     } finally {
@@ -301,6 +317,36 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
       ) : (
         <div className="empty-state">Soruyu yaz veya mikrofona bas; finansal ikizin cevabı burada açılır.</div>
       )}
+
+      {history.length ? (
+        <div className="agent-history">
+          <div className="section-title">
+            <span>Agent hafızası</span>
+            <strong>{history.length}</strong>
+          </div>
+          {history.slice(0, compact ? 3 : 6).map((item) => (
+            <button
+              className="agent-history-row"
+              key={item.id}
+              onClick={() => {
+                setMessage(item.message);
+                setResponse({
+                  answer: item.answer,
+                  confidence: 0.8,
+                  routedAgents: ["Agent Memory"],
+                  evidence: item.evidence,
+                  assumptions: ["Bu cevap kayıtlı agent konuşma geçmişinden açıldı."],
+                  suggestedActions: []
+                });
+              }}
+              type="button"
+            >
+              <strong>{item.message}</strong>
+              <span>{new Date(item.createdAt).toLocaleString("tr-TR")}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

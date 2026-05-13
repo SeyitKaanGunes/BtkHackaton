@@ -17,8 +17,11 @@
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
-    "db:push": "prisma db push --schema apps/api/prisma/schema.prisma",
-    "check:no-env": "node scripts/check-no-env.mjs"
+    "db:migrate:dev": "prisma migrate dev --schema apps/api/prisma/schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
+    "db:migrate:status": "prisma migrate status --schema apps/api/prisma/schema.prisma",
+    "check:no-env": "node scripts/check-no-env.mjs",
+    "smoke:integrations": "node scripts/smoke-integrations.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

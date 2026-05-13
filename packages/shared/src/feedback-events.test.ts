@@ -13,7 +13,7 @@ describe("user decision feedback events", () => {
     expect(scenarioId).toMatch(/^what-if-/);
   });
 
-  it.each<UserDecisionAction>(["purchased", "delayed", "cancelled"])("validates %s events", (userAction) => {
+  it.each<UserDecisionAction>(["bought", "delayed", "cancelled", "planned"])("validates %s events", (userAction) => {
     const event = createUserDecisionEvent({
       scenarioId: "scenario-1",
       userAction,
@@ -25,23 +25,23 @@ describe("user decision feedback events", () => {
     expect(validateUserDecisionEvent(event)).toEqual({ valid: true, errors: [] });
   });
 
-  it("requires finalAmount for reduced_amount events", () => {
+  it("requires finalAmount for reduced events", () => {
     const event = createUserDecisionEvent({
       scenarioId: "scenario-1",
-      userAction: "reduced_amount",
+      userAction: "reduced",
       originalAmount: 1000,
       category: "technology"
     });
 
     const validation = validateUserDecisionEvent(event);
     expect(validation.valid).toBe(false);
-    expect(validation.errors).toContain("reduced_amount için finalAmount gerekli.");
+    expect(validation.errors).toContain("reduced için finalAmount gerekli.");
   });
 
-  it("requires finalAmount to be lower than originalAmount for reduced_amount events", () => {
+  it("requires finalAmount to be lower than originalAmount for reduced events", () => {
     const event = createUserDecisionEvent({
       scenarioId: "scenario-1",
-      userAction: "reduced_amount",
+      userAction: "reduced",
       originalAmount: 1000,
       finalAmount: 1000,
       category: "technology"
@@ -49,7 +49,7 @@ describe("user decision feedback events", () => {
 
     const validation = validateUserDecisionEvent(event);
     expect(validation.valid).toBe(false);
-    expect(validation.errors).toContain("reduced_amount için finalAmount originalAmount'tan küçük olmalı.");
+    expect(validation.errors).toContain("reduced için finalAmount originalAmount'tan küçük olmalı.");
   });
 
   it("sets timestamp automatically", () => {

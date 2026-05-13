@@ -5,6 +5,7 @@ import type { AuthUser } from "../auth/auth-user.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
 import { DataStoreService } from "../data/data-store.service.js";
+import { RateLimit } from "../rate-limit/rate-limit.decorator.js";
 
 @Controller("actions")
 @UseGuards(JwtAuthGuard)
@@ -31,6 +32,7 @@ export class ActionsController {
   }
 
   @Post("subscription-reminder")
+  @RateLimit({ limit: 20, windowMs: 60_000, scope: "credential" })
   async createSubscriptionReminder(@CurrentUser() user: AuthUser, @Body() body: SubscriptionReminderRequest): Promise<SubscriptionReminderResult> {
     const remindAt = normalizeReminderDate(body.remindAt);
     const merchant = requiredText(body.merchant, "merchant");

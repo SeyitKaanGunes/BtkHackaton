@@ -1,7 +1,11 @@
 import type {
   AgentResponse,
+  Account,
+  AccountCreateRequest,
+  AccountUpdateRequest,
   ActionItem,
   AiCfoSimulation,
+  AgentConversationSummary,
   Business,
   BusinessCashEvent,
   BusinessCashEventCreateRequest,
@@ -14,12 +18,21 @@ import type {
   Currency,
   DashboardPeriod,
   DashboardSummary,
+  Budget,
+  BudgetCreateRequest,
+  BudgetUpdateRequest,
+  DecisionEvent,
+  DecisionEventCreateRequest,
+  DocumentHistoryItem,
+  FinancialProfile,
+  Goal,
+  GoalCreateRequest,
+  GoalUpdateRequest,
   InvestmentHoldingCreateRequest,
   InvestmentPortfolioSummary,
   MarketSymbolResult,
   BudgetUpsertRequest,
   GoalAdviceResponse,
-  GoalCreateRequest,
   PlanningOverview,
   ReceiptExpenseImportResult,
   ReceiptScanResult,
@@ -30,8 +43,11 @@ import type {
   SpeechToTextRequest,
   SpeechToTextResult,
   SpeechCapabilities,
+  Subscription,
   SubscriptionLeak,
   SubscriptionReminderResult,
+  SubscriptionUpdateRequest,
+  SimulationHistoryItem,
   TextToSpeechRequest,
   TextToSpeechResult,
   Transaction,
@@ -244,7 +260,7 @@ export function getGoalAdvice(options?: AuthOptions) {
 }
 
 export function createGoal(input: GoalCreateRequest, options?: AuthOptions) {
-  return request<PlanningOverview["goals"][number]>(
+  return request<Goal>(
     "/goals",
     {
       method: "POST",
@@ -280,6 +296,108 @@ export function getPersonalDashboard(options?: DashboardRequestOptions) {
   return request<DashboardSummary>(periodPath("/dashboard/personal", options), undefined, options);
 }
 
+export async function getFinancialProfile(options?: AuthOptions): Promise<FinancialProfile> {
+  const [accounts, budgets, goals] = await Promise.all([getAccounts(options), getBudgets(options), getGoals(options)]);
+  return { accounts, budgets, goals };
+}
+
+export function getAccounts(options?: AuthOptions) {
+  return request<Account[]>("/accounts", undefined, options);
+}
+
+export function createAccount(input: AccountCreateRequest, options?: AuthOptions) {
+  return request<Account>(
+    "/accounts",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
+export function updateAccount(id: string, input: AccountUpdateRequest, options?: AuthOptions) {
+  return request<Account>(
+    `/accounts/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
+export function deleteAccount(id: string, options?: AuthOptions) {
+  return request<Account>(
+    `/accounts/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE"
+    },
+    options
+  );
+}
+
+export function getBudgets(options?: AuthOptions) {
+  return request<Budget[]>("/budgets", undefined, options);
+}
+
+export function createBudget(input: BudgetCreateRequest, options?: AuthOptions) {
+  return request<Budget>(
+    "/budgets",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
+export function updateBudget(id: string, input: BudgetUpdateRequest, options?: AuthOptions) {
+  return request<Budget>(
+    `/budgets/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
+export function deleteBudget(id: string, options?: AuthOptions) {
+  return request<Budget>(
+    `/budgets/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE"
+    },
+    options
+  );
+}
+
+export function getGoals(options?: AuthOptions) {
+  return getPlanningOverview(options).then((planning) => planning.goals);
+}
+
+export function updateGoal(id: string, input: GoalUpdateRequest, options?: AuthOptions) {
+  return request<Goal>(
+    `/goals/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
+export function deleteGoal(id: string, options?: AuthOptions) {
+  return request<Goal>(
+    `/goals/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE"
+    },
+    options
+  );
+}
+
 export function getTransactions(options?: AuthOptions) {
   return request<Transaction[]>("/transactions", undefined, options);
 }
@@ -294,6 +412,21 @@ export function getCampaignReadiness(options?: DashboardRequestOptions) {
 
 export function getSubscriptionLeaks(options?: AuthOptions) {
   return request<SubscriptionLeak[]>("/subscriptions/leakage", undefined, options);
+}
+
+export function getSubscriptions(options?: AuthOptions) {
+  return request<Subscription[]>("/subscriptions", undefined, options);
+}
+
+export function updateSubscription(id: string, input: SubscriptionUpdateRequest, options?: AuthOptions) {
+  return request<Subscription>(
+    `/subscriptions/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    },
+    options
+  );
 }
 
 export function getWhatIf(options?: AuthOptions & WhatIfRequest) {
@@ -311,6 +444,21 @@ export function getWhatIf(options?: AuthOptions & WhatIfRequest) {
       body: JSON.stringify(body)
     },
     options?.token ? { token: options.token } : undefined
+  );
+}
+
+export function getSimulationHistory(options?: AuthOptions) {
+  return request<SimulationHistoryItem[]>("/simulations/history", undefined, options);
+}
+
+export function postDecisionEvent(id: string, input: DecisionEventCreateRequest, options?: AuthOptions) {
+  return request<DecisionEvent>(
+    `/simulations/${encodeURIComponent(id)}/decision`,
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
   );
 }
 
@@ -411,6 +559,10 @@ export async function postAgentMessage(message: string, options?: AuthOptions): 
   );
 }
 
+export function getAgentConversations(options?: AuthOptions): Promise<AgentConversationSummary[]> {
+  return request<AgentConversationSummary[]>("/agent/conversations", undefined, options);
+}
+
 export function synthesizeSpeech(input: TextToSpeechRequest | string, options?: AuthOptions): Promise<TextToSpeechResult> {
   const body = typeof input === "string" ? { text: input } : input;
   return request<TextToSpeechResult>(
@@ -494,6 +646,10 @@ export async function postStatementConfirm(
     },
     options
   );
+}
+
+export function getDocumentHistory(options?: AuthOptions): Promise<DocumentHistoryItem[]> {
+  return request<DocumentHistoryItem[]>("/documents", undefined, options);
 }
 
 export async function postSubscriptionReminder(input: { merchant: string; amount?: number; remindAt: string; note?: string }, options?: AuthOptions): Promise<SubscriptionReminderResult> {

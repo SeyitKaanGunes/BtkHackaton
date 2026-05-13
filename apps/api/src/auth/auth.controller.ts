@@ -4,6 +4,7 @@ import type { AuthUser } from "./auth-user.js";
 import { AuthService } from "./auth.service.js";
 import { CurrentUser } from "./current-user.decorator.js";
 import { JwtAuthGuard } from "./jwt-auth.guard.js";
+import { RateLimit } from "../rate-limit/rate-limit.decorator.js";
 
 class RegisterDto {
   @IsString()
@@ -68,16 +69,19 @@ export class AuthController {
   constructor(@Inject(AuthService) private readonly auth: AuthService) {}
 
   @Post("register")
+  @RateLimit({ limit: 5, windowMs: 60_000 })
   register(@Body() body: RegisterDto) {
     return this.auth.register(body);
   }
 
   @Post("login")
+  @RateLimit({ limit: 8, windowMs: 60_000 })
   login(@Body() body: LoginDto) {
     return this.auth.login(body);
   }
 
   @Post("google")
+  @RateLimit({ limit: 12, windowMs: 60_000 })
   google(@Body() body: GoogleLoginDto) {
     return this.auth.loginWithGoogle(body);
   }

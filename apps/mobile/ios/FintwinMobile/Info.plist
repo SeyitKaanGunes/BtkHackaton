@@ -41,8 +41,6 @@
 	<string>Fiş, fatura veya ekstre görüntüsü seçmek için fotoğraf kütüphanesi erişimi gereklidir.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Agent'a sesli soru göndermek için mikrofon erişimi gereklidir.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

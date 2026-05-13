@@ -3,8 +3,9 @@ import type { DashboardPeriod } from "@fintwin/shared";
 import { Landmark, PiggyBank, ReceiptText, ShieldAlert, Target, WalletCards } from "lucide-react";
 import { AppShell } from "../components/app-shell";
 import { ManualTransactionPanel } from "../components/dashboard-actions";
+import { DocumentHistoryPanel } from "../components/document-history";
 import { ReceiptScanner } from "../components/receipt-scanner";
-import { getCampaignReadiness, getInvestmentPortfolio, getPersonalDashboard } from "../lib/api";
+import { getCampaignReadiness, getDocumentHistory, getInvestmentPortfolio, getPersonalDashboard } from "../lib/api";
 import { requirePersonalSession } from "../lib/server-auth";
 
 export const dynamic = "force-dynamic";
@@ -33,10 +34,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const period = parseDashboardPeriod(params?.period);
   const dataOptions = { token, period };
   const todayLabel = new Intl.DateTimeFormat("tr-TR", { weekday: "long", day: "2-digit", month: "long" }).format(new Date());
-  const [dashboard, campaign, portfolio] = await Promise.all([
+  const [dashboard, campaign, portfolio, documents] = await Promise.all([
     getPersonalDashboard(dataOptions),
     getCampaignReadiness(dataOptions),
-    getInvestmentPortfolio({ token })
+    getInvestmentPortfolio({ token }),
+    getDocumentHistory({ token })
   ]);
   const hasFinancialData =
     dashboard.income > 0 ||
@@ -125,6 +127,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </p>
         <ReceiptScanner />
       </section>
+
+      <DocumentHistoryPanel documents={documents} />
     </AppShell>
   );
 }

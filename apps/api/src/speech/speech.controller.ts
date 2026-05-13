@@ -3,6 +3,7 @@ import type { SpeechCapabilities, SpeechToTextRequest, TextToSpeechRequest } fro
 import { GeminiTtsService } from "../ai/gemini-tts.service.js";
 import { OpenAiSpeechService } from "../ai/openai-speech.service.js";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
+import { RateLimit } from "../rate-limit/rate-limit.decorator.js";
 
 @Controller("speech")
 @UseGuards(JwtAuthGuard)
@@ -29,11 +30,13 @@ export class SpeechController {
   }
 
   @Post("tts")
+  @RateLimit({ limit: 20, windowMs: 60_000, scope: "credential" })
   synthesize(@Body() body: TextToSpeechRequest) {
     return this.geminiTts.synthesize(body);
   }
 
   @Post("stt")
+  @RateLimit({ limit: 12, windowMs: 60_000, scope: "credential" })
   transcribe(@Body() body: SpeechToTextRequest) {
     return this.openAiSpeech.transcribe(body);
   }

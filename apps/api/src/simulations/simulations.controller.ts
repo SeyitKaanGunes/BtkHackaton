@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, Inject, Post, UseGuards } from "@nestjs/common";
-import { buildWhatIfScenarios, type WhatIfRequest } from "@fintwin/shared";
+import { BadRequestException, Body, Controller, Get, Inject, NotFoundException, Param, Post, UseGuards } from "@nestjs/common";
+import { buildWhatIfScenarios, type DecisionEventCreateRequest, type WhatIfRequest } from "@fintwin/shared";
 import type { AuthUser } from "../auth/auth-user.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
@@ -15,7 +15,7 @@ export class SimulationsController {
     const input = normalizeWhatIfRequest(body);
     await this.store.ensureMonthlySalaryTransactions(user.id);
     const data = this.store.getPersonalData(user.id);
-    return buildWhatIfScenarios(input, {
+    const output = buildWhatIfScenarios(input, {
       accounts: data.accounts,
       actions: data.actions,
       budgets: data.budgets,
@@ -25,6 +25,21 @@ export class SimulationsController {
       user: data.user,
       transactions: data.transactions
     });
+    if (!input.amount) return output;
+    const saved = await this.store.saveSimulation(user.id, "what_if", input, output);
+    return { ...output, simulationId: saved.id };
+  }
+
+  @Get("history")
+  history(@CurrentUser() user: AuthUser) {
+    return this.store.listSimulationHistory(user.id);
+  }
+
+  @Post(":id/decision")
+  async decision(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: DecisionEventCreateRequest) {
+    const event = await this.store.recordDecisionEvent(user.id, id, body);
+    if (!event) throw new NotFoundException("Simulation not found.");
+    return event;
   }
 }
 

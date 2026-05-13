@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Inject, NotFoundException, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import {
   calculateDashboardSummary,
   calculateSpendingDna,
   type BudgetUpsertRequest,
   type GoalAdviceResponse,
   type GoalCreateRequest,
+  type GoalUpdateRequest,
   type SavingsPlanUpsertRequest
 } from "@fintwin/shared";
 import type { AuthUser } from "../auth/auth-user.js";
@@ -70,6 +71,20 @@ export class GoalsController {
       currentAmount: optionalNumber(body.currentAmount, "currentAmount"),
       deadline: requiredText(body.deadline, "deadline")
     });
+  }
+
+  @Patch(":id")
+  async updateGoal(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: GoalUpdateRequest) {
+    const updated = await this.store.updateGoal(user.id, id, body);
+    if (!updated) throw new NotFoundException("Goal not found.");
+    return updated;
+  }
+
+  @Delete(":id")
+  async deleteGoal(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    const removed = await this.store.deleteGoal(user.id, id);
+    if (!removed) throw new NotFoundException("Goal not found.");
+    return removed;
   }
 
   @Post("savings-plan")

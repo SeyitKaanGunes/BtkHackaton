@@ -3,9 +3,13 @@ import { randomUUID } from "node:crypto";
 import { categories } from "@fintwin/shared";
 import type {
   Account,
+  AccountCreateRequest,
   AccountType,
+  AccountUpdateRequest,
   ActionItem,
   Budget,
+  BudgetCreateRequest,
+  BudgetUpdateRequest,
   Business,
   BusinessCashEvent,
   BusinessCashEventCreateRequest,
@@ -14,11 +18,16 @@ import type {
   BusinessCustomerCreateRequest,
   Category,
   Currency,
+  DecisionEvent,
+  DecisionEventCreateRequest,
   Goal,
   GoalCreateRequest,
+  GoalUpdateRequest,
   InvestmentAssetType,
   InvestmentHolding,
+  SimulationHistoryItem,
   Subscription,
+  SubscriptionUpdateRequest,
   Transaction,
   UserProfile
 } from "@fintwin/shared";
@@ -81,6 +90,10 @@ export class DataStoreService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     await this.hydrateFromDatabaseWithRetry();
     this.ready = true;
+  }
+
+  isReady(): boolean {
+    return this.ready;
   }
 
   getPersonalData(userId: string) {
@@ -266,6 +279,141 @@ export class DataStoreService implements OnModuleInit {
     this.users = this.users.map((user) => (user.id === userId ? { ...mapped, passwordHash: user.passwordHash } : user));
     if (!this.users.some((user) => user.id === userId)) this.users.push(mapped);
     return this.users.find((user) => user.id === userId) ?? mapped;
+  }
+
+  async createAccount(userId: string, input: AccountCreateRequest) {
+    this.assertReady();
+    const account = normalizeAccountInput(input);
+    const created = await this.prisma.account.create({
+      data: {
+        userId,
+        name: account.name,
+        type: account.type,
+        balance: account.balance,
+        currency: account.currency,
+        creditLimit: account.creditLimit
+      }
+    });
+    const mapped = this.mapAccount(created);
+    this.accounts.push(mapped);
+    return mapped;
+  }
+
+  async updateAccount(userId: string, accountId: string, input: AccountUpdateRequest) {
+    this.assertReady();
+    const existing = this.accounts.find((account) => account.id === accountId && account.userId === userId);
+    if (!existing) return undefined;
+    const update = normalizeAccountUpdate(input);
+    const updated = await this.prisma.account.update({
+      where: { id: accountId },
+      data: update
+    });
+    const mapped = this.mapAccount(updated);
+    this.accounts = this.accounts.map((account) => (account.id === accountId ? mapped : account));
+    return mapped;
+  }
+
+  async deleteAccount(userId: string, accountId: string) {
+    this.assertReady();
+    const existing = this.accounts.find((account) => account.id === accountId && account.userId === userId);
+    if (!existing) return undefined;
+    if (this.transactions.some((transaction) => transaction.accountId === accountId)) {
+      throw new BadRequestException("İşlem geçmişi olan hesap silinemez; önce bağlı işlemleri temizleyin.");
+    }
+    await this.prisma.account.delete({ where: { id: accountId } });
+    this.accounts = this.accounts.filter((account) => account.id !== accountId);
+    return existing;
+  }
+
+  async createBudget(userId: string, input: BudgetCreateRequest) {
+    this.assertReady();
+    const budget = this.normalizeBudgetInput(input);
+    const existing = this.budgets.find((item) => item.userId === userId && item.categoryId === budget.categoryId);
+    if (existing) {
+      throw new BadRequestException("Bu kategori için zaten bütçe var; güncelleme endpoint'ini kullanın.");
+    }
+    const created = await this.prisma.budget.create({
+      data: {
+        userId,
+        categoryId: budget.categoryId,
+        monthlyLimit: budget.monthlyLimit
+      }
+    });
+    const mapped = this.mapBudget(created);
+    this.budgets.push(mapped);
+    return mapped;
+  }
+
+  async updateBudget(userId: string, budgetId: string, input: BudgetUpdateRequest) {
+    this.assertReady();
+    const existing = this.budgets.find((budget) => budget.id === budgetId && budget.userId === userId);
+    if (!existing) return undefined;
+    const update = this.normalizeBudgetUpdate(input, existing);
+    const duplicate = this.budgets.find((budget) => budget.userId === userId && budget.id !== budgetId && budget.categoryId === update.categoryId);
+    if (duplicate) throw new BadRequestException("Bu kategori için başka bir bütçe zaten var.");
+    const updated = await this.prisma.budget.update({
+      where: { id: budgetId },
+      data: update
+    });
+    const mapped = this.mapBudget(updated);
+    this.budgets = this.budgets.map((budget) => (budget.id === budgetId ? mapped : budget));
+    return mapped;
+  }
+
+  async deleteBudget(userId: string, budgetId: string) {
+    this.assertReady();
+    const existing = this.budgets.find((budget) => budget.id === budgetId && budget.userId === userId);
+    if (!existing) return undefined;
+    await this.prisma.budget.delete({ where: { id: budgetId } });
+    this.budgets = this.budgets.filter((budget) => budget.id !== budgetId);
+    return existing;
+  }
+
+  async createGoal(userId: string, input: GoalCreateRequest) {
+    this.assertReady();
+    const goal = normalizeGoalInput(input);
+    const created = await this.prisma.goal.create({
+      data: {
+        userId,
+        title: goal.title,
+        targetAmount: goal.targetAmount,
+        currentAmount: goal.currentAmount,
+        deadline: new Date(`${goal.deadline}T12:00:00.000Z`)
+      }
+    });
+    const mapped = this.mapGoal(created);
+    this.goals.push(mapped);
+    this.goals.sort((left, right) => left.deadline.localeCompare(right.deadline));
+    return mapped;
+  }
+
+  async updateGoal(userId: string, goalId: string, input: GoalUpdateRequest) {
+    this.assertReady();
+    const existing = this.goals.find((goal) => goal.id === goalId && goal.userId === userId);
+    if (!existing) return undefined;
+    const update = normalizeGoalUpdate(input);
+    const nextTargetAmount = update.targetAmount ?? existing.targetAmount;
+    const nextCurrentAmount = update.currentAmount ?? existing.currentAmount;
+    if (nextCurrentAmount > nextTargetAmount) throw new BadRequestException("currentAmount targetAmount değerinden büyük olamaz.");
+    const updated = await this.prisma.goal.update({
+      where: { id: goalId },
+      data: {
+        ...update,
+        ...(update.deadline ? { deadline: new Date(`${update.deadline}T12:00:00.000Z`) } : {})
+      }
+    });
+    const mapped = this.mapGoal(updated);
+    this.goals = this.goals.map((goal) => (goal.id === goalId ? mapped : goal)).sort((left, right) => left.deadline.localeCompare(right.deadline));
+    return mapped;
+  }
+
+  async deleteGoal(userId: string, goalId: string) {
+    this.assertReady();
+    const existing = this.goals.find((goal) => goal.id === goalId && goal.userId === userId);
+    if (!existing) return undefined;
+    await this.prisma.goal.delete({ where: { id: goalId } });
+    this.goals = this.goals.filter((goal) => goal.id !== goalId);
+    return existing;
   }
 
   getCategories(kind?: Transaction["type"]) {
@@ -628,7 +776,9 @@ export class DataStoreService implements OnModuleInit {
           currency: mapped.currency,
           cadence: mapped.cadence,
           lastUsedAt: mapped.lastUsedAt ? new Date(`${mapped.lastUsedAt}T12:00:00.000Z`) : null,
-          previousAmount: mapped.previousAmount ?? null
+          previousAmount: mapped.previousAmount ?? null,
+          status: "active",
+          source: "statement"
         }
       });
       const persisted = this.mapSubscription(updated);
@@ -644,7 +794,9 @@ export class DataStoreService implements OnModuleInit {
       amount: Number(input.amount.toFixed(2)),
       currency: input.currency,
       cadence: input.cadence,
-      lastUsedAt
+      lastUsedAt,
+      status: "active",
+      source: "statement"
     };
     const created = await this.prisma.subscription.create({
       data: {
@@ -655,12 +807,118 @@ export class DataStoreService implements OnModuleInit {
         amount: subscription.amount,
         currency: subscription.currency,
         cadence: subscription.cadence,
-        lastUsedAt: subscription.lastUsedAt ? new Date(`${subscription.lastUsedAt}T12:00:00.000Z`) : null
+        lastUsedAt: subscription.lastUsedAt ? new Date(`${subscription.lastUsedAt}T12:00:00.000Z`) : null,
+        status: subscription.status,
+        source: subscription.source
       }
     });
     const mapped = this.mapSubscription(created);
     this.subscriptions.unshift(mapped);
     return mapped;
+  }
+
+  async updateSubscription(userId: string, subscriptionId: string, input: SubscriptionUpdateRequest) {
+    this.assertReady();
+    const existing = this.subscriptions.find((subscription) => subscription.id === subscriptionId && subscription.userId === userId);
+    if (!existing) return undefined;
+    const update = normalizeSubscriptionUpdate(input);
+    const updated = await this.prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: {
+        ...(update.status ? { status: update.status } : {}),
+        ...(update.nextExpectedAt !== undefined ? { nextExpectedAt: update.nextExpectedAt ? new Date(`${update.nextExpectedAt}T12:00:00.000Z`) : null } : {}),
+        ...(update.note !== undefined ? { note: update.note } : {})
+      }
+    });
+    const mapped = this.mapSubscription(updated);
+    this.subscriptions = this.subscriptions.map((subscription) => (subscription.id === subscriptionId ? mapped : subscription));
+    return mapped;
+  }
+
+  async saveSimulation(userId: string, kind: string, input: unknown, output: unknown) {
+    this.assertReady();
+    return this.prisma.simulation.create({
+      data: {
+        userId,
+        kind,
+        input: input as object,
+        output: output as object
+      }
+    });
+  }
+
+  async listSimulationHistory(userId: string): Promise<SimulationHistoryItem[]> {
+    this.assertReady();
+    const rows = await this.prisma.simulation.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+      include: { decisions: { orderBy: { createdAt: "desc" } } }
+    });
+    return rows.map((row) => this.mapSimulationHistory(row));
+  }
+
+  async recordDecisionEvent(userId: string, simulationId: string, input: DecisionEventCreateRequest): Promise<DecisionEvent | undefined> {
+    this.assertReady();
+    const simulation = await this.prisma.simulation.findFirst({ where: { id: simulationId, userId } });
+    if (!simulation) return undefined;
+    const output = asRecord(simulation.output);
+    const normalized = normalizeDecisionEventInput(input, output);
+    const created = await this.prisma.decisionEvent.create({
+      data: {
+        userId,
+        simulationId,
+        scenarioId: String(output.scenarioId ?? simulationId),
+        userAction: normalized.userAction,
+        originalAmount: normalized.originalAmount,
+        finalAmount: normalized.finalAmount,
+        categoryId: normalized.categoryId,
+        categoryName: normalized.categoryName,
+        note: normalized.note
+      }
+    });
+    return this.mapDecisionEvent(created);
+  }
+
+  async saveAgentConversation(userId: string, input: { message: string; answer: string; evidence: unknown }) {
+    this.assertReady();
+    return this.prisma.agentConversation.create({
+      data: {
+        userId,
+        message: input.message,
+        answer: input.answer,
+        evidence: input.evidence as object
+      }
+    });
+  }
+
+  async listAgentConversations(userId: string) {
+    this.assertReady();
+    const rows = await this.prisma.agentConversation.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 30
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      message: row.message,
+      answer: row.answer,
+      evidence: Array.isArray(row.evidence) ? row.evidence : [],
+      createdAt: row.createdAt.toISOString()
+    }));
+  }
+
+  async getAgentConversation(userId: string, id: string) {
+    this.assertReady();
+    const row = await this.prisma.agentConversation.findFirst({ where: { id, userId } });
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      message: row.message,
+      answer: row.answer,
+      evidence: Array.isArray(row.evidence) ? row.evidence : [],
+      createdAt: row.createdAt.toISOString()
+    };
   }
 
   async saveFcmToken(input: { userId: string; token: string; platform: string }) {
@@ -712,15 +970,7 @@ export class DataStoreService implements OnModuleInit {
           creditLimit: account.creditLimit
         }
       });
-      this.accounts.push({
-        id: created.id,
-        userId: created.userId,
-        name: created.name,
-        type: created.type as Account["type"],
-        balance: Number(created.balance),
-        currency: created.currency as Currency,
-        creditLimit: created.creditLimit === null ? undefined : Number(created.creditLimit)
-      });
+      this.accounts.push(this.mapAccount(created));
     }
   }
 
@@ -788,21 +1038,8 @@ export class DataStoreService implements OnModuleInit {
       kind: category.kind as Category["kind"],
       color: category.color
     }));
-    this.accounts = storedAccounts.map((account) => ({
-      id: account.id,
-      userId: account.userId,
-      name: account.name,
-      type: account.type as Account["type"],
-      balance: Number(account.balance),
-      currency: account.currency as Currency,
-      creditLimit: account.creditLimit === null ? undefined : Number(account.creditLimit)
-    }));
-    this.budgets = storedBudgets.map((budget) => ({
-      id: budget.id,
-      userId: budget.userId,
-      categoryId: budget.categoryId,
-      monthlyLimit: Number(budget.monthlyLimit)
-    }));
+    this.accounts = storedAccounts.map((account) => this.mapAccount(account));
+    this.budgets = storedBudgets.map((budget) => this.mapBudget(budget));
     this.goals = storedGoals.map((goal) => this.mapGoal(goal));
     this.subscriptions = storedSubscriptions.map((subscription) => this.mapSubscription(subscription));
     this.transactions = storedTransactions.map((transaction) => this.mapTransaction(transaction));
@@ -816,6 +1053,46 @@ export class DataStoreService implements OnModuleInit {
       token: token.token,
       platform: token.platform
     }));
+  }
+
+  private mapAccount(account: {
+    id: string;
+    userId: string;
+    name: string;
+    type: string;
+    balance: unknown;
+    currency: string;
+    creditLimit: unknown | null;
+  }): Account {
+    return {
+      id: account.id,
+      userId: account.userId,
+      name: account.name,
+      type: account.type as Account["type"],
+      balance: Number(account.balance),
+      currency: account.currency as Currency,
+      creditLimit: account.creditLimit === null ? undefined : Number(account.creditLimit)
+    };
+  }
+
+  private mapBudget(budget: { id: string; userId: string; categoryId: string; monthlyLimit: unknown }): Budget {
+    return {
+      id: budget.id,
+      userId: budget.userId,
+      categoryId: budget.categoryId,
+      monthlyLimit: Number(budget.monthlyLimit)
+    };
+  }
+
+  private mapGoal(goal: { id: string; userId: string; title: string; targetAmount: unknown; currentAmount: unknown; deadline: Date }): Goal {
+    return {
+      id: goal.id,
+      userId: goal.userId,
+      title: goal.title,
+      targetAmount: Number(goal.targetAmount),
+      currentAmount: Number(goal.currentAmount),
+      deadline: this.dateOnly(goal.deadline)
+    };
   }
 
   private mapUser(user: {
@@ -906,6 +1183,10 @@ export class DataStoreService implements OnModuleInit {
     cadence: string;
     lastUsedAt: Date | null;
     previousAmount: unknown | null;
+    status: string;
+    nextExpectedAt: Date | null;
+    note: string | null;
+    source: string;
   }): Subscription {
     return {
       id: subscription.id,
@@ -916,27 +1197,78 @@ export class DataStoreService implements OnModuleInit {
       currency: subscription.currency as Currency,
       cadence: subscription.cadence as Subscription["cadence"],
       lastUsedAt: subscription.lastUsedAt ? this.dateOnly(subscription.lastUsedAt) : undefined,
-      previousAmount: subscription.previousAmount === null ? undefined : Number(subscription.previousAmount)
+      previousAmount: subscription.previousAmount === null ? undefined : Number(subscription.previousAmount),
+      status: subscription.status as Subscription["status"],
+      nextExpectedAt: subscription.nextExpectedAt ? this.dateOnly(subscription.nextExpectedAt) : undefined,
+      note: subscription.note ?? undefined,
+      source: subscription.source as Subscription["source"]
     };
   }
 
-  private mapGoal(goal: { id: string; userId: string; title: string; targetAmount: unknown; currentAmount: unknown; deadline: Date }): Goal {
+  private mapDecisionEvent(event: {
+    id: string;
+    userId: string;
+    simulationId: string;
+    scenarioId: string;
+    userAction: string;
+    originalAmount: unknown;
+    finalAmount: unknown | null;
+    categoryId: string | null;
+    categoryName: string | null;
+    note: string | null;
+    createdAt: Date;
+  }): DecisionEvent {
     return {
-      id: goal.id,
-      userId: goal.userId,
-      title: goal.title,
-      targetAmount: Number(goal.targetAmount),
-      currentAmount: Number(goal.currentAmount),
-      deadline: this.dateOnly(goal.deadline)
+      id: event.id,
+      userId: event.userId,
+      simulationId: event.simulationId,
+      scenarioId: event.scenarioId,
+      userAction: event.userAction as DecisionEvent["userAction"],
+      originalAmount: Number(event.originalAmount),
+      finalAmount: event.finalAmount === null ? undefined : Number(event.finalAmount),
+      categoryId: event.categoryId ?? undefined,
+      categoryName: event.categoryName ?? undefined,
+      note: event.note ?? undefined,
+      createdAt: event.createdAt.toISOString()
     };
   }
 
-  private mapBudget(budget: { id: string; userId: string; categoryId: string; monthlyLimit: unknown }): Budget {
+  private mapSimulationHistory(row: {
+    id: string;
+    kind: string;
+    input: unknown;
+    output: unknown;
+    createdAt: Date;
+    decisions: Array<{
+      id: string;
+      userId: string;
+      simulationId: string;
+      scenarioId: string;
+      userAction: string;
+      originalAmount: unknown;
+      finalAmount: unknown | null;
+      categoryId: string | null;
+      categoryName: string | null;
+      note: string | null;
+      createdAt: Date;
+    }>;
+  }): SimulationHistoryItem {
+    const input = asRecord(row.input);
+    const output = asRecord(row.output);
     return {
-      id: budget.id,
-      userId: budget.userId,
-      categoryId: budget.categoryId,
-      monthlyLimit: Number(budget.monthlyLimit)
+      id: row.id,
+      kind: row.kind,
+      scenarioId: stringOrUndefined(output.scenarioId),
+      question: stringOrUndefined(output.question) ?? stringOrUndefined(input.description) ?? "Karar senaryosu",
+      amount: numberOrUndefined(input.amount),
+      categoryId: stringOrUndefined(input.categoryId) ?? stringOrUndefined(output.resolvedCategoryId),
+      categoryName: stringOrUndefined(output.resolvedCategoryName),
+      decisionDate: stringOrUndefined(input.decisionDate),
+      riskLevel: riskLevelFromOutput(output),
+      emotionalDelayMinutes: numberOrUndefined(output.emotionalDelayMinutes),
+      safeLimit: numberOrUndefined(output.safeLimit),
+      createdAt: row.createdAt.toISOString(),
+      decisionEvents: row.decisions.map((decision) => this.mapDecisionEvent(decision))
     };
   }
 
@@ -1019,6 +1351,26 @@ export class DataStoreService implements OnModuleInit {
       amount: Number(event.amount),
       type: event.type as BusinessCashEvent["type"],
       dueAt: this.dateOnly(event.dueAt)
+    };
+  }
+
+  private normalizeBudgetInput(input: BudgetCreateRequest) {
+    const categoryId = requireNonEmptyText(input.categoryId, "categoryId");
+    const category = this.categories.find((item) => item.id === categoryId && item.kind === "expense");
+    if (!category) throw new BadRequestException("categoryId geçerli bir gider kategorisi olmalı.");
+    return {
+      categoryId,
+      monthlyLimit: requirePositiveFiniteNumber(input.monthlyLimit, "monthlyLimit")
+    };
+  }
+
+  private normalizeBudgetUpdate(input: BudgetUpdateRequest, existing: Budget) {
+    const categoryId = input.categoryId === undefined ? existing.categoryId : requireNonEmptyText(input.categoryId, "categoryId");
+    const category = this.categories.find((item) => item.id === categoryId && item.kind === "expense");
+    if (!category) throw new BadRequestException("categoryId geçerli bir gider kategorisi olmalı.");
+    return {
+      categoryId,
+      monthlyLimit: input.monthlyLimit === undefined ? existing.monthlyLimit : requirePositiveFiniteNumber(input.monthlyLimit, "monthlyLimit")
     };
   }
 
@@ -1116,6 +1468,174 @@ function endOfCurrentMonth() {
 function endOfCurrentYear() {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), 11, 31)).toISOString().slice(0, 10);
+}
+
+function requireNonEmptyText(value: unknown, field: string) {
+  if (typeof value !== "string" || !value.trim()) throw new BadRequestException(`${field} zorunlu.`);
+  return value.trim();
+}
+
+function optionalTextValue(value: unknown, field: string) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "string") throw new BadRequestException(`${field} metin olmalı.`);
+  const text = value.trim();
+  return text || null;
+}
+
+function requirePositiveFiniteNumber(value: unknown, field: string) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue <= 0) throw new BadRequestException(`${field} pozitif sayı olmalı.`);
+  return Number(numberValue.toFixed(2));
+}
+
+function optionalNonNegativeFiniteNumber(value: unknown, field: string) {
+  if (value === undefined || value === null) return undefined;
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue < 0) throw new BadRequestException(`${field} sıfır veya pozitif sayı olmalı.`);
+  return Number(numberValue.toFixed(2));
+}
+
+function optionalPositiveFiniteNumber(value: unknown, field: string) {
+  if (value === undefined || value === null) return undefined;
+  return requirePositiveFiniteNumber(value, field);
+}
+
+function requireCurrencyValue(value: unknown, field = "currency"): Currency {
+  const currency = typeof value === "string" ? value.trim().toUpperCase() : "";
+  if (currency !== "TRY" && currency !== "USD" && currency !== "EUR") throw new BadRequestException(`${field} TRY, USD veya EUR olmalı.`);
+  return currency;
+}
+
+function optionalCurrencyValue(value: unknown, fallback: Currency): Currency {
+  if (value === undefined || value === null || value === "") return fallback;
+  return requireCurrencyValue(value);
+}
+
+function requireAccountTypeValue(value: unknown): Account["type"] {
+  if (value === "cash" || value === "debit" || value === "credit" || value === "savings") return value;
+  throw new BadRequestException("type cash, debit, credit veya savings olmalı.");
+}
+
+function optionalAccountTypeValue(value: unknown): Account["type"] | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  return requireAccountTypeValue(value);
+}
+
+function normalizeAccountInput(input: AccountCreateRequest) {
+  const type = requireAccountTypeValue(input.type);
+  const balance = optionalNonNegativeFiniteNumber(input.balance, "balance") ?? 0;
+  const creditLimit = type === "credit" ? optionalNonNegativeFiniteNumber(input.creditLimit, "creditLimit") ?? 0 : undefined;
+  return {
+    name: requireNonEmptyText(input.name, "name"),
+    type,
+    balance,
+    currency: optionalCurrencyValue(input.currency, "TRY"),
+    creditLimit
+  };
+}
+
+function normalizeAccountUpdate(input: AccountUpdateRequest) {
+  const type = optionalAccountTypeValue(input.type);
+  const update: {
+    name?: string;
+    type?: Account["type"];
+    balance?: number;
+    currency?: Currency;
+    creditLimit?: number | null;
+  } = {};
+  if (input.name !== undefined) update.name = requireNonEmptyText(input.name, "name");
+  if (type) update.type = type;
+  if (input.balance !== undefined) update.balance = optionalNonNegativeFiniteNumber(input.balance, "balance");
+  if (input.currency !== undefined) update.currency = requireCurrencyValue(input.currency);
+  if (input.creditLimit !== undefined) {
+    update.creditLimit = input.creditLimit === null ? null : optionalNonNegativeFiniteNumber(input.creditLimit, "creditLimit");
+  }
+  if (!Object.keys(update).length) throw new BadRequestException("Güncellenecek hesap alanı yok.");
+  return update;
+}
+
+function normalizeGoalInput(input: GoalCreateRequest) {
+  const targetAmount = requirePositiveFiniteNumber(input.targetAmount, "targetAmount");
+  const currentAmount = optionalNonNegativeFiniteNumber(input.currentAmount, "currentAmount") ?? 0;
+  if (currentAmount > targetAmount) throw new BadRequestException("currentAmount targetAmount değerinden büyük olamaz.");
+  return {
+    title: requireNonEmptyText(input.title, "title"),
+    targetAmount,
+    currentAmount,
+    deadline: normalizeDateOnly(requireNonEmptyText(input.deadline, "deadline"), "deadline")
+  };
+}
+
+function normalizeGoalUpdate(input: GoalUpdateRequest) {
+  const update: { title?: string; targetAmount?: number; currentAmount?: number; deadline?: string } = {};
+  if (input.title !== undefined) update.title = requireNonEmptyText(input.title, "title");
+  if (input.targetAmount !== undefined) update.targetAmount = requirePositiveFiniteNumber(input.targetAmount, "targetAmount");
+  if (input.currentAmount !== undefined) update.currentAmount = optionalNonNegativeFiniteNumber(input.currentAmount, "currentAmount");
+  if (input.deadline !== undefined) update.deadline = normalizeDateOnly(requireNonEmptyText(input.deadline, "deadline"), "deadline");
+  if (!Object.keys(update).length) throw new BadRequestException("Güncellenecek hedef alanı yok.");
+  if (update.targetAmount !== undefined && update.currentAmount !== undefined && update.currentAmount > update.targetAmount) {
+    throw new BadRequestException("currentAmount targetAmount değerinden büyük olamaz.");
+  }
+  return update;
+}
+
+function normalizeSubscriptionUpdate(input: SubscriptionUpdateRequest) {
+  const update: { status?: Subscription["status"]; nextExpectedAt?: string | null; note?: string | null } = {};
+  if (input.status !== undefined) {
+    if (input.status !== "active" && input.status !== "watching" && input.status !== "cancelled" && input.status !== "ignored") {
+      throw new BadRequestException("status active, watching, cancelled veya ignored olmalı.");
+    }
+    update.status = input.status;
+  }
+  if (input.nextExpectedAt !== undefined) {
+    update.nextExpectedAt = input.nextExpectedAt === null ? null : normalizeDateOnly(requireNonEmptyText(input.nextExpectedAt, "nextExpectedAt"), "nextExpectedAt");
+  }
+  if (input.note !== undefined) update.note = optionalTextValue(input.note, "note");
+  if (!Object.keys(update).length) throw new BadRequestException("Güncellenecek abonelik alanı yok.");
+  return update;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function stringOrUndefined(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function numberOrUndefined(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function riskLevelFromOutput(output: Record<string, unknown>) {
+  const cards = Array.isArray(output.cards) ? output.cards : [];
+  const risky = cards.find((item) => asRecord(item).id === "risky");
+  const risk = stringOrUndefined(asRecord(risky).riskLevel);
+  return risk === "low" || risk === "medium" || risk === "high" || risk === "critical" ? risk : undefined;
+}
+
+function normalizeDecisionEventInput(input: DecisionEventCreateRequest, output: Record<string, unknown>) {
+  if (input.userAction !== "bought" && input.userAction !== "delayed" && input.userAction !== "cancelled" && input.userAction !== "reduced" && input.userAction !== "planned") {
+    throw new BadRequestException("userAction bought, delayed, cancelled, reduced veya planned olmalı.");
+  }
+  const cards = Array.isArray(output.cards) ? output.cards.map(asRecord) : [];
+  const riskyCard = cards.find((card) => card.id === "risky") ?? cards[0] ?? {};
+  const originalAmount = requirePositiveFiniteNumber(riskyCard.spendAmount ?? output.amount ?? 0, "originalAmount");
+  const finalAmount = optionalPositiveFiniteNumber(input.finalAmount, "finalAmount");
+  if (input.userAction === "reduced") {
+    if (finalAmount === undefined) throw new BadRequestException("reduced kararı için finalAmount gerekli.");
+    if (finalAmount >= originalAmount) throw new BadRequestException("finalAmount originalAmount değerinden küçük olmalı.");
+  }
+  return {
+    userAction: input.userAction,
+    originalAmount,
+    finalAmount,
+    categoryId: stringOrUndefined(output.resolvedCategoryId),
+    categoryName: stringOrUndefined(output.resolvedCategoryName),
+    note: optionalTextValue(input.note, "note") ?? undefined
+  };
 }
 
 function normalizeSubscriptionMerchant(value: string) {

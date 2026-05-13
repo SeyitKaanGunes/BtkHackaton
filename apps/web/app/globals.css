@@ -3731,6 +3731,136 @@ h1 {
   min-height: 260px;
 }
 
+.profile-form,
+.profile-row-list,
+.decision-history-panel,
+.decision-history-list,
+.subscription-management-list,
+.document-history-list,
+.agent-history,
+.portfolio-twin-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-inline-form,
+.decision-outcome-row,
+.portfolio-twin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.profile-row,
+.decision-history-row,
+.subscription-management-row,
+.document-history-row,
+.agent-history-row,
+.portfolio-twin-grid > div {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.profile-row,
+.decision-history-row,
+.document-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+}
+
+.decision-history-row,
+.document-history-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.profile-row div,
+.decision-history-row div,
+.document-history-row div,
+.portfolio-twin-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.profile-row span,
+.decision-history-row span,
+.decision-history-row small,
+.document-history-row span,
+.document-history-row small,
+.subscription-management-row small,
+.subscription-management-row p,
+.portfolio-twin-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.document-history-row small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--warn);
+}
+
+.document-history-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.reduced-amount-field {
+  min-width: 150px;
+}
+
+.subscription-management-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, auto);
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+}
+
+.subscription-management-row > div:first-child {
+  display: grid;
+  gap: 6px;
+}
+
+.subscription-status-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.agent-history-row {
+  width: 100%;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.agent-history-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.portfolio-twin-grid > div {
+  min-height: 96px;
+  padding: 14px;
+}
+
 .scenario-facts {
   display: grid;
   gap: 5px;

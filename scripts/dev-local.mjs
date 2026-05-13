@@ -70,7 +70,7 @@ function shutdown(signal) {
 
 async function waitForReadiness() {
   const checks = [
-    waitForHttp("api", `http://localhost:${ports.api}/auth/me`, [401], 120_000),
+    waitForHttp("api", `http://localhost:${ports.api}/ready`, [200], 120_000),
     waitForHttp("web", `http://localhost:${ports.web}/login`, [200], 120_000)
   ];
   const results = await Promise.allSettled(checks);

@@ -749,7 +749,9 @@ function createTestStore(): DataStoreService {
       const created: Subscription = {
         id: `sub-${this.subscriptions.length + 1}`,
         userId,
-        ...input
+        ...input,
+        status: "active",
+        source: "statement"
       };
       this.subscriptions.unshift(created);
       return created;
@@ -778,6 +780,24 @@ function createTestStore(): DataStoreService {
     async saveFcmToken(input: { userId: string; token: string; platform: string }) {
       this.fcmTokens.unshift(input);
       return input;
+    },
+    async saveSimulation(userId: string, kind: string, input: unknown, output: unknown) {
+      return { id: `sim-${userId}-${kind}`, userId, kind, input, output, createdAt: new Date() };
+    },
+    async listSimulationHistory() {
+      return [];
+    },
+    async recordDecisionEvent() {
+      return undefined;
+    },
+    async saveAgentConversation(userId: string, input: { message: string; answer: string; evidence: unknown }) {
+      return { id: `conv-${userId}`, userId, ...input, createdAt: new Date() };
+    },
+    async listAgentConversations() {
+      return [];
+    },
+    async getAgentConversation() {
+      return undefined;
     }
   };
   return store as unknown as DataStoreService;

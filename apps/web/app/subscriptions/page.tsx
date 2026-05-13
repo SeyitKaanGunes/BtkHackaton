@@ -1,14 +1,15 @@
 import { Repeat2 } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { SubscriptionHunterDetailPanel } from "../../components/insight-detail-panels";
-import { getSubscriptionLeaks } from "../../lib/api";
+import { SubscriptionManager } from "../../components/subscription-manager";
+import { getSubscriptionLeaks, getSubscriptions } from "../../lib/api";
 import { requirePersonalSession } from "../../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function SubscriptionsPage() {
   const { token, user } = await requirePersonalSession();
-  const leaks = await getSubscriptionLeaks({ token });
+  const [leaks, subscriptions] = await Promise.all([getSubscriptionLeaks({ token }), getSubscriptions({ token })]);
 
   return (
     <AppShell active="/subscriptions" accountType={user.accountType}>
@@ -24,6 +25,7 @@ export default async function SubscriptionsPage() {
       </header>
 
       <SubscriptionHunterDetailPanel leaks={leaks} />
+      <SubscriptionManager initialSubscriptions={subscriptions} leaks={leaks} />
     </AppShell>
   );
 }

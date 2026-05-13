@@ -3,6 +3,7 @@ import type { AuthUser } from "../auth/auth-user.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
 import { DataStoreService } from "../data/data-store.service.js";
+import { RateLimit } from "../rate-limit/rate-limit.decorator.js";
 
 const PLATFORMS = new Set(["ios", "android", "web"]);
 
@@ -12,6 +13,7 @@ export class NotificationsController {
   constructor(@Inject(DataStoreService) private readonly store: DataStoreService) {}
 
   @Post("fcm-token")
+  @RateLimit({ limit: 20, windowMs: 60_000, scope: "credential" })
   async saveToken(@CurrentUser() user: AuthUser, @Body() body: { token: string; platform: "ios" | "android" | "web" }) {
     const token = requiredText(body.token, "token");
     const platform = requirePlatform(body.platform);

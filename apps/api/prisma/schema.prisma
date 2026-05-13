@@ -27,6 +27,7 @@ model User {
   actions            ActionItem[]
   documents          Document[]
   simulations        Simulation[]
+  decisionEvents     DecisionEvent[]
   conversations      AgentConversation[]
   fcmTokens          FcmToken[]
   investmentHoldings InvestmentHolding[]
@@ -115,10 +116,15 @@ model Subscription {
   cadence        String
   lastUsedAt     DateTime?
   previousAmount Decimal?
+  status         String    @default("active")
+  nextExpectedAt DateTime?
+  note           String?
+  source         String    @default("statement")
   user           User      @relation(fields: [userId], references: [id])
   category       Category  @relation(fields: [categoryId], references: [id])
 
   @@index([userId])
+  @@index([userId, status])
   @@index([categoryId])
 }
 
@@ -168,8 +174,28 @@ model Simulation {
   output    Json
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
+  decisions DecisionEvent[]
 
   @@index([userId, createdAt])
+}
+
+model DecisionEvent {
+  id             String     @id @default(cuid())
+  userId         String
+  simulationId   String
+  scenarioId     String
+  userAction     String
+  originalAmount Decimal
+  finalAmount    Decimal?
+  categoryId     String?
+  categoryName   String?
+  note           String?
+  createdAt      DateTime   @default(now())
+  user           User       @relation(fields: [userId], references: [id])
+  simulation     Simulation @relation(fields: [simulationId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([simulationId])
 }
 
 model AgentConversation {
