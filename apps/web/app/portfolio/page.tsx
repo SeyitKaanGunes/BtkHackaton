@@ -1,14 +1,14 @@
 import { TrendingUp } from "lucide-react";
 import { AppShell } from "../../components/app-shell";
 import { InvestmentPortfolio } from "../../components/investment-portfolio";
-import { getInvestmentPortfolio } from "../../lib/api";
+import { getInvestmentPortfolio, getPlanningOverview } from "../../lib/api";
 import { requirePersonalSession } from "../../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortfolioPage() {
   const { token, user } = await requirePersonalSession();
-  const investmentPortfolio = await getInvestmentPortfolio({ token });
+  const [investmentPortfolio, planning] = await Promise.all([getInvestmentPortfolio({ token }), getPlanningOverview({ token })]);
 
   return (
     <AppShell active="/portfolio" accountType={user.accountType}>
@@ -23,7 +23,7 @@ export default async function PortfolioPage() {
         </div>
       </header>
 
-      <InvestmentPortfolio initialPortfolio={investmentPortfolio} />
+      <InvestmentPortfolio initialPortfolio={investmentPortfolio} goals={planning.goals} />
     </AppShell>
   );
 }

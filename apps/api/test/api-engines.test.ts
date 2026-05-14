@@ -71,6 +71,8 @@ describe("API feature services", () => {
     expect(result.answer).toContain("Riskli senaryo");
     expect(result.answer).toContain("Varsayımlar");
     expect(result.answer).toContain("Veri güveni");
+    expect(result.agenticPlan?.map((step) => step.agent)).toEqual(expect.arrayContaining(["Supervisor Agent", "Simulation Agent", "Action Agent"]));
+    expect(result.quality?.grounded).toBe(true);
     expect(store.getPersonalData(authUser.id).actions).toHaveLength(before + 1);
 
     const repeated = await agent.chat(authUser.id, "10000 TL harcarsam ne olur?");
@@ -108,6 +110,69 @@ describe("API feature services", () => {
     const agent = new AgentService(store, unconfiguredQwen());
 
     await expect(agent.chat(authUser.id, "Finans durumumu özetle")).rejects.toThrow("sessiz özet cevabı üretilmedi");
+  });
+
+  it("parses structured assistant JSON and exposes token-friendly quality metadata", async () => {
+    const store = createTestStore();
+    const chat = vi.fn(async () => ({
+      content: JSON.stringify({
+        answer: "Nakit akışın bu ay gelir ve harcama verilerine göre pozitif görünüyor. Teknoloji bütçen ve acil fon hedefin birlikte izlenmeli. İlk adım olarak büyük harcamaları karar günlüğüne kaydet.",
+        confidence: 0.84,
+        warnings: []
+      }),
+      model: "test-qwen",
+      usage: { prompt_tokens: 120, completion_tokens: 40, total_tokens: 160 }
+    }));
+    const agent = new AgentService(store, { isConfigured: () => true, chat } as unknown as QwenService);
+
+    const result = await agent.chat(authUser.id, "Finans durumumu özetle");
+
+    expect(result.routedAgents).toContain("LLM Agent");
+    expect(result.routedAgents).toContain("Evidence Guard");
+    expect(result.agenticPlan?.map((step) => step.agent)).toEqual(expect.arrayContaining(["Twin Agent", "LLM Agent", "Evidence Guard"]));
+    expect(result.quality).toMatchObject({
+      grounded: true,
+      model: "test-qwen",
+      tokenUsage: { totalTokens: 160 },
+      contextVersion: 2
+    });
+    expect(result.quality?.contextChars).toBeGreaterThan(0);
+    expect(chat).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ maxTokens: 700, temperature: 0.35 }));
+  });
+
+  it("rejects invalid assistant JSON instead of falling back to a fake answer", async () => {
+    const store = createTestStore();
+    const agent = new AgentService(store, {
+      isConfigured: () => true,
+      chat: vi.fn(async () => ({ content: "bu json degil", model: "test-qwen" }))
+    } as unknown as QwenService);
+
+    await expect(agent.chat(authUser.id, "Finans durumumu özetle")).rejects.toThrow("sessiz özet cevabı üretilmedi");
+  });
+
+  it("rejects assistant answers that claim unsafe automatic actions", async () => {
+    const store = createTestStore();
+    const agent = new AgentService(store, {
+      isConfigured: () => true,
+      chat: vi.fn(async () => ({
+        content: JSON.stringify({ answer: "DB'ye yazdım ve işlemi yaptım.", confidence: 0.9, warnings: [] }),
+        model: "test-qwen"
+      }))
+    } as unknown as QwenService);
+
+    await expect(agent.chat(authUser.id, "Finans durumumu özetle")).rejects.toThrow("güvenlik kontrolü");
+  });
+
+  it("keeps education agent calls token-limited", async () => {
+    const store = createTestStore();
+    const chat = vi.fn(async () => ({ content: "Faiz, paranın zaman maliyetidir.", model: "test-qwen" }));
+    const agent = new AgentService(store, { isConfigured: () => true, chat } as unknown as QwenService);
+
+    const result = await agent.chat(authUser.id, "Faiz nedir anlat");
+
+    expect(result.routedAgents).toContain("Education Agent");
+    expect(result.agenticPlan?.some((step) => step.output?.includes("maxTokens=450"))).toBe(true);
+    expect(chat).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ maxTokens: 450 }));
   });
 
   it("creates and reuses web Google sign-in users", async () => {

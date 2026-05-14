@@ -20,6 +20,7 @@ import {
   Plus,
   Repeat2,
   ShieldAlert,
+  SlidersHorizontal,
   Sparkles,
   Target,
   ReceiptText,
@@ -38,10 +39,14 @@ import type {
   Currency,
   DashboardPeriod,
   DashboardSummary,
+  DecisionJournalSummary,
   Goal,
   ScenarioCard,
   SpendingDna,
+  SimulationHistoryItem,
+  Subscription,
   SubscriptionLeak,
+  SubscriptionStatus,
   TransactionType,
   WhatIfResponse
 } from "@fintwin/shared";
@@ -63,6 +68,7 @@ import {
   persistAuthToken,
   register,
   simulateBusinessDecision,
+  updateSubscription,
   updateFinanceProfile,
   type AuthUserProfile
 } from "./src/api";
@@ -71,7 +77,7 @@ import { PortfolioScreen } from "./src/screens/PortfolioScreen";
 import { ScanScreen } from "./src/screens/ScanScreen";
 import { Badge, Button, Gauge as ScoreGauge, IconButton, MetricCard, Mono, Panel, ProgressBar, RiskBar, ScreenHeader, SectionTitle, palette, styles, typefaces } from "./src/ui";
 
-type MobileSection = "overview" | "categories" | "spendingDna" | "whatIf" | "emotionalDelay" | "actions" | "subscriptions" | "portfolio" | "business" | "agent";
+type MobileSection = "overview" | "financialProfile" | "categories" | "spendingDna" | "whatIf" | "emotionalDelay" | "actions" | "subscriptions" | "portfolio" | "business" | "agent";
 type HomeSection = Exclude<MobileSection, "portfolio" | "business" | "agent">;
 type NavIcon = typeof WalletCards;
 type HomeData = Awaited<ReturnType<typeof loadMobileHome>>;
@@ -81,6 +87,7 @@ const agentPet = require("./src/assets/agent-pet.png");
 
 const mobileNavItems: Array<{ id: Exclude<MobileSection, "agent">; label: string; caption: string; Icon: NavIcon }> = [
   { id: "overview", label: "Özet", caption: "Ana finansal durum", Icon: WalletCards },
+  { id: "financialProfile", label: "Finansal Profil", caption: "Hesap, bütçe ve hedefler", Icon: SlidersHorizontal },
   { id: "categories", label: "Kategori Dağılımı", caption: "Fiş, ekstre ve harcama payı", Icon: BarChart3 },
   { id: "spendingDna", label: "Spending DNA", caption: "Davranışsal riskler", Icon: Brain },
   { id: "whatIf", label: "What-if", caption: "Karar simülasyonu", Icon: Sparkles },
@@ -96,6 +103,11 @@ const sectionMeta: Record<MobileSection, { eyebrow: string; title: string; subti
     eyebrow: "Ana ekran",
     title: "Özet",
     subtitle: "Gelir, gider, sağlık skoru ve hızlı kayıtlar."
+  },
+  financialProfile: {
+    eyebrow: "Finansal ikiz kurulumu",
+    title: "Finansal Profil",
+    subtitle: "Hesap, bütçe, hedef ve gelir bağlamı."
   },
   categories: {
     eyebrow: "Harcama analizi",
@@ -528,9 +540,13 @@ function HomeScreen({
   dna,
   campaign,
   leaks,
+  subscriptions,
   simulation,
+  decisionSummary,
+  decisionHistory,
   investmentPortfolio,
   businessOverview,
+  financialProfile,
   section,
   activePeriod,
   onPeriodChange,
@@ -544,9 +560,13 @@ function HomeScreen({
   dna: SpendingDna;
   campaign: HomeData["campaign"];
   leaks: SubscriptionLeak[];
+  subscriptions: Subscription[];
   simulation: WhatIfResponse;
+  decisionSummary: DecisionJournalSummary;
+  decisionHistory: SimulationHistoryItem[];
   investmentPortfolio: HomeData["investmentPortfolio"];
   businessOverview: HomeData["businessOverview"];
+  financialProfile: HomeData["financialProfile"];
   section: HomeSection;
   activePeriod: DashboardPeriod;
   onPeriodChange: (period: DashboardPeriod) => void;
@@ -565,6 +585,20 @@ function HomeScreen({
     campaign.score > 0 ||
     simulation.cards.length > 0;
   const primaryRiskCategory = dna.categories.find((category) => category.riskScore >= 65 || category.monthlySpend > 0);
+
+  if (section === "financialProfile") {
+    return (
+      <>
+        <ScreenHeader
+          eyebrow="Finansal ikiz kurulumu"
+          title="Finansal Profil"
+          subtitle="Web'deki profil verisini mobilde de gör; gelir güncellemesi ve hedef/bütçe bağlamı aynı API'den okunur."
+          right={<SlidersHorizontal size={28} color={palette.primary} />}
+        />
+        <MobileFinancialProfile user={user} profile={financialProfile} onChanged={onRefresh} />
+      </>
+    );
+  }
 
   if (section === "categories") {
     return (
@@ -608,7 +642,7 @@ function HomeScreen({
           subtitle="Güvenli, dengeli ve riskli harcama senaryolarını nakit akışıyla birlikte incele."
           right={<Sparkles size={28} color={palette.primary} />}
         />
-        <WhatIfPreview simulation={simulation} />
+        <WhatIfPreview simulation={simulation} summary={decisionSummary} history={decisionHistory} />
       </>
     );
   }
@@ -651,7 +685,7 @@ function HomeScreen({
           subtitle="Tekrarlayan, kullanılmayan veya fiyatı artmış abonelikleri ayrı ekranda incele."
           right={<Repeat2 size={28} color={palette.primary} />}
         />
-        <SubscriptionHunter leaks={leaks} />
+        <SubscriptionHunter leaks={leaks} subscriptions={subscriptions} onChanged={onRefresh} />
       </>
     );
   }
@@ -1092,6 +1126,63 @@ function GoalsSection({ goals }: { goals: Goal[] }) {
   );
 }
 
+function MobileFinancialProfile({ user, profile, onChanged }: { user: AuthUserProfile; profile: HomeData["financialProfile"]; onChanged: () => void }) {
+  const [monthlyIncome, setMonthlyIncome] = useState(user.monthlyIncome > 0 ? String(user.monthlyIncome) : "");
+  const [payday, setPayday] = useState(String(user.payday));
+  const [currency, setCurrency] = useState<Currency>((user.currency as Currency) || "TRY");
+  const [pending, setPending] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const totalAccountBalance = profile.accounts.reduce((total, account) => total + account.balance, 0);
+  const totalBudget = profile.budgets.reduce((total, budget) => total + budget.monthlyLimit, 0);
+
+  async function save() {
+    const parsedIncome = parseDecimalInput(monthlyIncome);
+    const parsedPayday = Number(payday);
+    if (parsedIncome === undefined || parsedIncome < 0 || !Number.isInteger(parsedPayday) || parsedPayday < 1 || parsedPayday > 31) {
+      setStatus("Gelir sıfır veya pozitif, maaş günü 1-31 arasında olmalı.");
+      return;
+    }
+    setPending(true);
+    setStatus(null);
+    try {
+      await updateFinanceProfile({ monthlyIncome: parsedIncome, payday: parsedPayday, currency });
+      setStatus("Finansal profil güncellendi.");
+      onChanged();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Finansal profil güncellenemedi.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <>
+      <View style={styles.metricGrid}>
+        <MetricCard icon={<WalletCards size={18} color={palette.primary} />} label="Hesap" value={`${profile.accounts.length}`} caption={money(totalAccountBalance)} tone="primary" />
+        <MetricCard icon={<Target size={18} color={palette.teal} />} label="Hedef" value={`${profile.goals.length}`} caption="aktif finansal hedef" tone="teal" />
+        <MetricCard icon={<ShieldAlert size={18} color={palette.warn} />} label="Bütçe" value={`${profile.budgets.length}`} caption={money(totalBudget)} tone="warn" />
+      </View>
+      <Panel>
+        <SectionTitle title="Gelir profili" meta="mobil parity" />
+        <View style={localStyles.formGrid}>
+          <TextInput value={monthlyIncome} onChangeText={setMonthlyIncome} placeholder="Aylık gelir" placeholderTextColor={palette.muted} keyboardType="decimal-pad" style={[localStyles.authInput, localStyles.formInput]} />
+          <TextInput value={payday} onChangeText={setPayday} placeholder="Maaş günü" placeholderTextColor={palette.muted} keyboardType="number-pad" style={[localStyles.authInput, localStyles.formInput]} />
+        </View>
+        <View style={localStyles.segmentedInline}>
+          {(["TRY", "USD", "EUR"] as const).map((item) => (
+            <Pressable key={item} onPress={() => setCurrency(item)} style={[localStyles.segmentButton, currency === item && localStyles.segmentButtonActive]}>
+              <Text style={[localStyles.segmentButtonText, currency === item && localStyles.segmentButtonTextActive]}>{item}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Button label={pending ? "Kaydediliyor" : "Profili kaydet"} onPress={() => void save()} disabled={pending} icon={<Check size={15} color={palette.surface} />} />
+        {status ? <Text style={status.includes("güncellendi") ? localStyles.formSuccess : localStyles.authError}>{status}</Text> : null}
+      </Panel>
+      <GoalsSection goals={profile.goals} />
+    </>
+  );
+}
+
 function ActionCenter({ actions, onChanged }: { actions: ActionItem[]; onChanged: () => void }) {
   return (
     <Panel>
@@ -1276,8 +1367,9 @@ function ManualTransactionPanel({ user, onChanged }: { user: AuthUserProfile; on
   );
 }
 
-function WhatIfPreview({ simulation }: { simulation: WhatIfResponse }) {
+function WhatIfPreview({ simulation, summary, history }: { simulation: WhatIfResponse; summary: DecisionJournalSummary; history: SimulationHistoryItem[] }) {
   const delayMinutes = simulation.emotionalDelayMinutes;
+  const recentDecisions = history.filter((item) => item.decisionEvents.length > 0).slice(0, 3);
   return (
     <Panel>
       <SectionTitle title="What-If Senaryosu" meta={delayMinutes ? "Emotional Delay" : "Veri durumu"} />
@@ -1308,8 +1400,40 @@ function WhatIfPreview({ simulation }: { simulation: WhatIfResponse }) {
       ) : (
         <EmptyPanelMessage message="Gelir, gider veya bütçe verisi eklenince what-if senaryoları gerçek limitlerle hesaplanır." />
       )}
+      <SectionTitle title="Karar Günlüğü" meta={`${summary.decidedScenarios}/${summary.totalScenarios} karar`} />
+      <View style={localStyles.dnaGrid}>
+        <MiniSignal label="Korunan nakit" value={money(summary.netProtectedCash)} tone={summary.netProtectedCash >= 0 ? "teal" : "danger"} />
+        <MiniSignal label="Ertelenen/iptal" value={`${summary.delayedCount + summary.cancelledCount}`} tone="primary" />
+        <MiniSignal label="Azaltılan" value={`${summary.reducedCount}`} tone="warn" />
+        <MiniSignal label="Sağlık etkisi" value={`${summary.healthAdjustment >= 0 ? "+" : ""}${summary.healthAdjustment}`} tone={summary.healthAdjustment >= 0 ? "teal" : "danger"} />
+      </View>
+      <Text style={styles.bodyMuted}>{summary.insight}</Text>
+      {recentDecisions.length ? (
+        recentDecisions.map((item) => {
+          const latest = item.decisionEvents[0];
+          return (
+            <View style={localStyles.scenarioCard} key={item.id}>
+              <View style={styles.rowBetween}>
+                <Badge label={decisionActionLabel(latest.userAction)} tone={latest.userAction === "bought" ? "danger" : latest.userAction === "planned" ? "primary" : "teal"} />
+                <Mono style={localStyles.scenarioAmount}>{money(latest.finalAmount ?? latest.originalAmount)}</Mono>
+              </View>
+              <Text style={styles.bodyMuted}>{item.question}</Text>
+            </View>
+          );
+        })
+      ) : (
+        <EmptyPanelMessage message="Senaryo sonucu işaretlediğinde mobil karar günlüğü burada dolar." />
+      )}
     </Panel>
   );
+}
+
+function decisionActionLabel(action: SimulationHistoryItem["decisionEvents"][number]["userAction"]) {
+  if (action === "bought") return "Aldım";
+  if (action === "delayed") return "Erteledim";
+  if (action === "cancelled") return "Vazgeçtim";
+  if (action === "reduced") return "Azalttım";
+  return "Planladım";
 }
 
 function ScenarioCardView({ card }: { card: ScenarioCard }) {
@@ -1327,7 +1451,7 @@ function ScenarioCardView({ card }: { card: ScenarioCard }) {
   );
 }
 
-function SubscriptionHunter({ leaks }: { leaks: SubscriptionLeak[] }) {
+function SubscriptionHunter({ leaks, subscriptions, onChanged }: { leaks: SubscriptionLeak[]; subscriptions: Subscription[]; onChanged: () => void }) {
   const total = leaks.reduce((sum, leak) => sum + leak.monthlyImpact, 0);
 
   return (
@@ -1348,7 +1472,50 @@ function SubscriptionHunter({ leaks }: { leaks: SubscriptionLeak[] }) {
       ) : (
         <EmptyPanelMessage message="Tekrar eden abonelik veya sızıntı bulgusu yok." />
       )}
+      <SectionTitle title="Abonelik yönetimi" meta={`${subscriptions.length} kayıt`} />
+      {subscriptions.length ? (
+        subscriptions.map((subscription) => <SubscriptionStatusCard key={subscription.id} subscription={subscription} onChanged={onChanged} />)
+      ) : (
+        <EmptyPanelMessage message="Ekstre veya manuel kayıt sonrası abonelikler burada yönetilir." />
+      )}
     </Panel>
+  );
+}
+
+function SubscriptionStatusCard({ subscription, onChanged }: { subscription: Subscription; onChanged: () => void }) {
+  const [pending, setPending] = useState<SubscriptionStatus | null>(null);
+  const [status, setStatus] = useState(subscription.status);
+
+  async function update(nextStatus: SubscriptionStatus) {
+    setPending(nextStatus);
+    try {
+      const updated = await updateSubscription(subscription.id, { status: nextStatus });
+      setStatus(updated.status);
+      onChanged();
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <View style={localStyles.leakCard}>
+      <View style={styles.rowBetween}>
+        <View style={localStyles.alertCopy}>
+          <Text style={localStyles.cardTitle}>{subscription.merchant}</Text>
+          <Text style={styles.bodyMuted}>
+            {money(subscription.amount)} / {subscription.cadence === "yearly" ? "yıl" : "ay"}
+            {subscription.nextExpectedAt ? ` · sonraki ${subscription.nextExpectedAt}` : ""}
+          </Text>
+        </View>
+        <Badge label={subscriptionStatusLabel(status)} tone={status === "cancelled" ? "danger" : status === "ignored" ? "warn" : "teal"} />
+      </View>
+      <View style={localStyles.actionButtons}>
+        <Button label={pending === "active" ? "..." : "Aktif"} variant="secondary" style={localStyles.actionButton} disabled={Boolean(pending)} onPress={() => void update("active")} />
+        <Button label={pending === "watching" ? "..." : "İzle"} variant="secondary" style={localStyles.actionButton} disabled={Boolean(pending)} onPress={() => void update("watching")} />
+        <Button label={pending === "ignored" ? "..." : "Yok say"} variant="secondary" style={localStyles.actionButton} disabled={Boolean(pending)} onPress={() => void update("ignored")} />
+        <Button label={pending === "cancelled" ? "..." : "İptal"} variant="danger" style={localStyles.actionButton} disabled={Boolean(pending)} onPress={() => void update("cancelled")} />
+      </View>
+    </View>
   );
 }
 
@@ -1809,6 +1976,15 @@ function leakIssueLabel(issue: SubscriptionLeak["issue"]) {
     small_leak: "Yeni",
     price_increase: "Fiyat artışı"
   }[issue];
+}
+
+function subscriptionStatusLabel(status: SubscriptionStatus) {
+  return {
+    active: "Aktif",
+    watching: "İzleniyor",
+    cancelled: "İptal",
+    ignored: "Yok sayıldı"
+  }[status];
 }
 
 const localStyles = StyleSheet.create({

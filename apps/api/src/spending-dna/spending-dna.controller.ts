@@ -1,5 +1,5 @@
 import { Controller, Get, Inject, Query, UseGuards } from "@nestjs/common";
-import { calculateSpendingDna, type DashboardPeriodOptions, type SpendingDna, type SpendingDnaCommentary } from "@fintwin/shared";
+import { calculateSpendingDna, summarizeDecisionJournal, type DashboardPeriodOptions, type SpendingDna, type SpendingDnaCommentary } from "@fintwin/shared";
 import type { AuthUser } from "../auth/auth-user.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
@@ -18,7 +18,20 @@ export class SpendingDnaController {
   async get(@CurrentUser() user: AuthUser, @Query() query: DashboardPeriodOptions) {
     await this.store.ensureMonthlySalaryTransactions(user.id);
     const data = this.store.getPersonalData(user.id);
-    const dna = { ...calculateSpendingDna(data.transactions, data.budgets, query, data.categories), userId: user.id };
+    const decisionSummary = summarizeDecisionJournal(await this.store.listSimulationHistory(user.id));
+    const baseDna = calculateSpendingDna(data.transactions, data.budgets, query, data.categories);
+    const dna = {
+      ...baseDna,
+      userId: user.id,
+      patterns:
+        decisionSummary.decidedScenarios > 0
+          ? [...baseDna.patterns, decisionSummary.insight]
+          : baseDna.patterns,
+      reasons:
+        decisionSummary.decidedScenarios > 0
+          ? [...(baseDna.reasons ?? []), `Karar günlüğü sağlık skoruna ${decisionSummary.healthAdjustment >= 0 ? "+" : ""}${decisionSummary.healthAdjustment} puan davranış sinyali ekledi.`]
+          : baseDna.reasons
+    };
     return { ...dna, commentary: await this.buildCommentary(dna) };
   }
 
@@ -59,7 +72,7 @@ export class SpendingDnaController {
               },
               topCategories: dna.categories
                 .filter((category) => category.monthlySpend > 0 || category.riskScore > 0)
-                .slice(0, 5)
+                .slice(0, 4)
                 .map((category) => ({
                   name: category.categoryName,
                   riskScore: category.riskScore,
@@ -68,11 +81,12 @@ export class SpendingDnaController {
                   budgetLimit: category.budgetLimit,
                   reasons: category.reasons?.slice(0, 2) ?? []
                 })),
-              behaviorSignals: dna.patterns
+              behaviorSignals: dna.patterns.slice(0, 5),
+              missingData: (dna.missingData ?? []).slice(0, 5)
             })
           }
         ],
-        { temperature: 0.25 }
+        { temperature: 0.25, maxTokens: 550 }
       );
       const parsed = parseCommentary(response.content);
       if (!parsed.summary) return unavailable("LLM yorumu boş döndü. Risk skorları hesaplandı, fakat yorum gösterilemiyor.");

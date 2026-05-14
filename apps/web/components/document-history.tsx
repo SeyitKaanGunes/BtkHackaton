@@ -1,4 +1,5 @@
 import { AlertTriangle, CheckCircle2, FileText } from "lucide-react";
+import Link from "next/link";
 import type { DocumentHistoryItem } from "@fintwin/shared";
 
 export function DocumentHistoryPanel({ documents }: { documents: DocumentHistoryItem[] }) {
@@ -11,7 +12,7 @@ export function DocumentHistoryPanel({ documents }: { documents: DocumentHistory
       {documents.length ? (
         <div className="document-history-list">
           {documents.slice(0, 8).map((document) => (
-            <article className="document-history-row" key={document.id}>
+            <Link className="document-history-row" href={`/documents/${document.id}`} key={document.id}>
               <div className="document-history-icon">{document.status === "imported" ? <CheckCircle2 size={18} /> : <FileText size={18} />}</div>
               <div>
                 <strong>{documentTitle(document)}</strong>
@@ -30,7 +31,7 @@ export function DocumentHistoryPanel({ documents }: { documents: DocumentHistory
                 <span>{document.itemCount} kalem</span>
                 {document.lowConfidenceCount ? <span>{document.lowConfidenceCount} düşük güven</span> : null}
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       ) : (

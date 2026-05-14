@@ -33,24 +33,29 @@ export class QwenService {
     return Boolean(process.env.QWEN_API_KEY);
   }
 
-  async chat(messages: QwenMessage[], options: { temperature?: number; model?: string } = {}): Promise<QwenChatResult> {
+  async chat(messages: QwenMessage[], options: { temperature?: number; model?: string; maxTokens?: number } = {}): Promise<QwenChatResult> {
     if (!this.isConfigured()) {
       throw new Error("QWEN_API_KEY is not configured.");
     }
 
     const model = options.model ?? this.textModel;
     try {
-      return await this.createChatCompletion(model, messages, options.temperature);
+      return await this.createChatCompletion(model, messages, options);
     } catch (error) {
       if (!this.shouldTrySecondaryModel(model, error)) throw error;
-      return this.createChatCompletion(this.secondaryModel, messages, options.temperature);
+      return this.createChatCompletion(this.secondaryModel, messages, options);
     }
   }
 
-  private async createChatCompletion(model: string, messages: QwenMessage[], temperature?: number): Promise<QwenChatResult> {
+  private async createChatCompletion(
+    model: string,
+    messages: QwenMessage[],
+    options: { temperature?: number; maxTokens?: number }
+  ): Promise<QwenChatResult> {
     const response = await this.getClient().chat.completions.create({
       model,
-      temperature: temperature ?? 0.2,
+      temperature: options.temperature ?? 0.2,
+      max_tokens: options.maxTokens,
       messages: messages as ChatCompletionMessageParam[]
     });
 

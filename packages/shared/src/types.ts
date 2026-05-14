@@ -267,6 +267,18 @@ export interface Subscription {
   source: "statement" | "manual";
 }
 
+export interface SubscriptionCreateRequest {
+  merchant: string;
+  categoryId: string;
+  amount: number;
+  currency?: Currency;
+  cadence?: Subscription["cadence"];
+  lastUsedAt?: string;
+  previousAmount?: number;
+  nextExpectedAt?: string;
+  note?: string;
+}
+
 export interface SubscriptionUpdateRequest {
   status?: SubscriptionStatus;
   nextExpectedAt?: string | null;
@@ -289,6 +301,22 @@ export interface DocumentHistoryItem {
   warnings: string[];
   itemCount: number;
   lowConfidenceCount: number;
+}
+
+export interface DocumentDetailItem {
+  label: string;
+  merchant?: string;
+  amount?: number;
+  occurredAt?: string;
+  categoryName?: string;
+  paymentMethod?: Transaction["paymentMethod"];
+  confidence?: number;
+  duplicate?: boolean;
+}
+
+export interface DocumentDetail extends DocumentHistoryItem {
+  items: DocumentDetailItem[];
+  tokenUsage?: Record<string, unknown>;
 }
 
 export interface ActionItem {
@@ -418,6 +446,22 @@ export interface SimulationHistoryItem {
   safeLimit?: number;
   createdAt: string;
   decisionEvents: DecisionEvent[];
+}
+
+export interface DecisionJournalSummary {
+  totalScenarios: number;
+  decidedScenarios: number;
+  delayedCount: number;
+  cancelledCount: number;
+  reducedCount: number;
+  plannedCount: number;
+  boughtCount: number;
+  avoidedSpend: number;
+  reducedSpend: number;
+  boughtSpend: number;
+  netProtectedCash: number;
+  healthAdjustment: number;
+  insight: string;
 }
 
 export interface SpendingDnaCategory {
@@ -557,6 +601,27 @@ export interface AgentEvidence {
   source: "transaction" | "budget" | "goal" | "subscription" | "simulation" | "business";
 }
 
+export interface AgentPlanStep {
+  agent: string;
+  purpose: string;
+  status: "completed" | "skipped" | "blocked";
+  output?: string;
+}
+
+export interface AgentQualitySignal {
+  grounded: boolean;
+  contextVersion?: number;
+  contextChars?: number;
+  truncatedSections?: string[];
+  model?: string;
+  tokenUsage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  warnings: string[];
+}
+
 export interface AgentResponse {
   answer: string;
   confidence: number;
@@ -564,6 +629,8 @@ export interface AgentResponse {
   evidence: AgentEvidence[];
   assumptions: string[];
   suggestedActions: ActionItem[];
+  agenticPlan?: AgentPlanStep[];
+  quality?: AgentQualitySignal;
 }
 
 export interface AgentConversationSummary {

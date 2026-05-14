@@ -2,8 +2,8 @@
 
 import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clock3, History, WandSparkles, XCircle } from "lucide-react";
-import type { Category, SimulationHistoryItem, UserDecisionAction, WhatIfResponse } from "@fintwin/shared";
-import { getCategories, getSimulationHistory, getWhatIf, postDecisionEvent, type CampaignReadiness } from "../lib/api";
+import type { Category, DecisionJournalSummary, SimulationHistoryItem, UserDecisionAction, WhatIfResponse } from "@fintwin/shared";
+import { getCategories, getSimulationHistory, getSimulationSummary, getWhatIf, postDecisionEvent, type CampaignReadiness } from "../lib/api";
 import { localDateInputValue, parseMoneyInput } from "../lib/input-format";
 import { EmotionalDelayDetailPanel, WhatIfDetailPanel } from "./insight-detail-panels";
 
@@ -12,8 +12,9 @@ type Status = { tone: "error" | "ok"; text: string } | null;
 export function WhatIfSimulator({ initialWhatIf }: { initialWhatIf: WhatIfResponse }) {
   const [whatIf, setWhatIf] = useState(initialWhatIf);
   const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
+  const [summary, setSummary] = useState<DecisionJournalSummary>(emptyDecisionSummary);
   useEffect(() => {
-    void getSimulationHistory().then(setHistory).catch(() => setHistory([]));
+    void refreshDecisionJournal(setHistory, setSummary);
   }, []);
   return (
     <section className="decision-simulator">
@@ -24,7 +25,10 @@ export function WhatIfSimulator({ initialWhatIf }: { initialWhatIf: WhatIfRespon
         submitLabel="Senaryoyu hesapla"
       />
       <WhatIfDetailPanel whatIf={whatIf} />
-      <DecisionHistoryPanel current={whatIf} history={history} onHistory={setHistory} />
+      <DecisionHistoryPanel current={whatIf} history={history} summary={summary} onJournal={(items, nextSummary) => {
+        setHistory(items);
+        setSummary(nextSummary);
+      }} />
     </section>
   );
 }
@@ -32,8 +36,9 @@ export function WhatIfSimulator({ initialWhatIf }: { initialWhatIf: WhatIfRespon
 export function EmotionalDelaySimulator({ initialWhatIf, campaign }: { initialWhatIf: WhatIfResponse; campaign: CampaignReadiness }) {
   const [whatIf, setWhatIf] = useState(initialWhatIf);
   const [history, setHistory] = useState<SimulationHistoryItem[]>([]);
+  const [summary, setSummary] = useState<DecisionJournalSummary>(emptyDecisionSummary);
   useEffect(() => {
-    void getSimulationHistory().then(setHistory).catch(() => setHistory([]));
+    void refreshDecisionJournal(setHistory, setSummary);
   }, []);
   return (
     <section className="decision-simulator">
@@ -44,7 +49,10 @@ export function EmotionalDelaySimulator({ initialWhatIf, campaign }: { initialWh
         submitLabel="Bekleme süresini hesapla"
       />
       <EmotionalDelayDetailPanel whatIf={whatIf} campaign={campaign} />
-      <DecisionHistoryPanel current={whatIf} history={history} onHistory={setHistory} />
+      <DecisionHistoryPanel current={whatIf} history={history} summary={summary} onJournal={(items, nextSummary) => {
+        setHistory(items);
+        setSummary(nextSummary);
+      }} />
     </section>
   );
 }
@@ -155,11 +163,13 @@ function DecisionInputPanel({
 function DecisionHistoryPanel({
   current,
   history,
-  onHistory
+  summary,
+  onJournal
 }: {
   current: WhatIfResponse;
   history: SimulationHistoryItem[];
-  onHistory: (items: SimulationHistoryItem[]) => void;
+  summary: DecisionJournalSummary;
+  onJournal: (items: SimulationHistoryItem[], summary: DecisionJournalSummary) => void;
 }) {
   const [pending, setPending] = useState<UserDecisionAction | null>(null);
   const [finalAmount, setFinalAmount] = useState("");
@@ -180,7 +190,8 @@ function DecisionHistoryPanel({
     setStatus(null);
     try {
       await postDecisionEvent(current.simulationId, { userAction, finalAmount: parsedFinalAmount });
-      onHistory(await getSimulationHistory());
+      const [items, nextSummary] = await Promise.all([getSimulationHistory(), getSimulationSummary()]);
+      onJournal(items, nextSummary);
       setStatus({ tone: "ok", text: "Karar günlüğe işlendi." });
       setFinalAmount("");
     } catch (error) {
@@ -196,6 +207,12 @@ function DecisionHistoryPanel({
         <span>Karar günlüğü</span>
         <strong>{history.length}</strong>
       </div>
+      <div className="decision-summary-grid">
+        <DecisionSummaryStat label="Net korunan nakit" value={`${summary.netProtectedCash.toLocaleString("tr-TR")} TL`} />
+        <DecisionSummaryStat label="Ertelenen/iptal" value={`${summary.delayedCount + summary.cancelledCount}`} />
+        <DecisionSummaryStat label="Sağlık etkisi" value={`${summary.healthAdjustment >= 0 ? "+" : ""}${summary.healthAdjustment}`} />
+      </div>
+      <p className="panel-copy compact-copy">{summary.insight}</p>
       <div className="decision-outcome-row">
         <button className="secondary-button small-button" disabled={!canRecord || Boolean(pending)} type="button" onClick={() => void record("bought")}>
           <CheckCircle2 size={15} />
@@ -215,6 +232,9 @@ function DecisionHistoryPanel({
         </label>
         <button className="secondary-button small-button" disabled={!canRecord || Boolean(pending)} type="button" onClick={() => void record("reduced")}>
           Azalttım
+        </button>
+        <button className="secondary-button small-button" disabled={!canRecord || Boolean(pending)} type="button" onClick={() => void record("planned")}>
+          Planladım
         </button>
       </div>
       {status ? <p className={`form-message ${status.tone === "error" ? "danger" : "success-message"}`}>{status.text}</p> : null}
@@ -236,6 +256,45 @@ function DecisionHistoryPanel({
       ) : (
         <div className="empty-state">Gerçek tutarlı senaryolar burada karar geçmişine dönüşür.</div>
       )}
+    </div>
+  );
+}
+
+const emptyDecisionSummary: DecisionJournalSummary = {
+  totalScenarios: 0,
+  decidedScenarios: 0,
+  delayedCount: 0,
+  cancelledCount: 0,
+  reducedCount: 0,
+  plannedCount: 0,
+  boughtCount: 0,
+  avoidedSpend: 0,
+  reducedSpend: 0,
+  boughtSpend: 0,
+  netProtectedCash: 0,
+  healthAdjustment: 0,
+  insight: "Henüz karar sonucu işaretlenmedi; gerçek etki için senaryo sonrası davranışı kaydet."
+};
+
+async function refreshDecisionJournal(
+  setHistory: (items: SimulationHistoryItem[]) => void,
+  setSummary: (summary: DecisionJournalSummary) => void
+) {
+  try {
+    const [items, summary] = await Promise.all([getSimulationHistory(), getSimulationSummary()]);
+    setHistory(items);
+    setSummary(summary);
+  } catch {
+    setHistory([]);
+    setSummary(emptyDecisionSummary);
+  }
+}
+
+function DecisionSummaryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="decision-summary-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }

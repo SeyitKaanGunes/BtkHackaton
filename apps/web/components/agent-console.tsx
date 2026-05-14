@@ -267,7 +267,37 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
           <div className="agent-meta">
             <span>Güven skoru: {Math.round(response.confidence * 100)}%</span>
             <span>{response.routedAgents.join(" -> ")}</span>
+            {response.quality?.model ? <span>Model: {response.quality.model}</span> : null}
+            {response.quality?.tokenUsage?.totalTokens ? <span>Token: {response.quality.tokenUsage.totalTokens}</span> : null}
           </div>
+          {response.quality ? (
+            <div className={response.quality.grounded ? "agent-quality" : "agent-quality warning"}>
+              <CheckCircle2 size={16} />
+              <span>
+                {response.quality.grounded ? "Cevap kayıtlı bağlamla üretildi." : response.quality.warnings.join(" ")}
+                {response.quality.contextChars ? ` Bağlam: ${response.quality.contextChars} karakter.` : ""}
+                {response.quality.truncatedSections?.length ? ` Kırpılan: ${response.quality.truncatedSections.join(", ")}.` : ""}
+              </span>
+            </div>
+          ) : null}
+          {response.agenticPlan?.length ? (
+            <div className="agentic-plan">
+              <div className="section-title">
+                <span>Agent akışı</span>
+                <strong>{response.agenticPlan.length}</strong>
+              </div>
+              {response.agenticPlan.map((step, index) => (
+                <div className="agentic-step" key={`${step.agent}-${index}`}>
+                  <span className={`chip ${step.status === "completed" ? "success" : step.status === "blocked" ? "danger" : "accent"}`}>{agentStepStatus(step.status)}</span>
+                  <div>
+                    <strong>{step.agent}</strong>
+                    <p>{step.purpose}</p>
+                    {step.output ? <small>{step.output}</small> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {response.assumptions.length ? (
             <div className="agent-assumptions">
               {response.assumptions.map((assumption) => (
@@ -364,4 +394,10 @@ function actionStatusLabel(status: ActionItem["status"]) {
   if (status === "approved") return "Onaylandı";
   if (status === "dismissed") return "Reddedildi";
   return "Bekliyor";
+}
+
+function agentStepStatus(status: NonNullable<AgentResponse["agenticPlan"]>[number]["status"]) {
+  if (status === "completed") return "Tamam";
+  if (status === "blocked") return "Blok";
+  return "Atlandı";
 }

@@ -23,6 +23,8 @@ import type {
   BudgetUpdateRequest,
   DecisionEvent,
   DecisionEventCreateRequest,
+  DecisionJournalSummary,
+  DocumentDetail,
   DocumentHistoryItem,
   FinancialProfile,
   Goal,
@@ -44,6 +46,7 @@ import type {
   SpeechToTextResult,
   SpeechCapabilities,
   Subscription,
+  SubscriptionCreateRequest,
   SubscriptionLeak,
   SubscriptionReminderResult,
   SubscriptionUpdateRequest,
@@ -418,6 +421,17 @@ export function getSubscriptions(options?: AuthOptions) {
   return request<Subscription[]>("/subscriptions", undefined, options);
 }
 
+export function createSubscription(input: SubscriptionCreateRequest, options?: AuthOptions) {
+  return request<Subscription>(
+    "/subscriptions",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    },
+    options
+  );
+}
+
 export function updateSubscription(id: string, input: SubscriptionUpdateRequest, options?: AuthOptions) {
   return request<Subscription>(
     `/subscriptions/${encodeURIComponent(id)}`,
@@ -449,6 +463,10 @@ export function getWhatIf(options?: AuthOptions & WhatIfRequest) {
 
 export function getSimulationHistory(options?: AuthOptions) {
   return request<SimulationHistoryItem[]>("/simulations/history", undefined, options);
+}
+
+export function getSimulationSummary(options?: AuthOptions) {
+  return request<DecisionJournalSummary>("/simulations/summary", undefined, options);
 }
 
 export function postDecisionEvent(id: string, input: DecisionEventCreateRequest, options?: AuthOptions) {
@@ -650,6 +668,10 @@ export async function postStatementConfirm(
 
 export function getDocumentHistory(options?: AuthOptions): Promise<DocumentHistoryItem[]> {
   return request<DocumentHistoryItem[]>("/documents", undefined, options);
+}
+
+export function getDocumentDetail(id: string, options?: AuthOptions): Promise<DocumentDetail> {
+  return request<DocumentDetail>(`/documents/${encodeURIComponent(id)}`, undefined, options);
 }
 
 export async function postSubscriptionReminder(input: { merchant: string; amount?: number; remindAt: string; note?: string }, options?: AuthOptions): Promise<SubscriptionReminderResult> {

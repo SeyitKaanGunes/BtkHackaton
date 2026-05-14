@@ -25,9 +25,11 @@ import type {
   DashboardPeriod,
   DashboardPeriodOptions,
   DashboardSummary,
+  DecisionJournalSummary,
   Goal,
   RiskLevel,
   ScenarioCard,
+  SimulationHistoryItem,
   SpendingDna,
   SpendingDnaCategory,
   SpendingDnaMetric,
@@ -756,6 +758,70 @@ export function detectSubscriptionLeakage(sourceSubscriptions: Subscription[], r
     }
     return leaks;
   }).concat(detectDuplicateSubscriptions(actionableSubscriptions));
+}
+
+export function summarizeDecisionJournal(history: SimulationHistoryItem[]): DecisionJournalSummary {
+  const latestDecisionByScenario = history.flatMap((item) => item.decisionEvents.slice(0, 1));
+  const totals = latestDecisionByScenario.reduce(
+    (acc, decision) => {
+      const original = decision.originalAmount;
+      const finalAmount = decision.finalAmount ?? original;
+      if (decision.userAction === "delayed") {
+        acc.delayedCount += 1;
+        acc.avoidedSpend += original;
+      } else if (decision.userAction === "cancelled") {
+        acc.cancelledCount += 1;
+        acc.avoidedSpend += original;
+      } else if (decision.userAction === "reduced") {
+        acc.reducedCount += 1;
+        acc.reducedSpend += Math.max(0, original - finalAmount);
+      } else if (decision.userAction === "planned") {
+        acc.plannedCount += 1;
+        acc.avoidedSpend += original;
+      } else if (decision.userAction === "bought") {
+        acc.boughtCount += 1;
+        acc.boughtSpend += finalAmount;
+      }
+      return acc;
+    },
+    {
+      delayedCount: 0,
+      cancelledCount: 0,
+      reducedCount: 0,
+      plannedCount: 0,
+      boughtCount: 0,
+      avoidedSpend: 0,
+      reducedSpend: 0,
+      boughtSpend: 0
+    }
+  );
+  const netProtectedCash = totals.avoidedSpend + totals.reducedSpend - totals.boughtSpend;
+  const healthAdjustment = Math.max(-6, Math.min(8, Math.round(netProtectedCash / 5000)));
+  const decidedScenarios = latestDecisionByScenario.length;
+  const insight =
+    decidedScenarios === 0
+      ? "Henüz karar sonucu işaretlenmedi; gerçek etki için senaryo sonrası davranışı kaydet."
+      : netProtectedCash > 0
+        ? `Karar günlüğü ${netProtectedCash.toLocaleString("tr-TR")} TL net nakit koruma sinyali veriyor.`
+        : netProtectedCash < 0
+          ? `Karar günlüğünde alınan kararlar ${Math.abs(netProtectedCash).toLocaleString("tr-TR")} TL net nakit çıkışı gösteriyor.`
+          : "Karar günlüğünde korunan ve harcanan tutar dengede görünüyor.";
+
+  return {
+    totalScenarios: history.length,
+    decidedScenarios,
+    delayedCount: totals.delayedCount,
+    cancelledCount: totals.cancelledCount,
+    reducedCount: totals.reducedCount,
+    plannedCount: totals.plannedCount,
+    boughtCount: totals.boughtCount,
+    avoidedSpend: Math.round(totals.avoidedSpend),
+    reducedSpend: Math.round(totals.reducedSpend),
+    boughtSpend: Math.round(totals.boughtSpend),
+    netProtectedCash: Math.round(netProtectedCash),
+    healthAdjustment,
+    insight
+  };
 }
 
 export function buildAgentEvidence(source: PersonalFinanceData = {}): AgentEvidence[] {

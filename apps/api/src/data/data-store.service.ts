@@ -27,6 +27,7 @@ import type {
   InvestmentHolding,
   SimulationHistoryItem,
   Subscription,
+  SubscriptionCreateRequest,
   SubscriptionUpdateRequest,
   Transaction,
   UserProfile
@@ -735,6 +736,40 @@ export class DataStoreService implements OnModuleInit {
         });
     const mapped = this.mapGoal(persisted);
     this.goals = [mapped, ...this.goals.filter((goal) => goal.id !== mapped.id)].sort((left, right) => left.deadline.localeCompare(right.deadline));
+    return mapped;
+  }
+
+  async createSubscription(userId: string, input: SubscriptionCreateRequest) {
+    this.assertReady();
+    const normalized = normalizeSubscriptionCreate(input);
+    const category = this.categories.find((item) => item.id === normalized.categoryId && item.kind === "expense");
+    if (!category) throw new BadRequestException("subscription category is invalid.");
+    const duplicate = this.subscriptions.find(
+      (subscription) =>
+        subscription.userId === userId &&
+        subscription.categoryId === normalized.categoryId &&
+        normalizeSubscriptionMerchant(subscription.merchant) === normalizeSubscriptionMerchant(normalized.merchant)
+    );
+    if (duplicate) throw new BadRequestException("Bu abonelik zaten kayıtlı; mevcut kaydı güncelleyin.");
+
+    const created = await this.prisma.subscription.create({
+      data: {
+        userId,
+        merchant: normalized.merchant,
+        categoryId: normalized.categoryId,
+        amount: normalized.amount,
+        currency: normalized.currency,
+        cadence: normalized.cadence,
+        lastUsedAt: normalized.lastUsedAt ? new Date(`${normalized.lastUsedAt}T12:00:00.000Z`) : null,
+        previousAmount: normalized.previousAmount ?? null,
+        status: "active",
+        nextExpectedAt: normalized.nextExpectedAt ? new Date(`${normalized.nextExpectedAt}T12:00:00.000Z`) : null,
+        note: normalized.note ?? null,
+        source: "manual"
+      }
+    });
+    const mapped = this.mapSubscription(created);
+    this.subscriptions.unshift(mapped);
     return mapped;
   }
 
@@ -1578,6 +1613,22 @@ function normalizeGoalUpdate(input: GoalUpdateRequest) {
     throw new BadRequestException("currentAmount targetAmount değerinden büyük olamaz.");
   }
   return update;
+}
+
+function normalizeSubscriptionCreate(input: SubscriptionCreateRequest) {
+  const cadence = input.cadence ?? "monthly";
+  if (cadence !== "monthly" && cadence !== "yearly") throw new BadRequestException("cadence monthly veya yearly olmalı.");
+  return {
+    merchant: requireNonEmptyText(input.merchant, "merchant"),
+    categoryId: requireNonEmptyText(input.categoryId, "categoryId"),
+    amount: requirePositiveFiniteNumber(input.amount, "amount"),
+    currency: optionalCurrencyValue(input.currency, "TRY"),
+    cadence,
+    lastUsedAt: input.lastUsedAt === undefined ? undefined : normalizeDateOnly(requireNonEmptyText(input.lastUsedAt, "lastUsedAt"), "lastUsedAt"),
+    previousAmount: optionalPositiveFiniteNumber(input.previousAmount, "previousAmount"),
+    nextExpectedAt: input.nextExpectedAt === undefined ? undefined : normalizeDateOnly(requireNonEmptyText(input.nextExpectedAt, "nextExpectedAt"), "nextExpectedAt"),
+    note: input.note === undefined ? undefined : optionalTextValue(input.note, "note") ?? undefined
+  };
 }
 
 function normalizeSubscriptionUpdate(input: SubscriptionUpdateRequest) {

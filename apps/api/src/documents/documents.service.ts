@@ -62,7 +62,7 @@ export class DocumentsService {
           ]
         }
       ],
-      { model: process.env.QWEN_VISION_MODEL ?? QWEN_PRIMARY_MODEL, temperature: 0 }
+      { model: process.env.QWEN_VISION_MODEL ?? QWEN_PRIMARY_MODEL, temperature: 0, maxTokens: 900 }
     ).catch(() => {
       throw new BadGatewayException({
         code: "RECEIPT_AI_REQUEST_FAILED",

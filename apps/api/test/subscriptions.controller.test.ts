@@ -23,11 +23,14 @@ describe("SubscriptionsController", () => {
           }
         ]
       })),
+      createSubscription: vi.fn(async () => ({ id: "sub-2", source: "manual" })),
       updateSubscription: vi.fn(async () => ({ id: "sub-1", status: "cancelled" }))
     };
     const controller = new SubscriptionsController(store as never);
 
     expect(controller.list(user)).toHaveLength(1);
+    await expect(controller.create(user, { merchant: "Cloud", categoryId: "cat-subscription", amount: 49 })).resolves.toEqual({ id: "sub-2", source: "manual" });
+    expect(store.createSubscription).toHaveBeenCalledWith("user-1", { merchant: "Cloud", categoryId: "cat-subscription", amount: 49 });
     await expect(controller.update(user, "sub-1", { status: "cancelled" })).resolves.toEqual({ id: "sub-1", status: "cancelled" });
     expect(store.updateSubscription).toHaveBeenCalledWith("user-1", "sub-1", { status: "cancelled" });
   });

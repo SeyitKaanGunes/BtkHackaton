@@ -64,7 +64,7 @@ export class StatementExtractorService {
             { role: "system", content: STATEMENT_CHUNK_INSTRUCTION },
             { role: "user", content: chunk.join("\n") }
           ],
-          { temperature: 0 }
+          { temperature: 0, maxTokens: 2_500 }
         );
         addUsage(tokenUsage, response.usage);
 
@@ -160,7 +160,7 @@ export class StatementExtractorService {
           ]
         }
       ],
-      { model: getVisionModel(), temperature: 0 }
+      { model: getVisionModel(), temperature: 0, maxTokens: 3_500 }
     );
 
     const tokenUsage = emptyTokenUsage();

@@ -23,7 +23,8 @@ describe("simulation history API", () => {
 
     expect(response.simulationId).toBe("sim-1");
     expect(store.saveSimulation).toHaveBeenCalledOnce();
-    await expect(controller.history(user)).resolves.toEqual([{ id: "sim-1" }]);
+    await expect(controller.history(user)).resolves.toEqual(historyRows);
+    await expect(controller.summary(user)).resolves.toMatchObject({ totalScenarios: 1, decidedScenarios: 1, avoidedSpend: 3500 });
   });
 
   it("records decision feedback only for owned simulations", async () => {
@@ -51,7 +52,30 @@ function fakeStore() {
       investmentHoldings: []
     })),
     saveSimulation: vi.fn(async () => ({ id: "sim-1" })),
-    listSimulationHistory: vi.fn(async () => [{ id: "sim-1" }]),
+    listSimulationHistory: vi.fn(async () => historyRows),
     recordDecisionEvent: vi.fn(async () => ({ id: "decision-1" }))
   };
 }
+
+const historyRows = [
+  {
+    id: "sim-1",
+    kind: "what_if",
+    question: "Kahve makinesi alırsam?",
+    amount: 3500,
+    categoryId: "cat-food",
+    categoryName: "Yemek",
+    createdAt: "2026-05-13T12:00:00.000Z",
+    decisionEvents: [
+      {
+        id: "decision-1",
+        userId: "user-1",
+        simulationId: "sim-1",
+        scenarioId: "scenario-1",
+        userAction: "delayed" as const,
+        originalAmount: 3500,
+        createdAt: "2026-05-13T12:05:00.000Z"
+      }
+    ]
+  }
+];

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Plus, Search, Trash2, TrendingDown, TrendingUp } from "lucide-react";
-import type { Currency, InvestmentAssetType, InvestmentPortfolioSummary, MarketSymbolResult } from "@fintwin/shared";
+import type { Currency, Goal, InvestmentAssetType, InvestmentPortfolioSummary, MarketSymbolResult } from "@fintwin/shared";
 import { addInvestmentHolding, deleteInvestmentHolding, searchMarketSymbols } from "../lib/api";
 import { normalizeMarketSymbolQuery, shouldSearchMarketSymbols, type PortfolioFormMode } from "../lib/portfolio-form";
 
@@ -32,10 +32,11 @@ type InvestmentPortfolioMode = PortfolioFormMode;
 
 type InvestmentPortfolioProps = {
   initialPortfolio: InvestmentPortfolioSummary;
+  goals?: Goal[];
   mode?: InvestmentPortfolioMode;
 };
 
-export function InvestmentPortfolio({ initialPortfolio, mode = "overview" }: InvestmentPortfolioProps) {
+export function InvestmentPortfolio({ initialPortfolio, goals = [], mode = "overview" }: InvestmentPortfolioProps) {
   const [portfolio, setPortfolio] = useState(initialPortfolio);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MarketSymbolResult[]>([]);
@@ -312,7 +313,7 @@ export function InvestmentPortfolio({ initialPortfolio, mode = "overview" }: Inv
           </div>
         ) : null}
 
-        <PortfolioTwinPanel portfolio={portfolio} />
+        <PortfolioTwinPanel portfolio={portfolio} goals={goals} />
 
         <div className="position-list">
           {portfolio.positions.length === 0 ? (
@@ -364,12 +365,22 @@ export function InvestmentPortfolio({ initialPortfolio, mode = "overview" }: Inv
   );
 }
 
-function PortfolioTwinPanel({ portfolio }: { portfolio: InvestmentPortfolioSummary }) {
+function PortfolioTwinPanel({ portfolio, goals }: { portfolio: InvestmentPortfolioSummary; goals: Goal[] }) {
   const topAllocation = [...portfolio.allocation].sort((left, right) => right.weight - left.weight)[0];
   const cashWeight = portfolio.allocation.find((item) => item.assetType === "cash")?.weight ?? 0;
+  const emergencyGoal = goals.find((goal) => /acil|emergency/i.test(goal.title));
+  const shortTermGoalGap = goals
+    .filter((goal) => daysUntil(goal.deadline) <= 180)
+    .reduce((total, goal) => total + Math.max(0, goal.targetAmount - goal.currentAmount), 0);
   const riskNotes = [
     topAllocation && topAllocation.weight >= 70 ? `${topAllocation.label} portföyün %${topAllocation.weight.toLocaleString("tr-TR")} kısmını oluşturuyor; yoğunlaşma riski izlenmeli.` : undefined,
     cashWeight < 10 && portfolio.totalMarketValueTry > 0 ? "Nakit/mevduat oranı düşük; kısa vadeli hedefler için likidite tamponu kontrol edilmeli." : undefined,
+    emergencyGoal && emergencyGoal.currentAmount < emergencyGoal.targetAmount * 0.5
+      ? `Acil durum hedefi henüz %${Math.round((emergencyGoal.currentAmount / emergencyGoal.targetAmount) * 100)} seviyesinde; yüksek riskli varlık yoğunluğu varsa nakit tampon öncelikli izlenmeli.`
+      : undefined,
+    shortTermGoalGap > 0 && cashWeight < 25
+      ? `Önümüzdeki 6 ay hedeflerinde ${formatTry(shortTermGoalGap)} açık var; kısa vadeli hedefler için nakit/mevduat oranı düşük kalabilir.`
+      : undefined,
     portfolio.hasMarketDataGap ? `${portfolio.unpricedPositionCount} pozisyon için fiyat alınamadı; kar/zarar yalnızca fiyatlanan varlıklardan hesaplanıyor.` : undefined,
     portfolio.totalDailyInterestTry > 0 ? `Mevduat/nakit günlük faiz projeksiyonu ${formatTry(portfolio.totalDailyInterestTry)}.` : undefined
   ].filter((note): note is string => Boolean(note));
@@ -394,9 +405,20 @@ function PortfolioTwinPanel({ portfolio }: { portfolio: InvestmentPortfolioSumma
             <span>Veri güveni</span>
             <strong>{portfolio.hasMarketDataGap ? "Orta" : "Yüksek"}</strong>
           </div>
+          <div>
+            <span>Hedef uyumu</span>
+            <strong>{shortTermGoalGap > 0 ? `${formatTry(shortTermGoalGap)} kısa vade açığı` : "Kısa vade açık yok"}</strong>
+          </div>
         </div>
       ) : (
-        <div className="empty-state">Pozisyon eklendiğinde dağılım riski ve piyasa veri boşlukları burada açıklanır.</div>
+        <div className="empty-state">
+          <strong>Hedef uyumu beklemede</strong>
+          <span>
+            {goals.length
+              ? `${goals.length} finansal hedef var; pozisyon eklendiğinde likidite, yoğunlaşma ve kısa vade açığı birlikte okunacak.`
+              : "Pozisyon ve hedef eklendiğinde dağılım riski, piyasa veri boşlukları ve hedef uyumu birlikte açıklanır."}
+          </span>
+        </div>
       )}
       {riskNotes.length ? (
         <ul className="reason-list">
@@ -409,6 +431,12 @@ function PortfolioTwinPanel({ portfolio }: { portfolio: InvestmentPortfolioSumma
       ) : null}
     </div>
   );
+}
+
+function daysUntil(dateOnly: string) {
+  const now = new Date();
+  const date = new Date(`${dateOnly}T12:00:00.000Z`);
+  return Math.ceil((date.getTime() - now.getTime()) / 86_400_000);
 }
 
 function parseRequiredPositiveNumber(value: string, field: string): number {

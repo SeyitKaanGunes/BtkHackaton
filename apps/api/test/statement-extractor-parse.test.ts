@@ -27,6 +27,15 @@ describe("StatementExtractorService extractFromText parsing", () => {
     expect(result.totalAmount).toBe(250.75);
   });
 
+  it("limits text chunk completions to 2500 tokens", async () => {
+    const chat = vi.fn().mockResolvedValue({ content: validChunk, model: "mock", usage: {} });
+    const extractor = createExtractorFromChat(chat);
+
+    await extractor.extractFromText("15/05/2026 MIGROS 250,75 TL");
+
+    expect(chat).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ maxTokens: 2_500, temperature: 0 }));
+  });
+
   it("parses markdown fenced JSON responses", async () => {
     const extractor = createExtractor(`\`\`\`json\n${validChunk}\n\`\`\``);
     const result = await extractor.extractFromText("15/05/2026 MIGROS 250,75 TL");
@@ -92,6 +101,7 @@ describe("StatementExtractorService extractFromText parsing", () => {
     expect(result.items).toHaveLength(1);
     expect(result.warnings).toContain("PDF metni zayıf olduğu için vision OCR fallback kullanıldı.");
     expect(result.tokenUsage.totalTokens).toBe(15);
+    expect(chat).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ maxTokens: 3_500, temperature: 0 }));
   });
 
   it("keeps short but structurally valid PDF text on the text path", () => {

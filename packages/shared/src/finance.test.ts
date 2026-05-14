@@ -5,7 +5,8 @@ import {
   calculateCollectionScore,
   calculateDashboardSummary,
   calculateSpendingDna,
-  detectSubscriptionLeakage
+  detectSubscriptionLeakage,
+  summarizeDecisionJournal
 } from "./finance.js";
 import { accounts, actions, budgets, business, businessCashEvents, businessCustomers, goals, subscriptions, transactions } from "./demo-data.js";
 import type { Account, Budget, Category, Goal, Transaction } from "./types.js";
@@ -295,6 +296,52 @@ describe("Fintwin finance engines", () => {
   it("detects subscription leakage", () => {
     const leaks = detectSubscriptionLeakage(subscriptions, new Date("2026-05-10T00:00:00.000Z"));
     expect(leaks.some((leak) => leak.issue === "duplicate")).toBe(true);
+  });
+
+  it("summarizes decision journal outcomes into protected cash and health signal", () => {
+    const summary = summarizeDecisionJournal([
+      {
+        id: "sim-1",
+        kind: "what_if",
+        question: "Telefon alırsam?",
+        createdAt: "2026-05-13T12:00:00.000Z",
+        decisionEvents: [
+          {
+            id: "dec-1",
+            userId: "user-test",
+            simulationId: "sim-1",
+            scenarioId: "scenario-1",
+            userAction: "reduced",
+            originalAmount: 12000,
+            finalAmount: 8000,
+            createdAt: "2026-05-13T12:05:00.000Z"
+          }
+        ]
+      },
+      {
+        id: "sim-2",
+        kind: "what_if",
+        question: "Ayakkabı alırsam?",
+        createdAt: "2026-05-13T13:00:00.000Z",
+        decisionEvents: [
+          {
+            id: "dec-2",
+            userId: "user-test",
+            simulationId: "sim-2",
+            scenarioId: "scenario-2",
+            userAction: "cancelled",
+            originalAmount: 6000,
+            createdAt: "2026-05-13T13:05:00.000Z"
+          }
+        ]
+      }
+    ]);
+
+    expect(summary.decidedScenarios).toBe(2);
+    expect(summary.reducedSpend).toBe(4000);
+    expect(summary.avoidedSpend).toBe(6000);
+    expect(summary.netProtectedCash).toBe(10000);
+    expect(summary.healthAdjustment).toBeGreaterThan(0);
   });
 
   it("calculates collection score for a business customer", () => {

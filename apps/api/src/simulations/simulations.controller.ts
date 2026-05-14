@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Inject, NotFoundException, Param, Post, UseGuards } from "@nestjs/common";
-import { buildWhatIfScenarios, type DecisionEventCreateRequest, type WhatIfRequest } from "@fintwin/shared";
+import { buildWhatIfScenarios, summarizeDecisionJournal, type DecisionEventCreateRequest, type WhatIfRequest } from "@fintwin/shared";
 import type { AuthUser } from "../auth/auth-user.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
@@ -33,6 +33,11 @@ export class SimulationsController {
   @Get("history")
   history(@CurrentUser() user: AuthUser) {
     return this.store.listSimulationHistory(user.id);
+  }
+
+  @Get("summary")
+  async summary(@CurrentUser() user: AuthUser) {
+    return summarizeDecisionJournal(await this.store.listSimulationHistory(user.id));
   }
 
   @Post(":id/decision")

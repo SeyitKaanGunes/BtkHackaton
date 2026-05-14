@@ -136,11 +136,21 @@ export class GoalsController {
             content: JSON.stringify({
               instruction:
                 "summary 3-5 kısa cümle olsun. Kullanıcı hedeflerine ulaşmak için bugün neye dikkat etmeli açıkça söyle. actions tam 3 madde olsun; her madde tek cümle, net ve yapılabilir olsun. JSON şeması: {\"summary\":\"...\",\"actions\":[\"...\"]}",
-              context
+              context: {
+                ...context,
+                goals: context.goals
+                  .slice()
+                  .sort((left, right) => left.deadline.localeCompare(right.deadline))
+                  .slice(0, 6),
+                budgets: context.budgets
+                  .slice()
+                  .sort((left, right) => right.monthlySpend / Math.max(right.monthlyLimit, 1) - left.monthlySpend / Math.max(left.monthlyLimit, 1))
+                  .slice(0, 6)
+              }
             })
           }
         ],
-        { temperature: 0.3 }
+        { temperature: 0.3, maxTokens: 500 }
       );
       const parsed = parseGoalAdvice(response.content);
       if (!parsed.summary) return unavailable("Hedef tavsiyesi boş döndü. Hedefler kaydedildi, fakat yorum gösterilemiyor.");

@@ -18,6 +18,7 @@ for (const file of [".env", "apps/api/.env", "apps/web/.env"]) {
 
 env.NEXT_PUBLIC_API_URL ||= "http://localhost:4000";
 env.EXPO_PUBLIC_API_URL ||= env.NEXT_PUBLIC_API_URL;
+preferDirectDatabaseUrlForLocalDev(env);
 
 if (cleanExisting) {
   await stopExistingDevProcesses();
@@ -125,6 +126,14 @@ function loadEnvFile(filePath, target) {
     const rawValue = trimmed.slice(separator + 1).trim();
     target[key] = unquote(rawValue);
   }
+}
+
+function preferDirectDatabaseUrlForLocalDev(target) {
+  if (target.FINTWIN_DEV_DATABASE_URL_MODE === "pooler") return;
+  if (!target.DIRECT_URL || !target.DATABASE_URL) return;
+  if (!/pooler\.supabase\.com/i.test(target.DATABASE_URL)) return;
+  target.DATABASE_URL = target.DIRECT_URL;
+  process.stdout.write("[dev] DATABASE_URL uses Supabase pooler; local dev is using DIRECT_URL. Set FINTWIN_DEV_DATABASE_URL_MODE=pooler to force the pooler.\n");
 }
 
 function unquote(value) {

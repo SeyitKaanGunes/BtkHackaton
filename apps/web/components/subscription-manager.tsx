@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Eye, EyeOff, XCircle } from "lucide-react";
-import type { Subscription, SubscriptionLeak, SubscriptionStatus } from "@fintwin/shared";
-import { updateSubscription } from "../lib/api";
+import { Bell, Eye, EyeOff, Plus, XCircle } from "lucide-react";
+import type { Category, Currency, Subscription, SubscriptionLeak, SubscriptionStatus } from "@fintwin/shared";
+import { createSubscription, updateSubscription } from "../lib/api";
+import { localDateInputValue, parseMoneyInput } from "../lib/input-format";
 
 const statusOptions: Array<{ value: SubscriptionStatus; label: string }> = [
   { value: "active", label: "Aktif" },
@@ -13,12 +14,48 @@ const statusOptions: Array<{ value: SubscriptionStatus; label: string }> = [
   { value: "ignored", label: "Yok sayıldı" }
 ];
 
-export function SubscriptionManager({ initialSubscriptions, leaks }: { initialSubscriptions: Subscription[]; leaks: SubscriptionLeak[] }) {
+export function SubscriptionManager({ initialSubscriptions, leaks, categories }: { initialSubscriptions: Subscription[]; leaks: SubscriptionLeak[]; categories: Category[] }) {
   const router = useRouter();
   const [subscriptions, setSubscriptions] = useState(initialSubscriptions);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    merchant: "",
+    amount: "",
+    categoryId: categories.find((category) => category.id === "cat-subscription")?.id ?? categories[0]?.id ?? "",
+    currency: "TRY" as Currency,
+    cadence: "monthly" as Subscription["cadence"],
+    nextExpectedAt: localDateInputValue()
+  });
   const leakBySubscription = useMemo(() => new Map(leaks.map((leak) => [leak.subscriptionId, leak])), [leaks]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const amount = parseMoneyInput(form.amount);
+    if (!form.merchant.trim() || amount === undefined || amount <= 0 || !form.categoryId) {
+      setError("Abonelik adı, kategori ve pozitif tutar gerekli.");
+      return;
+    }
+    setPendingId("new");
+    setError(null);
+    try {
+      const created = await createSubscription({
+        merchant: form.merchant.trim(),
+        amount,
+        categoryId: form.categoryId,
+        currency: form.currency,
+        cadence: form.cadence,
+        nextExpectedAt: form.nextExpectedAt
+      });
+      setSubscriptions((current) => [created, ...current]);
+      setForm((current) => ({ ...current, merchant: "", amount: "", nextExpectedAt: localDateInputValue() }));
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Abonelik eklenemedi.");
+    } finally {
+      setPendingId(null);
+    }
+  }
 
   async function setStatus(subscription: Subscription, status: SubscriptionStatus) {
     setPendingId(subscription.id);
@@ -40,6 +77,41 @@ export function SubscriptionManager({ initialSubscriptions, leaks }: { initialSu
         <span>Abonelik yönetimi</span>
         <strong>{subscriptions.length}</strong>
       </div>
+      <form className="subscription-create-form" onSubmit={submit}>
+        <label className="field">
+          <span>Abonelik</span>
+          <input value={form.merchant} onChange={(event) => setForm((current) => ({ ...current, merchant: event.target.value }))} placeholder="Netflix, Spotify, bulut depolama" />
+        </label>
+        <label className="field">
+          <span>Tutar</span>
+          <input inputMode="decimal" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="149,99" />
+        </label>
+        <label className="field">
+          <span>Kategori</span>
+          <select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Dönem</span>
+          <select value={form.cadence} onChange={(event) => setForm((current) => ({ ...current, cadence: event.target.value as Subscription["cadence"] }))}>
+            <option value="monthly">Aylık</option>
+            <option value="yearly">Yıllık</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Sonraki ödeme</span>
+          <input type="date" value={form.nextExpectedAt} onChange={(event) => setForm((current) => ({ ...current, nextExpectedAt: event.target.value }))} />
+        </label>
+        <button className="secondary-button" disabled={pendingId === "new"} type="submit">
+          <Plus size={16} />
+          {pendingId === "new" ? "Ekleniyor" : "Abonelik ekle"}
+        </button>
+      </form>
       {subscriptions.length ? (
         <div className="subscription-management-list">
           {subscriptions.map((subscription) => {
@@ -52,6 +124,7 @@ export function SubscriptionManager({ initialSubscriptions, leaks }: { initialSu
                   <small>
                     {subscription.amount.toLocaleString("tr-TR")} {subscription.currency} / {subscription.cadence === "yearly" ? "yıl" : "ay"}
                     {subscription.lastUsedAt ? ` · son kullanım ${subscription.lastUsedAt}` : ""}
+                    {subscription.nextExpectedAt ? ` · sonraki ödeme ${subscription.nextExpectedAt}` : ""}
                   </small>
                   {leak ? <p>{leak.recommendation}</p> : null}
                 </div>

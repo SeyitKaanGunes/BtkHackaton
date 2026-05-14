@@ -14,6 +14,8 @@ import type {
   Currency,
   DashboardPeriod,
   DashboardSummary,
+  DecisionJournalSummary,
+  FinancialProfile,
   InvestmentHoldingCreateRequest,
   InvestmentPortfolioSummary,
   MarketSymbolResult,
@@ -23,10 +25,14 @@ import type {
   SpeechToTextRequest,
   SpeechToTextResult,
   SpendingDna,
+  SimulationHistoryItem,
   StatementConfirmResult,
   StatementPreviewResult,
   SubscriptionLeak,
+  Subscription,
+  SubscriptionCreateRequest,
   SubscriptionReminderResult,
+  SubscriptionUpdateRequest,
   TextToSpeechRequest,
   TextToSpeechResult,
   Transaction,
@@ -268,28 +274,71 @@ export async function loadMobileHome(options: MobileHomeOptions = {}): Promise<{
   dna: SpendingDna;
   campaign: CampaignReadiness;
   leaks: SubscriptionLeak[];
+  subscriptions: Subscription[];
   simulation: WhatIfResponse;
+  decisionSummary: DecisionJournalSummary;
+  decisionHistory: SimulationHistoryItem[];
   investmentPortfolio: InvestmentPortfolioSummary;
   businessOverview: BusinessOverview | null;
+  financialProfile: FinancialProfile;
 }> {
   const query = periodQuery(options);
-  const [user, dashboard, dna, campaign, leaks, simulation, investmentPortfolio, businessOverview] = await Promise.all([
+  const [user, dashboard, dna, campaign, leaks, subscriptions, simulation, decisionSummary, decisionHistory, investmentPortfolio, businessOverview, financialProfile] = await Promise.all([
     getCurrentUser(),
     request<DashboardSummary>(`/dashboard/personal${query}`),
     request<SpendingDna>(`/spending-dna${query}`),
     request<CampaignReadiness>(`/campaigns/readiness${query}`),
     request<SubscriptionLeak[]>("/subscriptions/leakage"),
+    loadSubscriptions(),
     request<WhatIfResponse>("/simulations/what-if", {
       method: "POST",
       body: JSON.stringify({})
     }),
+    loadDecisionSummary(),
+    loadSimulationHistory(),
     loadInvestmentPortfolio(),
     loadBusinessOverview().catch((error) => {
       if (error instanceof ApiRequestError && error.status === 404) return null;
       throw error;
-    })
+    }),
+    loadFinancialProfile()
   ]);
-  return { user, dashboard, dna, campaign, leaks, simulation, investmentPortfolio, businessOverview };
+  return { user, dashboard, dna, campaign, leaks, subscriptions, simulation, decisionSummary, decisionHistory, investmentPortfolio, businessOverview, financialProfile };
+}
+
+export async function loadFinancialProfile(): Promise<FinancialProfile> {
+  const [accounts, budgets, goals] = await Promise.all([
+    request<FinancialProfile["accounts"]>("/accounts"),
+    request<FinancialProfile["budgets"]>("/budgets"),
+    request<unknown>("/goals").then((value) => (Array.isArray(value) ? (value as FinancialProfile["goals"]) : (value as { goals?: FinancialProfile["goals"] }).goals ?? []))
+  ]);
+  return { accounts, budgets, goals };
+}
+
+export function loadSubscriptions(): Promise<Subscription[]> {
+  return request<Subscription[]>("/subscriptions");
+}
+
+export function createSubscription(input: SubscriptionCreateRequest): Promise<Subscription> {
+  return request<Subscription>("/subscriptions", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function updateSubscription(id: string, input: SubscriptionUpdateRequest): Promise<Subscription> {
+  return request<Subscription>(`/subscriptions/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input)
+  });
+}
+
+export function loadDecisionSummary(): Promise<DecisionJournalSummary> {
+  return request<DecisionJournalSummary>("/simulations/summary");
+}
+
+export function loadSimulationHistory(): Promise<SimulationHistoryItem[]> {
+  return request<SimulationHistoryItem[]>("/simulations/history");
 }
 
 export function loadInvestmentPortfolio(): Promise<InvestmentPortfolioSummary> {
