@@ -17,7 +17,7 @@ export default async function BusinessPage({ searchParams }: BusinessPageProps) 
   const businessData = await loadBusinessData(token);
   const active = params?.section ? `/business?section=${section}` : "/business";
   return (
-    <AppShell active={active} accountType={user.accountType}>
+    <AppShell active={active} accountType={user.accountType} businessReady={Boolean(businessData)}>
       <BusinessWorkspace initialData={businessData} activeSection={section} showOverview={showOverview} />
     </AppShell>
   );
@@ -33,6 +33,6 @@ async function loadBusinessData(token: string): Promise<BusinessWorkspaceData | 
 }
 
 function parseBusinessSection(section: string | undefined): BusinessSectionId {
-  if (section === "cashflow" || section === "coverage" || section === "collections" || section === "scenarios" || section === "records" || section === "assistant") return section;
+  if (section === "dna" || section === "cashflow" || section === "coverage" || section === "collections" || section === "scenarios" || section === "records" || section === "assistant") return section;
   return "twin";
 }

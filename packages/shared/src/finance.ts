@@ -9,6 +9,9 @@ import type {
   AiCfoSimulation,
   Budget,
   Business,
+  BusinessDna,
+  BusinessDnaFactor,
+  BusinessDnaMetric,
   BusinessCashflowPoint,
   BusinessDashboard,
   BusinessCashEvent,
@@ -61,6 +64,11 @@ const businessRiskPaymentPressureWeight = 28;
 const businessRiskOverduePressureWeight = 22;
 const businessRiskBufferPressureWeight = 35;
 const businessRiskNegativeBalanceWeight = 25;
+const businessDnaCashBufferWeight = 0.28;
+const businessDnaPaymentPressureWeight = 0.24;
+const businessDnaCollectionWeight = 0.22;
+const businessDnaRequiredPaymentWeight = 0.16;
+const businessDnaVolatilityWeight = 0.1;
 
 const riskFromScore = (score: number): RiskLevel => {
   if (score >= 85) return "critical";
@@ -870,6 +878,24 @@ export function calculateBusinessDashboard(sourceBusiness: Business, sourceCashE
   };
 }
 
+export function calculateBusinessDna(
+  sourceBusiness: Business,
+  sourceCashEvents: BusinessCashEvent[],
+  sourceCustomers: BusinessCustomer[],
+  sourceScores: CollectionScore[] = [],
+  referenceDate = new Date()
+): BusinessDna {
+  const referenceDay = parseUtcDate(referenceDate.toISOString());
+  const relatedEvents = sortedBusinessEvents(sourceBusiness.id, sourceCashEvents);
+  const futureEvents = relatedEvents.filter((event) => parseUtcDate(event.dueAt) >= referenceDay);
+  const projectionEvents = futureEvents.filter((event) => isWithinProjectionWindow(event, referenceDay, businessProjectionWindowDays));
+  const cashflow = buildBusinessCashflow(sourceBusiness.cashBalance, projectionEvents, referenceDay, businessProjectionWindowDays);
+  const summary = buildBusinessSummary(sourceBusiness, projectionEvents, sourceCustomers, cashflow);
+  const coverage = buildBusinessCoverageAnalysis(projectionEvents, cashflow);
+  const collectionPriorities = buildCollectionPriorities(sourceCustomers, sourceScores);
+  return buildBusinessDna(sourceBusiness.id, projectionEvents, sourceCustomers, summary, coverage, cashflow, collectionPriorities);
+}
+
 export function buildBusinessInsights(
   sourceBusiness: Business,
   sourceCashEvents: BusinessCashEvent[],
@@ -886,6 +912,7 @@ export function buildBusinessInsights(
   const coverage = buildBusinessCoverageAnalysis(projectionEvents, cashflow);
   const collectionPriorities = buildCollectionPriorities(sourceCustomers, sourceScores);
   const scenarios = buildBusinessScenarioAnalyses(sourceBusiness, futureEvents, referenceDay, summary.projected30Days);
+  const businessDna = buildBusinessDna(sourceBusiness.id, projectionEvents, sourceCustomers, summary, coverage, cashflow, collectionPriorities);
   const missingData: string[] = [];
   if (futureEvents.length === 0) missingData.push("Gelecek nakit olayı bulunamadı.");
   if (sourceCustomers.length === 0) missingData.push("Tahsilat önceliği için müşteri kaydı bulunamadı.");
@@ -894,6 +921,7 @@ export function buildBusinessInsights(
   return {
     summary,
     twin: buildBusinessTwinInsight(summary, coverage, cashflow),
+    businessDna,
     cashflow,
     coverage,
     collectionPriorities,
@@ -901,6 +929,216 @@ export function buildBusinessInsights(
     assumptions: ["Business modelinde para birimi alanı bulunmadığı için tutarlar TRY olarak gösterildi."],
     missingData
   };
+}
+
+function buildBusinessDna(
+  businessId: string,
+  projectionEvents: BusinessCashEvent[],
+  sourceCustomers: BusinessCustomer[],
+  summary: BusinessSummaryInsight,
+  coverage: BusinessCoverageAnalysis,
+  cashflow: BusinessCashflowPoint[],
+  collectionPriorities: CollectionPriority[]
+): BusinessDna {
+  const cashBase = Math.max(summary.cashBalance + summary.expectedCollections30Days, 1);
+  const lowestBalance = summary.lowestProjectedBalance30Days;
+  const hasCashBufferData = projectionEvents.length > 0 || summary.cashBalance > 0;
+  const cashBufferScore = hasCashBufferData ? (lowestBalance < 0 ? 100 : clamp((1 - Math.min(lowestBalance / Math.max(businessCashWarningBuffer * 2, 1), 1)) * 85)) : 0;
+  const cashBufferConfidence = projectionEvents.length >= 4 ? "high" : hasCashBufferData ? "medium" : "low";
+  const paymentPressureRatio = summary.upcomingPayments30Days / cashBase;
+  const paymentPressureScore = clamp(paymentPressureRatio * 100);
+  const paymentPressureConfidence = projectionEvents.length >= 3 ? "high" : projectionEvents.length > 0 ? "medium" : "low";
+  const customerRiskAverage =
+    collectionPriorities.length > 0 ? sum(collectionPriorities.map((priority) => 100 - priority.score)) / collectionPriorities.length : 0;
+  const overdueRatio = summary.overdueReceivables / Math.max(summary.overdueReceivables + summary.expectedCollections30Days, 1);
+  const collectionReliabilityScore = sourceCustomers.length > 0 ? clamp(customerRiskAverage * 0.55 + overdueRatio * 100 * 0.45) : 0;
+  const collectionConfidence = sourceCustomers.length >= 3 ? "high" : sourceCustomers.length > 0 ? "medium" : "low";
+  const requiredPaymentScore = requiredPaymentResilienceScore(coverage);
+  const requiredPaymentConfidence = coverage.comfortLevel === "missing_data" ? "low" : "medium";
+  const totalMovement = sum(cashflow.map((point) => Math.abs(point.inflow) + Math.abs(point.outflow)));
+  const balances = cashflow.map((point) => point.balance);
+  const spread = balances.length > 0 ? Math.max(...balances) - Math.min(...balances) : 0;
+  const cashflowVolatilityScore = projectionEvents.length > 0 ? clamp((totalMovement / cashBase) * 45 + (spread / cashBase) * 35) : 0;
+  const volatilityConfidence = projectionEvents.length >= 4 ? "high" : projectionEvents.length > 0 ? "medium" : "low";
+
+  const metrics: BusinessDna["metrics"] = {
+    cash_buffer: businessDnaMetric(
+      cashBufferScore,
+      cashBufferConfidence,
+      hasCashBufferData
+        ? [`En düşük 30 günlük tahmini kasa ${formatTryAmount(lowestBalance)}.`, `Güvenli izleme tamponu ${formatTryAmount(businessCashWarningBuffer)} olarak kullanıldı.`]
+        : ["Nakit tamponu için kasa veya gelecek nakit olayı bulunmadı."]
+    ),
+    payment_pressure: businessDnaMetric(paymentPressureScore, paymentPressureConfidence, [
+      `Yaklaşan ödemeler kasa ve beklenen tahsilat toplamının %${Math.round(paymentPressureRatio * 100)} seviyesinde.`,
+      `${projectionEvents.filter((event) => event.type === "outflow").length} ödeme olayı hesaba katıldı.`
+    ]),
+    collection_reliability: businessDnaMetric(
+      collectionReliabilityScore,
+      collectionConfidence,
+      sourceCustomers.length > 0
+        ? [
+            `Geciken alacak toplamı ${formatTryAmount(summary.overdueReceivables)}.`,
+            `Ortalama müşteri risk sinyali ${Math.round(customerRiskAverage)}/100.`
+          ]
+        : ["Tahsilat davranışı için müşteri ve açık bakiye verisi bulunmadı."]
+    ),
+    required_payment_resilience: businessDnaMetric(
+      requiredPaymentScore,
+      requiredPaymentConfidence,
+      coverage.comfortLevel === "missing_data"
+        ? ["Maaş veya kira etiketli ödeme bulunmadığı için zorunlu ödeme dayanıklılığı hesaplanmadı."]
+        : [
+            `Maaş ve kira toplamı ${formatTryAmount(coverage.requiredTotal)}.`,
+            `Zorunlu ödeme sonrası en düşük bakiye ${formatTryAmount(coverage.lowestBalanceAfterRequired)}.`
+          ]
+    ),
+    cashflow_volatility: businessDnaMetric(cashflowVolatilityScore, volatilityConfidence, [
+      `30 günlük toplam nakit hareketi ${formatTryAmount(totalMovement)}.`,
+      `Tahmini kasa bant genişliği ${formatTryAmount(spread)}.`
+    ])
+  };
+
+  const factors: BusinessDnaFactor[] = [
+    {
+      ...metrics.cash_buffer,
+      id: "cash_buffer",
+      label: "Nakit tamponu",
+      riskLevel: riskFromScore(metrics.cash_buffer.score),
+      value: formatTryAmount(lowestBalance),
+      benchmark: `${formatTryAmount(businessCashWarningBuffer)}+ izleme tamponu`,
+      action:
+        !hasCashBufferData
+          ? "Kasa bakiyesi ve gelecek tahsilat/ödeme girilirse nakit tamponu hesaplanır."
+          : metrics.cash_buffer.score >= 65
+          ? "Kritik günlerden önce tahsilat teyidi veya kısa vadeli ödeme erteleme alternatifi hazırlanmalı."
+          : "Nakit tamponu günlük projeksiyonla izlenmeye devam edilebilir."
+    },
+    {
+      ...metrics.payment_pressure,
+      id: "payment_pressure",
+      label: "Ödeme baskısı",
+      riskLevel: riskFromScore(metrics.payment_pressure.score),
+      value: formatTryAmount(summary.upcomingPayments30Days),
+      benchmark: `%${Math.round(paymentPressureRatio * 100)} ödeme/kaynak oranı`,
+      action:
+        metrics.payment_pressure.score >= 65
+          ? "Yüksek tutarlı ödemeler için vade, taksit veya tahsilatla eşleştirme planı değerlendirilmeli."
+          : "Ödeme takvimi mevcut kaynaklarla uyumlu görünüyor; yeni ödeme girildikçe yeniden hesaplanmalı."
+    },
+    {
+      ...metrics.collection_reliability,
+      id: "collection_reliability",
+      label: "Tahsilat güvenilirliği",
+      riskLevel: riskFromScore(metrics.collection_reliability.score),
+      value: formatTryAmount(summary.overdueReceivables),
+      benchmark: sourceCustomers.length > 0 ? `${sourceCustomers.length} müşteri kaydı` : "Müşteri verisi yok",
+      action:
+        metrics.collection_reliability.score >= 65 && collectionPriorities[0]
+          ? `${collectionPriorities[0].customerName} için ödeme planı ve kısmi tahsilat aksiyonu öne alınmalı.`
+          : "Müşteri gecikme ve açık bakiye alanları güncel tutulmalı."
+    },
+    {
+      ...metrics.required_payment_resilience,
+      id: "required_payment_resilience",
+      label: "Zorunlu ödeme dayanıklılığı",
+      riskLevel: riskFromScore(metrics.required_payment_resilience.score),
+      value: formatTryAmount(coverage.requiredTotal),
+      benchmark: coverage.comfortLevel === "missing_data" ? "Maaş/kira verisi yok" : coverage.comfortLevel,
+      action:
+        coverage.comfortLevel === "risk" || coverage.comfortLevel === "tight"
+          ? "Maaş/kira haftasından önce tahsilat teyidi ve tampon açığı kontrolü yapılmalı."
+          : coverage.comfortLevel === "missing_data"
+            ? "Maaş ve kira ödeme kayıtları eklenirse dayanıklılık daha güvenilir hesaplanır."
+            : "Zorunlu ödeme tamponu korunuyor; tarih değişiklikleri izlenmeli."
+    },
+    {
+      ...metrics.cashflow_volatility,
+      id: "cashflow_volatility",
+      label: "Nakit akışı dalgalanması",
+      riskLevel: riskFromScore(metrics.cashflow_volatility.score),
+      value: formatTryAmount(totalMovement),
+      benchmark: `${projectionEvents.length} nakit olayı`,
+      action:
+        metrics.cashflow_volatility.score >= 65
+          ? "Büyük giriş ve çıkışlar aynı haftaya denk geliyorsa ara finansman veya ödeme sıralaması değerlendirilmeli."
+          : "Dalgalanma kontrollü; yeni tahsilat/ödeme girildikçe bant genişliği izlenmeli."
+    }
+  ];
+
+  const overallRisk = clamp(
+    metrics.cash_buffer.score * businessDnaCashBufferWeight +
+      metrics.payment_pressure.score * businessDnaPaymentPressureWeight +
+      metrics.collection_reliability.score * businessDnaCollectionWeight +
+      metrics.required_payment_resilience.score * businessDnaRequiredPaymentWeight +
+      metrics.cashflow_volatility.score * businessDnaVolatilityWeight
+  );
+  const dataConfidenceLevel = confidenceFromRatio(
+    [
+      projectionEvents.length > 0,
+      projectionEvents.length >= 3,
+      sourceCustomers.length > 0,
+      coverage.comfortLevel !== "missing_data"
+    ].filter(Boolean).length / 4
+  );
+  const missingData = businessDnaMissingData(projectionEvents, sourceCustomers, coverage);
+  const riskiestFactor = [...factors].sort((left, right) => right.score - left.score)[0];
+  const patterns = [
+    projectionEvents.length === 0 && sourceCustomers.length === 0 ? "Nakit olayı ve müşteri verisi eklendiğinde İşletme DNA oluşacak." : undefined,
+    riskiestFactor && riskiestFactor.score > 0 ? `${riskiestFactor.label} en güçlü sinyal: ${riskiestFactor.score}/100.` : undefined,
+    hasCashBufferData && summary.lowestProjectedBalance30Days < businessCashWarningBuffer
+      ? `En düşük tahmini kasa ${formatTryAmount(summary.lowestProjectedBalance30Days)} ile izleme tamponunun altında.`
+      : undefined,
+    collectionPriorities[0] ? `${collectionPriorities[0].customerName} tahsilat odağı olarak öne çıkıyor.` : undefined,
+    coverage.comfortLevel === "tight" || coverage.comfortLevel === "risk" ? coverage.explanation : undefined
+  ].filter((pattern): pattern is string => Boolean(pattern));
+
+  return {
+    businessId,
+    overallRisk,
+    dataConfidence: confidenceScore(dataConfidenceLevel),
+    dataConfidenceLevel,
+    factors,
+    patterns: patterns.length ? patterns : ["Kaydedilen KOBİ verileri şu an belirgin bir işletme davranışı riski üretmiyor."],
+    assumptions: ["Business modelinde para birimi alanı bulunmadığı için tutarlar TRY olarak gösterildi."],
+    missingData,
+    metrics
+  };
+}
+
+function businessDnaMetric(score: number, confidence: DataConfidence, reasons: string[]): BusinessDnaMetric {
+  return {
+    score: clamp(score),
+    confidence,
+    reasons: reasons.length ? reasons : ["Bu metrik için yeterli KOBİ veri sinyali bulunamadı."]
+  };
+}
+
+function requiredPaymentResilienceScore(coverage: BusinessCoverageAnalysis): number {
+  if (coverage.comfortLevel === "missing_data") return 0;
+  if (coverage.comfortLevel === "risk") return 95;
+  if (coverage.comfortLevel === "tight") {
+    const shortfallRatio = coverage.shortfall / Math.max(coverage.requiredTotal, 1);
+    return clamp(55 + shortfallRatio * 35);
+  }
+  const requiredRatio = coverage.requiredTotal / Math.max(coverage.lowestBalanceAfterRequired + coverage.requiredTotal, 1);
+  return clamp(requiredRatio * 30);
+}
+
+function businessDnaMissingData(
+  projectionEvents: BusinessCashEvent[],
+  sourceCustomers: BusinessCustomer[],
+  coverage: BusinessCoverageAnalysis
+): string[] {
+  const missingData: string[] = [];
+  if (projectionEvents.length === 0) missingData.push("İşletme DNA için gelecek tahsilat veya ödeme olayı bulunamadı.");
+  if (sourceCustomers.length === 0) missingData.push("Tahsilat güvenilirliği için müşteri ve açık bakiye verisi bulunamadı.");
+  if (coverage.comfortLevel === "missing_data") missingData.push("Zorunlu ödeme dayanıklılığı için maaş veya kira etiketli ödeme bulunamadı.");
+  return missingData;
+}
+
+function formatTryAmount(value: number): string {
+  return `${Math.round(value).toLocaleString("tr-TR")} TL`;
 }
 
 function sortedBusinessEvents(businessId: string, sourceCashEvents: BusinessCashEvent[]): BusinessCashEvent[] {
@@ -1222,15 +1460,29 @@ export function simulateAiCfo(
 ): AiCfoSimulation {
   const dashboard = calculateBusinessDashboard(sourceBusiness, sourceCashEvents);
   const afterInvestment = dashboard.projected30Days - amount;
-  const riskLevel = afterInvestment < 60000 ? "high" : afterInvestment < 120000 ? "medium" : "low";
+  const relatedEvents = sortedBusinessEvents(sourceBusiness.id, sourceCashEvents);
+  const dataConfidenceLevel = relatedEvents.length >= 3 ? "high" : relatedEvents.length > 0 ? "medium" : "low";
+  const missingData = relatedEvents.length === 0 ? ["Özel CFO simülasyonu için kayıtlı tahsilat veya ödeme olayı bulunamadı."] : [];
+  const riskLevel = businessProjectionRiskLevel(afterInvestment);
   return {
     summary: `${decision} için kısa vadeli nakit etkisi ${amount.toLocaleString("tr-TR")} TL. 30 günlük projeksiyon ${afterInvestment.toLocaleString("tr-TR")} TL seviyesine iner.`,
+    reason: "Karar tutarı mevcut 30 günlük KOBİ kasa projeksiyonundan tek seferlik nakit çıkışı olarak düşüldü.",
     cashImpact: -amount,
     riskLevel,
     recommendedPlan:
-      riskLevel === "high"
-        ? "Yatırımı iki faza böl, ilk fazı tahsilatlardan sonra başlat ve pazarlama bütçesini kademeli artır."
+      riskLevel === "critical" || riskLevel === "high"
+        ? "Kararı fazlara böl, ilk fazı tahsilatlardan sonra başlat ve ödeme takvimini yeniden kontrol et."
+        : riskLevel === "medium"
+          ? "Karar kontrollü değerlendirilebilir; tahsilat tarihleri ve zorunlu ödemelerle birlikte izlenmeli."
         : "Yatırım kontrollü şekilde yapılabilir; yine de tahsilat tarihlerine bağlı alarm kur.",
+    assumptions: [
+      "Karar tutarı tek seferlik nakit çıkışı olarak modellendi.",
+      "Kayıtlı KOBİ nakit olayları dışında yeni gelir veya gider varsayılmadı.",
+      "Business modelinde para birimi alanı bulunmadığı için tutarlar TRY olarak gösterildi."
+    ],
+    dataConfidence: confidenceScore(dataConfidenceLevel),
+    dataConfidenceLevel,
+    missingData,
     evidence: [
       { label: "Mevcut kasa", value: `${dashboard.cashBalance.toLocaleString("tr-TR")} TL`, source: "business" },
       { label: "30 gün projeksiyon", value: `${dashboard.projected30Days.toLocaleString("tr-TR")} TL`, source: "business" },

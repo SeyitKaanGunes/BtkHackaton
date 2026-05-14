@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRightLeft, BarChart3, Bot, Brain, Building2, CalendarPlus, CheckCircle2, Clock3, LayoutDashboard, ListChecks, MessageSquareText, Repeat2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, WandSparkles } from "lucide-react";
+import { ArrowRightLeft, BarChart3, Bot, Brain, Building2, CalendarPlus, CheckCircle2, Clock3, Fingerprint, LayoutDashboard, ListChecks, MessageSquareText, Repeat2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, WandSparkles } from "lucide-react";
 import { AgentLauncher } from "./agent-launcher";
 import { LogoutButton } from "./logout-button";
 
@@ -22,6 +22,7 @@ const personalNav = [
 const businessNav = [
   { href: "/business", label: "KOBİ", icon: Building2 },
   { href: "/business?section=twin", label: "Finansal İkiz", icon: Sparkles },
+  { href: "/business?section=dna", label: "İşletme DNA", icon: Fingerprint },
   { href: "/business?section=cashflow", label: "Nakit Akışı", icon: TrendingUp },
   { href: "/business?section=coverage", label: "Maaş ve Kira", icon: CheckCircle2 },
   { href: "/business?section=collections", label: "Tahsilat", icon: MessageSquareText },
@@ -29,8 +30,18 @@ const businessNav = [
   { href: "/business?section=records", label: "Veri Girişi", icon: CalendarPlus }
 ];
 
-export function AppShell({ children, active = "/", accountType = "personal" }: { children: React.ReactNode; active?: string; accountType?: AccountType }) {
-  const nav = accountType === "business" ? businessNav : personalNav;
+export function AppShell({
+  children,
+  active = "/",
+  accountType = "personal",
+  businessReady = true
+}: {
+  children: React.ReactNode;
+  active?: string;
+  accountType?: AccountType;
+  businessReady?: boolean;
+}) {
+  const nav = accountType === "business" ? (businessReady ? businessNav : businessNav.slice(0, 1)) : personalNav;
   const homeHref = accountType === "business" ? "/business" : "/";
   return (
     <div className="app-shell">

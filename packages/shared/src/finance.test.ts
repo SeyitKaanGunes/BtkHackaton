@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildBusinessInsights,
   buildWhatIfScenarios,
+  calculateBusinessDna,
   calculateCollectionScore,
   calculateDashboardSummary,
   calculateSpendingDna,
   detectSubscriptionLeakage,
+  simulateAiCfo,
   summarizeDecisionJournal
 } from "./finance.js";
 import { accounts, actions, budgets, business, businessCashEvents, businessCustomers, goals, subscriptions, transactions } from "./demo-data.js";
@@ -350,10 +352,53 @@ describe("Fintwin finance engines", () => {
     expect(score.recommendation.length).toBeGreaterThan(10);
   });
 
+  it("builds deterministic Business DNA from KOBI cashflow and collection data", () => {
+    const dna = calculateBusinessDna(business, businessCashEvents, businessCustomers, [], new Date("2026-05-12T00:00:00.000Z"));
+    expect(dna.businessId).toBe(business.id);
+    expect(dna.overallRisk).toBeGreaterThan(0);
+    expect(dna.factors.map((factor) => factor.id)).toEqual([
+      "cash_buffer",
+      "payment_pressure",
+      "collection_reliability",
+      "required_payment_resilience",
+      "cashflow_volatility"
+    ]);
+    expect(dna.factors.find((factor) => factor.id === "collection_reliability")?.reasons.join(" ")).toContain("Geciken alacak");
+    expect(dna.assumptions.join(" ")).toContain("TRY");
+  });
+
+  it("does not invent Business DNA risk when KOBI data is missing", () => {
+    const dna = calculateBusinessDna({ ...business, id: "business-empty", cashBalance: 0 }, [], [], [], new Date("2026-05-12T00:00:00.000Z"));
+    expect(dna.overallRisk).toBe(0);
+    expect(dna.dataConfidenceLevel).toBe("low");
+    expect(dna.missingData).toEqual([
+      "İşletme DNA için gelecek tahsilat veya ödeme olayı bulunamadı.",
+      "Tahsilat güvenilirliği için müşteri ve açık bakiye verisi bulunamadı.",
+      "Zorunlu ödeme dayanıklılığı için maaş veya kira etiketli ödeme bulunamadı."
+    ]);
+  });
+
+  it("returns complete decision-support metadata for custom KOBI CFO simulations", () => {
+    const result = simulateAiCfo(65000, "Espresso makinesi alımı", business, businessCashEvents);
+    expect(result.summary).toContain("Espresso makinesi alımı");
+    expect(result.reason).toContain("30 günlük KOBİ kasa projeksiyonundan");
+    expect(result.assumptions).toEqual(expect.arrayContaining(["Karar tutarı tek seferlik nakit çıkışı olarak modellendi."]));
+    expect(result.dataConfidenceLevel).not.toBe("low");
+    expect(result.missingData).toEqual([]);
+    expect(result.evidence.map((item) => item.source)).toContain("business");
+  });
+
+  it("does not hide missing KOBI cash events in custom CFO simulations", () => {
+    const result = simulateAiCfo(10000, "Yeni karar", { ...business, id: "business-empty", cashBalance: 0 }, []);
+    expect(result.dataConfidenceLevel).toBe("low");
+    expect(result.missingData).toEqual(["Özel CFO simülasyonu için kayıtlı tahsilat veya ödeme olayı bulunamadı."]);
+  });
+
   it("builds KOBI cashflow, coverage, collection priority and scenario insights", () => {
     const insights = buildBusinessInsights(business, businessCashEvents, businessCustomers, [], new Date("2026-05-12T00:00:00.000Z"));
     expect(insights.summary.expectedCollections30Days).toBe(128000);
     expect(insights.summary.upcomingPayments30Days).toBe(154000);
+    expect(insights.businessDna.overallRisk).toBeGreaterThan(0);
     expect(insights.cashflow).toHaveLength(31);
     expect(insights.coverage.requiredTotal).toBe(154000);
     expect(insights.coverage.canCover).toBe(true);

@@ -1615,6 +1615,83 @@ h1 {
   gap: 10px;
 }
 
+.business-dna-overview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.business-dna-patterns,
+.business-dna-factor-card {
+  display: grid;
+  gap: 10px;
+}
+
+.business-dna-headline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.business-dna-headline span,
+.business-dna-factor-card span,
+.business-dna-factor-card small,
+.business-dna-factor-card em {
+  color: var(--muted);
+}
+
+.business-dna-patterns p,
+.business-dna-factor-card p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.business-dna-factor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.business-dna-factor-card {
+  align-content: start;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.54);
+  padding: 14px;
+}
+
+.business-dna-factor-card div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+
+.business-dna-factor-card strong {
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.business-dna-factor-card em {
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.45;
+}
+
+.business-dna-factor-card.risk-low {
+  border-color: color-mix(in srgb, var(--success) 26%, var(--line));
+}
+
+.business-dna-factor-card.risk-medium {
+  border-color: color-mix(in srgb, var(--warn) 28%, var(--line));
+}
+
+.business-dna-factor-card.risk-high,
+.business-dna-factor-card.risk-critical {
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--line));
+}
+
 .coverage-actions {
   display: grid;
   gap: 7px;
@@ -1709,9 +1786,16 @@ h1 {
 
 .custom-scenario-result {
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
   padding: 14px;
   background: rgba(255, 255, 255, 0.72);
+}
+
+.custom-scenario-summary {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .scenario-comparison-grid {
@@ -2593,6 +2677,7 @@ h1 {
   .business-assistant-shell,
   .critical-date-list,
   .coverage-grid,
+  .business-dna-overview,
   .scenario-tabs,
   .scenario-comparison-grid,
   .scenario-list,
@@ -4689,6 +4774,7 @@ h1 {
   .business-main-grid,
   .critical-date-list,
   .coverage-grid,
+  .business-dna-overview,
   .scenario-tabs,
   .scenario-comparison-grid {
     grid-template-columns: 1fr;

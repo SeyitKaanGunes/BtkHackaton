@@ -2,11 +2,14 @@
 
 import { type CSSProperties, type FormEvent, type ReactNode, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRightLeft, Bot, Building2, CalendarPlus, CheckCircle2, CircleDollarSign, Clock3, Landmark, MessageSquareText, Send, ShieldAlert, Sparkles, TrendingUp, UserPlus } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, Bot, Building2, CalendarPlus, CheckCircle2, CircleDollarSign, Clock3, Fingerprint, Landmark, MessageSquareText, Send, ShieldAlert, Sparkles, TrendingUp, UserPlus } from "lucide-react";
 import {
   buildBusinessInsights,
+  parseAmountFromText,
   type AiCfoSimulation,
   type Business,
+  type BusinessDna,
+  type BusinessDnaFactor,
   type BusinessCashflowPoint,
   type BusinessCoverageAnalysis,
   type BusinessCustomer,
@@ -28,7 +31,7 @@ export type BusinessWorkspaceData = {
 
 type Status = { tone: "ok" | "error"; text: string } | null;
 type DetailFact = { label: string; value: string; tone?: "positive" | "negative" | "warning" };
-export type BusinessSectionId = "twin" | "cashflow" | "coverage" | "collections" | "scenarios" | "records" | "assistant";
+export type BusinessSectionId = "twin" | "dna" | "cashflow" | "coverage" | "collections" | "scenarios" | "records" | "assistant";
 
 export function BusinessWorkspace({
   initialData,
@@ -167,6 +170,7 @@ function BusinessSectionContent({
   return (
     <section className={detail ? "business-section-content detail-mode" : "business-section-content"}>
       {activeSection === "twin" ? <TwinInsightPanel detail={detail} insights={insights} /> : null}
+      {activeSection === "dna" ? <BusinessDnaPanel detail={detail} dna={insights.businessDna} /> : null}
       {activeSection === "cashflow" ? <CashflowForecastPanel detail={detail} points={insights.cashflow} /> : null}
       {activeSection === "coverage" ? <CoveragePanel coverage={insights.coverage} detail={detail} /> : null}
       {activeSection === "collections" ? <CollectionPriorityPanel detail={detail} priorities={insights.collectionPriorities} /> : null}
@@ -260,6 +264,93 @@ function TwinInsightPanel({ detail, insights }: { detail: boolean; insights: Bus
         </div>
       ) : null}
     </section>
+  );
+}
+
+function BusinessDnaPanel({ detail, dna }: { detail: boolean; dna: BusinessDna }) {
+  const topFactor = [...dna.factors].sort((left, right) => right.score - left.score)[0];
+  const detailFacts: DetailFact[] = [
+    { label: "Genel risk", value: `${dna.overallRisk}/100`, tone: riskFactTone(riskFromScoreValue(dna.overallRisk)) },
+    { label: "Veri güveni", value: dataConfidenceLabel(dna.dataConfidenceLevel) },
+    { label: "Ana sinyal", value: topFactor?.label ?? "Veri yok", tone: topFactor ? riskFactTone(topFactor.riskLevel) : undefined },
+    { label: "Eksik veri", value: `${dna.missingData.length}` }
+  ];
+
+  return (
+    <section className={detail ? "panel business-dna-panel detail-panel" : "panel business-dna-panel"}>
+      {detail ? (
+        <BusinessSectionIntro
+          description="İşletme DNA; nakit tamponu, ödeme baskısı, tahsilat güvenilirliği ve zorunlu ödeme dayanıklılığını KOBİ verilerinden deterministik olarak okur."
+          eyebrow="İşletme DNA"
+          facts={detailFacts}
+          title="Nakit davranışı ve operasyon refleksi"
+        />
+      ) : (
+        <div className="section-title">
+          <span>İşletme DNA</span>
+          <strong>{dna.overallRisk}/100 risk</strong>
+        </div>
+      )}
+
+      <div className="business-dna-overview">
+        <div className="score-ring" style={{ "--score": dna.overallRisk } as CSSProperties}>
+          <strong>{dna.overallRisk}</strong>
+          <span>/100</span>
+          <small>risk</small>
+        </div>
+        <div className="business-dna-patterns">
+          <div className="business-dna-headline">
+            <Fingerprint size={20} />
+            <div>
+              <span>{dataConfidenceLabel(dna.dataConfidenceLevel)} veri güveni</span>
+              <strong>{topFactor ? `${topFactor.label} öne çıkıyor` : "Veri sinyali bekleniyor"}</strong>
+            </div>
+          </div>
+          {dna.patterns.map((pattern) => (
+            <p key={pattern}>{pattern}</p>
+          ))}
+        </div>
+      </div>
+
+      <div className="business-dna-factor-grid">
+        {dna.factors.map((factor) => (
+          <BusinessDnaFactorCard factor={factor} key={factor.id} />
+        ))}
+      </div>
+
+      {detail ? (
+        <div className="business-detail-grid">
+          <DetailBlock title="Veri durumu">
+            <DetailRow label="Veri güveni" value={`${dataConfidenceLabel(dna.dataConfidenceLevel)} (${Math.round(dna.dataConfidence * 100)}/100)`} />
+            {dna.missingData.length > 0 ? (
+              dna.missingData.map((item) => <DetailRow key={item} label="Eksik veri" value={item} />)
+            ) : (
+              <DetailRow label="Eksik veri" value="İşletme DNA için temel nakit ve tahsilat verisi mevcut." />
+            )}
+            {dna.assumptions.map((item) => <DetailRow key={item} label="Varsayım" value={item} />)}
+          </DetailBlock>
+          <DetailBlock title="Aksiyon yönü">
+            {dna.factors.slice(0, 3).map((factor) => (
+              <DetailRow key={`${factor.id}-action`} label={factor.label} value={factor.action} />
+            ))}
+          </DetailBlock>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function BusinessDnaFactorCard({ factor }: { factor: BusinessDnaFactor }) {
+  return (
+    <div className={`business-dna-factor-card ${riskToneClass(factor.riskLevel)}`}>
+      <div>
+        <span>{factor.label}</span>
+        <strong>{factor.score}/100</strong>
+      </div>
+      <p>{factor.value}</p>
+      {factor.benchmark ? <small>{factor.benchmark}</small> : null}
+      <em>{factor.reasons[0]}</em>
+    </div>
   );
 }
 
@@ -553,16 +644,26 @@ function ScenarioSimulatorPanel({ businessId, detail, scenarios }: { businessId:
       </form>
       {status ? <p className={`form-message ${status.tone === "error" ? "danger" : ""}`}>{status.text}</p> : null}
       {simulation ? (
-        <div className={`scenario-result custom-scenario-result ${riskToneClass(simulation.riskLevel)}`}>
-          <ArrowRightLeft size={20} />
-          <div>
-            <strong>{simulation.summary}</strong>
-            <span>{simulation.recommendedPlan}</span>
-            {simulation.evidence.length > 0 ? (
-              <p>{simulation.evidence.map((item) => `${item.label}: ${item.value}`).join(" · ")}</p>
-            ) : null}
+        <div className={`custom-scenario-result ${riskToneClass(simulation.riskLevel)}`}>
+          <div className="scenario-result custom-scenario-summary">
+            <ArrowRightLeft size={20} />
+            <div>
+              <strong>{simulation.summary}</strong>
+              <span>{simulation.reason}</span>
+              {simulation.evidence.length > 0 ? (
+                <p>{simulation.evidence.map((item) => `${item.label}: ${item.value}`).join(" · ")}</p>
+              ) : null}
+            </div>
+            <b>{simulation.cashImpact >= 0 ? "+" : ""}{formatTry(simulation.cashImpact)}</b>
           </div>
-          <b>{simulation.cashImpact >= 0 ? "+" : ""}{formatTry(simulation.cashImpact)}</b>
+          <div className="scenario-decision-grid">
+            <DetailRow label="Sonuç" value={simulation.summary} />
+            <DetailRow label="Neden" value={simulation.reason} />
+            <DetailRow label="Varsayımlar" value={simulationAssumptionText(simulation)} />
+            <DetailRow label="Veri güveni" value={simulationConfidenceText(simulation)} />
+            {simulation.missingData.length > 0 ? <DetailRow label="Eksik veri" value={simulation.missingData.join(" ")} /> : null}
+            <DetailRow label="Önerilen aksiyon" value={simulation.recommendedPlan} />
+          </div>
         </div>
       ) : null}
       {detail && selectedScenario ? (
@@ -609,7 +710,7 @@ function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: Bu
   const [customQuestion, setCustomQuestion] = useState<string | null>(null);
   const [customPrompt, setCustomPrompt] = useState<BusinessAssistantPromptId | null>(null);
   const activePrompt = customPrompt ?? selectedPrompt;
-  const answer = businessAssistantAnswer(activePrompt, dashboard, insights);
+  const answer = businessAssistantAnswer(activePrompt, dashboard, insights, customQuestion ?? undefined);
   const activeQuestionLabel = customQuestion ?? businessAssistantPrompts.find((prompt) => prompt.id === selectedPrompt)?.label ?? "KOBİ sorusu";
   const criticalDate = insights.twin.criticalDates[0];
   const facts: DetailFact[] = [
@@ -688,8 +789,10 @@ function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: Bu
           <div className="scenario-decision-grid">
             <DetailRow label="Sonuç" value={answer.result} />
             <DetailRow label="Neden" value={answer.reason} />
+            <DetailRow label="Soru odağı" value={answer.focus} />
             <DetailRow label="Varsayımlar" value={answer.assumptions} />
             <DetailRow label="Veri güveni" value={answer.confidence} />
+            {answer.missingData ? <DetailRow label="Eksik veri" value={answer.missingData} /> : null}
             <DetailRow label="Önerilen aksiyon" value={answer.action} />
           </div>
           <div className="business-assistant-note">
@@ -1023,6 +1126,8 @@ type BusinessAssistantAnswer = {
   action: string;
   assumptions: string;
   confidence: string;
+  focus: string;
+  missingData?: string;
   reason: string;
   result: string;
 };
@@ -1039,13 +1144,37 @@ function includesAny(value: string, needles: string[]) {
   return needles.some((needle) => value.includes(needle));
 }
 
-function businessAssistantAnswer(prompt: BusinessAssistantPromptId, dashboard: BusinessDashboard, insights: BusinessInsights): BusinessAssistantAnswer {
+function businessAssistantAnswer(prompt: BusinessAssistantPromptId, dashboard: BusinessDashboard, insights: BusinessInsights, question?: string): BusinessAssistantAnswer {
+  const parsedAmount = question ? parseAmountFromText(question) : undefined;
+  const questionAmount = parsedAmount?.value && parsedAmount.confidence >= 0.45 ? parsedAmount.value : undefined;
+  const focus = businessAssistantFocusText(prompt, questionAmount);
+  const missingData = insights.missingData.length > 0 ? insights.missingData.join(" ") : undefined;
+
+  if (prompt === "risk" && questionAmount) {
+    const projectedAfterDecision = dashboard.projected30Days - questionAmount;
+    const decisionRiskLevel = cashProjectionRiskLevel(projectedAfterDecision);
+    return {
+      result: `${formatTry(questionAmount)} kararından sonra 30 gün sonu tahmini kasa ${formatTry(projectedAfterDecision)} olur.`,
+      reason: "Serbest sorudaki tutar, kayıtlı 30 günlük KOBİ kasa projeksiyonundan tek seferlik nakit çıkışı olarak düşüldü.",
+      focus,
+      assumptions: "Karar tutarı tek seferlik çıkış kabul edildi; kayıtlı tahsilat ve ödeme tarihleri değişmeden kaldı. Para birimi TRY olarak gösterildi.",
+      confidence: dashboard.upcomingPayments.length + dashboard.expectedCollections.length > 0 ? `Orta - nakit olaylarına bağlı; karar sonrası risk ${riskLabel(decisionRiskLevel)}.` : `Düşük - nakit olayı sınırlı; karar sonrası risk ${riskLabel(decisionRiskLevel)}.`,
+      missingData,
+      action:
+        decisionRiskLevel === "critical" || decisionRiskLevel === "high"
+          ? "Kararı fazlara bölmeden önce tahsilat teyidi ve ödeme erteleme alternatifi kontrol edilmeli."
+          : "Tutarı Senaryolar ekranındaki özel simülasyonla da kaydedip nakit etkisi izlenmeli."
+    };
+  }
+
   if (prompt === "coverage") {
     return {
       result: coverageDecisionResult(insights.coverage),
       reason: insights.coverage.explanation,
+      focus,
       assumptions: "Yalnızca kayıtlı maaş ve kira ödeme olayları ile beklenen tahsilatlar dikkate alındı.",
       confidence: insights.coverage.comfortLevel === "missing_data" ? "Düşük - maaş/kira etiketi eksik." : "Orta - kayıtlı KOBİ nakit olaylarına bağlı.",
+      missingData,
       action: coverageActionText(insights.coverage)
     };
   }
@@ -1056,16 +1185,20 @@ function businessAssistantAnswer(prompt: BusinessAssistantPromptId, dashboard: B
       return {
         result: "Önceliklendirilecek geciken tahsilat görünmüyor.",
         reason: "Müşteri açık bakiye ve gecikme verilerinde acil tahsilat sinyali oluşmadı.",
+        focus,
         assumptions: "Kayıtlı müşteri skorları ve açık bakiye alanları kullanıldı.",
         confidence: dashboard.expectedCollections.length > 0 ? "Orta - tahsilat kayıtları var." : "Düşük - tahsilat kaydı sınırlı.",
+        missingData,
         action: "Yeni fatura ve müşteri gecikme verileri girildikçe tahsilat önceliği yeniden hesaplanmalı."
       };
     }
     return {
       result: `${priority.customerName} ilk tahsilat odağı olmalı.`,
       reason: `${formatTry(priority.outstandingAmount)} açık bakiye, ${priority.averageDelayDays} gün ortalama gecikme ve ${riskLabel(priority.riskLevel)} risk sinyali var.`,
+      focus,
       assumptions: "Müşteri skoru, açık bakiye ve ortalama gecikme günleri birlikte değerlendirildi.",
       confidence: "Orta - müşteri ödeme geçmişi kayıtlarına bağlı.",
+      missingData,
       action: priority.action
     };
   }
@@ -1076,16 +1209,20 @@ function businessAssistantAnswer(prompt: BusinessAssistantPromptId, dashboard: B
       return {
         result: "Önümüzdeki 30 gün için kritik gün görünmüyor.",
         reason: `Kayıtlı nakit akışı 30 gün sonunda ${formatTry(insights.summary.projected30Days)} projeksiyon üretiyor.`,
+        focus,
         assumptions: "Kayıtlı tahsilat ve ödeme tarihleri değişmeden kaldı.",
         confidence: dashboard.upcomingPayments.length + dashboard.expectedCollections.length > 0 ? "Orta - nakit olaylarına bağlı." : "Düşük - nakit olayı az.",
+        missingData,
         action: "Yeni ödeme veya tahsilat eklendiğinde kritik günler yeniden kontrol edilmeli."
       };
     }
     return {
       result: `${criticalDates.length} kritik gün öne çıkıyor.`,
       reason: criticalDates.map((date) => `${formatDateLabel(date.date)}: ${formatTry(date.projectedBalance)} (${riskLabel(date.riskLevel)})`).join(", "),
+      focus,
       assumptions: "Kritik günler günlük tahmini nakit bakiyesi üzerinden seçildi.",
       confidence: "Orta - kayıtlı nakit akışı tarih doğruluğuna bağlı.",
+      missingData,
       action: "Bu tarihlerden önce tahsilat teyidi veya ödeme erteleme planı hazırlanmalı."
     };
   }
@@ -1093,16 +1230,58 @@ function businessAssistantAnswer(prompt: BusinessAssistantPromptId, dashboard: B
   return {
     result: `Nakit risk skoru ${insights.summary.cashRiskScore}/100 ve seviye ${riskLabel(insights.summary.riskLevel)}.`,
     reason: `30 gün sonu kasa ${formatTry(insights.summary.projected30Days)}, en düşük tahmini bakiye ${formatTry(insights.summary.lowestProjectedBalance30Days)}.`,
+    focus,
     assumptions: "Kayıtlı KOBİ kasa, beklenen tahsilat, yaklaşan ödeme ve müşteri gecikme verileri kullanıldı.",
     confidence: dashboard.upcomingPayments.length + dashboard.expectedCollections.length > 0 ? "Orta - nakit olayları mevcut." : "Düşük - kayıtlı nakit olayı sınırlı.",
+    missingData,
     action: twinActionText(insights)
   };
+}
+
+function businessAssistantFocusText(prompt: BusinessAssistantPromptId, amount?: number): string {
+  const label = {
+    coverage: "Maaş/kira karşılanabilirliği",
+    risk: "Nakit riski",
+    collections: "Tahsilat önceliği",
+    critical: "Kritik günler"
+  }[prompt];
+  return amount ? `${label}; serbest sorudaki tutar: ${formatTry(amount)}.` : label;
+}
+
+function cashProjectionRiskLevel(balance: number) {
+  if (balance < 0) return "critical";
+  if (balance < 50000) return "high";
+  if (balance < 100000) return "medium";
+  return "low";
+}
+
+function simulationAssumptionText(simulation: AiCfoSimulation) {
+  return simulation.assumptions.length ? simulation.assumptions.join(" ") : "Kayıtlı KOBİ nakit olayları üzerinden hesaplandı.";
+}
+
+function simulationConfidenceText(simulation: AiCfoSimulation) {
+  return `${dataConfidenceLabel(simulation.dataConfidenceLevel)} (${Math.round(simulation.dataConfidence * 100)}%) - ${riskLabel(simulation.riskLevel)} risk.`;
 }
 
 function riskFactTone(level: string): DetailFact["tone"] {
   if (level === "high" || level === "critical") return "negative";
   if (level === "medium") return "warning";
   return "positive";
+}
+
+function riskFromScoreValue(score: number) {
+  if (score >= 85) return "critical";
+  if (score >= 65) return "high";
+  if (score >= 40) return "medium";
+  return "low";
+}
+
+function dataConfidenceLabel(confidence: BusinessDna["dataConfidenceLevel"]) {
+  return {
+    high: "Yüksek",
+    medium: "Orta",
+    low: "Düşük"
+  }[confidence];
 }
 
 function formatTry(value: number) {

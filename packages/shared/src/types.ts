@@ -828,9 +828,44 @@ export interface BusinessScenarioAnalysis {
   recommendation: string;
 }
 
+export type BusinessDnaFactorId =
+  | "cash_buffer"
+  | "payment_pressure"
+  | "collection_reliability"
+  | "required_payment_resilience"
+  | "cashflow_volatility";
+
+export interface BusinessDnaMetric {
+  score: number;
+  confidence: DataConfidence;
+  reasons: string[];
+}
+
+export interface BusinessDnaFactor extends BusinessDnaMetric {
+  id: BusinessDnaFactorId;
+  label: string;
+  riskLevel: RiskLevel;
+  value: string;
+  benchmark?: string;
+  action: string;
+}
+
+export interface BusinessDna {
+  businessId: string;
+  overallRisk: number;
+  dataConfidence: number;
+  dataConfidenceLevel: DataConfidence;
+  factors: BusinessDnaFactor[];
+  patterns: string[];
+  assumptions: string[];
+  missingData: string[];
+  metrics: Record<BusinessDnaFactorId, BusinessDnaMetric>;
+}
+
 export interface BusinessInsights {
   summary: BusinessSummaryInsight;
   twin: BusinessTwinInsight;
+  businessDna: BusinessDna;
   cashflow: BusinessCashflowPoint[];
   coverage: BusinessCoverageAnalysis;
   collectionPriorities: CollectionPriority[];
@@ -848,8 +883,13 @@ export interface CollectionScore {
 
 export interface AiCfoSimulation {
   summary: string;
+  reason: string;
   cashImpact: number;
   riskLevel: RiskLevel;
   recommendedPlan: string;
+  assumptions: string[];
+  dataConfidence: number;
+  dataConfidenceLevel: DataConfidence;
+  missingData: string[];
   evidence: AgentEvidence[];
 }
