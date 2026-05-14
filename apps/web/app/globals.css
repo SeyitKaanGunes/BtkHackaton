@@ -2184,6 +2184,31 @@ h1 {
   gap: 10px;
 }
 
+.agent-proposals {
+  display: grid;
+  gap: 10px;
+}
+
+.agent-proposal {
+  align-items: start;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 10px;
+}
+
+.agent-proposal p,
+.agent-proposal small {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 3px 0 0;
+}
+
 .suggested-action {
   border-top: 1px solid var(--line);
   display: grid;

@@ -29,6 +29,8 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const sttUnavailable = speechCapabilities?.stt.available === false;
   const ttsUnavailable = speechCapabilities?.tts.available === false;
+  const visibleActionProposals =
+    response?.actionProposals?.filter((proposal) => !response.suggestedActions.some((action) => action.type === proposal.type && action.title === proposal.title)) ?? [];
 
   useEffect(() => {
     let active = true;
@@ -314,6 +316,24 @@ export function AgentConsole({ compact = false }: AgentConsoleProps) {
               </div>
             ))}
           </div>
+          {visibleActionProposals.length ? (
+            <div className="agent-proposals">
+              <div className="section-title">
+                <span>Onay gerektiren öneriler</span>
+                <strong>{visibleActionProposals.length}</strong>
+              </div>
+              {visibleActionProposals.map((proposal) => (
+                <article className="agent-proposal" key={proposal.id}>
+                  <span className="chip accent">{proposal.requiresApproval ? "Onay gerekli" : "Bilgi"}</span>
+                  <div>
+                    <strong>{proposal.title}</strong>
+                    <p>{proposal.reason}</p>
+                    <small>{proposalPayloadText(proposal.payload)}</small>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
           {response.suggestedActions.length ? (
             <div className="agent-suggestions">
               <div className="section-title">
@@ -400,4 +420,12 @@ function agentStepStatus(status: NonNullable<AgentResponse["agenticPlan"]>[numbe
   if (status === "completed") return "Tamam";
   if (status === "blocked") return "Blok";
   return "Atlandı";
+}
+
+function proposalPayloadText(payload: Record<string, unknown>) {
+  const visible = Object.entries(payload)
+    .filter(([, value]) => typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    .slice(0, 4)
+    .map(([key, value]) => `${key}: ${String(value)}`);
+  return visible.length ? visible.join(" · ") : "Öneri detayları yapılandırılmış olarak hazır.";
 }

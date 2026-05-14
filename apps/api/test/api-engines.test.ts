@@ -66,6 +66,12 @@ describe("API feature services", () => {
     expect(result.routedAgents).toContain("Simulation Agent");
     expect(result.evidence.length).toBeGreaterThan(0);
     expect(result.suggestedActions[0]?.type).toBe("delay_purchase");
+    expect(result.actionProposals?.[0]).toMatchObject({
+      type: "delay_purchase",
+      requiresApproval: true,
+      source: "agent",
+      payload: expect.objectContaining({ amount: 10000 })
+    });
     expect(result.answer).toContain("Daha temkinli senaryo");
     expect(result.answer).toContain("Dengeli senaryo");
     expect(result.answer).toContain("Riskli senaryo");
@@ -91,6 +97,7 @@ describe("API feature services", () => {
     expect(result.routedAgents).toContain("Simulation Agent");
     expect(result.answer).toContain("tutarı");
     expect(result.suggestedActions).toEqual([]);
+    expect(result.actionProposals).toEqual([]);
   });
 
   it("does not mention undefined subscription recommendations when no leakage exists", async () => {
@@ -103,6 +110,50 @@ describe("API feature services", () => {
     expect(result.routedAgents).toContain("Risk Agent");
     expect(result.answer).toContain("sızıntı görünmüyor");
     expect(result.answer).not.toContain("undefined");
+  });
+
+  it("agent eval: subscription leakage returns a structured review proposal without writing an action", async () => {
+    const store = createTestStore();
+    store.subscriptions = [
+      {
+        ...subscriptions[0]!,
+        id: "sub-eval-leak",
+        userId: authUser.id,
+        merchant: "StreamPlus",
+        amount: 219,
+        previousAmount: 120,
+        status: "active",
+        lastUsedAt: "2026-01-01T00:00:00.000Z"
+      }
+    ];
+    const before = store.getPersonalData(authUser.id).actions.length;
+    const agent = new AgentService(store, new QwenService());
+
+    const result = await agent.chat(authUser.id, "Abonelik sızıntım var mı?");
+
+    expect(result.routedAgents).toEqual(expect.arrayContaining(["Risk Agent", "Action Agent"]));
+    expect(result.actionProposals?.[0]).toMatchObject({
+      type: "subscription_review",
+      requiresApproval: true,
+      source: "agent",
+      payload: expect.objectContaining({ subscriptionId: "sub-eval-leak", merchant: "StreamPlus" })
+    });
+    expect(result.suggestedActions).toEqual([]);
+    expect(store.getPersonalData(authUser.id).actions).toHaveLength(before);
+  });
+
+  it("agent eval: deterministic twin and simulation routes do not call the LLM", async () => {
+    const store = createTestStore();
+    const chat = vi.fn(async () => ({ content: "unexpected", model: "test-qwen" }));
+    const agent = new AgentService(store, { isConfigured: () => true, chat } as unknown as QwenService);
+
+    const twin = await agent.chat(authUser.id, "Risk profilim ve sağlık skorum nasıl?");
+    const simulation = await agent.chat(authUser.id, "8500 TL teknoloji alırsam ne olur?");
+
+    expect(twin.routedAgents).toContain("Twin Agent");
+    expect(simulation.routedAgents).toContain("Simulation Agent");
+    expect(simulation.actionProposals?.[0]?.type).toBe("delay_purchase");
+    expect(chat).not.toHaveBeenCalled();
   });
 
   it("fails fast for assistant chat when Qwen is unavailable", async () => {

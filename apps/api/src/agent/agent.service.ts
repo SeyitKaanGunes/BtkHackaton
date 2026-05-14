@@ -10,6 +10,7 @@ import {
   detectSubscriptionLeakage,
   parseAmountFromText,
   resolveCategoryFromText,
+  type AgentActionProposal,
   type ActionItem,
   type AgentPlanStep,
   type AgentQualitySignal,
@@ -59,6 +60,10 @@ const AgentState = Annotation.Root({
     default: () => []
   }),
   suggestedActions: Annotation<ActionItem[]>({
+    reducer: (left, right) => left.concat(right),
+    default: () => []
+  }),
+  actionProposals: Annotation<AgentActionProposal[]>({
     reducer: (left, right) => left.concat(right),
     default: () => []
   }),
@@ -177,6 +182,7 @@ export class AgentService {
             qualityWarnings: ["What-if için boş veriyle sahte senaryo üretilmedi."]
           };
         }
+        const delayMinutes = simulation.emotionalDelayMinutes || 10;
         return {
           answer: composeSimulationAnswer({ simulation, parsedAmount, parsedCategory }),
           confidence: 0.9,
@@ -200,11 +206,12 @@ export class AgentService {
               userId,
               type: "delay_purchase",
               title: "Satın alma kararına bilinçli mola",
-              description: `${simulation.emotionalDelayMinutes || 10} dakika bekleyip harcama sınırını tekrar değerlendir.`,
+              description: `${delayMinutes} dakika bekleyip harcama sınırını tekrar değerlendir.`,
               status: "pending",
               source: "agent"
             }
-          ]
+          ],
+          actionProposals: [buildDelayPurchaseProposal({ message: state.message, parsedAmount, parsedCategory, simulation, delayMinutes })]
         };
       })
       .addNode("subscriptions", async () => {
@@ -248,7 +255,8 @@ export class AgentService {
               status: "skipped",
               output: "Bu turda otomatik kayıt yazılmadı."
             }
-          ]
+          ],
+          actionProposals: [buildSubscriptionReviewProposal(topLeak)]
         };
       })
       .addNode("education", async (state) => {
@@ -343,6 +351,7 @@ export class AgentService {
         "KOBİ verileri bireysel dashboard metriklerine karıştırılmaz."
       ],
       suggestedActions,
+      actionProposals: result.actionProposals,
       agenticPlan: result.agenticPlan,
       quality: this.buildQualitySignal(result)
     };
@@ -490,6 +499,55 @@ export class AgentService {
       warnings
     };
   }
+}
+
+function buildDelayPurchaseProposal(input: {
+  message: string;
+  parsedAmount: ReturnType<typeof parseAmountFromText>;
+  parsedCategory: ReturnType<typeof resolveCategoryFromText>;
+  simulation: ReturnType<typeof buildWhatIfScenarios>;
+  delayMinutes: number;
+}): AgentActionProposal {
+  return {
+    id: `proposal-delay-${randomUUID()}`,
+    type: "delay_purchase",
+    title: "Satın alma kararına bilinçli mola",
+    reason: "What-if simülasyonu harcamanın bütçe, hedef veya nakit akışı üzerinde dikkat gerektiren etkisi olabileceğini gösterdi.",
+    requiresApproval: true,
+    payload: {
+      amount: input.parsedAmount.value,
+      currency: input.parsedAmount.currency,
+      categoryId: input.parsedCategory.categoryId,
+      categoryName: input.simulation.resolvedCategoryName ?? input.parsedCategory.category ?? null,
+      delayMinutes: input.delayMinutes,
+      scenario: input.message,
+      cards: input.simulation.cards.map((card) => ({
+        id: card.id,
+        riskLevel: card.riskLevel ?? null,
+        label: card.label
+      }))
+    },
+    source: "agent",
+    confidence: 0.9
+  };
+}
+
+function buildSubscriptionReviewProposal(leak: ReturnType<typeof detectSubscriptionLeakage>[number]): AgentActionProposal {
+  return {
+    id: `proposal-subscription-${randomUUID()}`,
+    type: "subscription_review",
+    title: `${leak.merchant} aboneliğini gözden geçir`,
+    reason: leak.recommendation,
+    requiresApproval: true,
+    payload: {
+      subscriptionId: leak.subscriptionId,
+      merchant: leak.merchant,
+      issue: leak.issue,
+      monthlyImpact: leak.monthlyImpact
+    },
+    source: "agent",
+    confidence: 0.86
+  };
 }
 
 function parseStructuredAssistantJson(content: string): Record<string, unknown> {

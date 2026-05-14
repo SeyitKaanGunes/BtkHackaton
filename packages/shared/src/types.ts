@@ -622,6 +622,23 @@ export interface AgentQualitySignal {
   warnings: string[];
 }
 
+export type AgentActionProposalType =
+  | ActionType
+  | "subscription_review"
+  | "budget_adjustment"
+  | "goal_contribution";
+
+export interface AgentActionProposal {
+  id: string;
+  type: AgentActionProposalType;
+  title: string;
+  reason: string;
+  requiresApproval: true;
+  payload: Record<string, unknown>;
+  source: "agent";
+  confidence?: number;
+}
+
 export interface AgentResponse {
   answer: string;
   confidence: number;
@@ -629,6 +646,7 @@ export interface AgentResponse {
   evidence: AgentEvidence[];
   assumptions: string[];
   suggestedActions: ActionItem[];
+  actionProposals?: AgentActionProposal[];
   agenticPlan?: AgentPlanStep[];
   quality?: AgentQualitySignal;
 }
