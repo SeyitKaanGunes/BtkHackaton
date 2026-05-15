@@ -2,16 +2,16 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CalendarClock, Check, Plus, Wallet, X } from "lucide-react";
+import { Bell, Check, Plus, X } from "lucide-react";
 import type { ActionItem, Category, Currency, TransactionType } from "@fintwin/shared";
-import { approveAction, createTransaction, dismissAction, getCategories, updateFinanceProfile, type AuthUserProfile } from "../lib/api";
+import { approveAction, createTransaction, dismissAction, getCategories } from "../lib/api";
 import { localDateInputValue, parseMoneyInput } from "../lib/input-format";
 
 const currencies: Currency[] = ["TRY", "USD", "EUR"];
 
 type Status = { tone: "ok" | "error"; text: string } | null;
 
-export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserProfile }) {
+export function ManualTransactionPanel() {
   const router = useRouter();
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("");
@@ -25,11 +25,6 @@ export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserP
   const [categoryLoadError, setCategoryLoadError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<Status>(null);
-  const [salaryAmount, setSalaryAmount] = useState(initialUser.monthlyIncome > 0 ? String(initialUser.monthlyIncome) : "");
-  const [payday, setPayday] = useState(String(initialUser.payday));
-  const [salaryCurrency, setSalaryCurrency] = useState<Currency>(initialUser.currency as Currency);
-  const [salaryPending, setSalaryPending] = useState(false);
-  const [salaryStatus, setSalaryStatus] = useState<Status>(null);
   const categoryOptions = useMemo(() => categories.filter((category) => category.kind === type), [categories, type]);
 
   useEffect(() => {
@@ -48,32 +43,6 @@ export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserP
       setCategoryId(categoryOptions[0]?.id ?? "");
     }
   }, [categoryId, categoryOptions]);
-
-  async function submitSalary(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const parsedSalary = parseMoneyInput(salaryAmount);
-    const parsedPayday = Number(payday);
-    if (parsedSalary === undefined || parsedSalary < 0 || !Number.isInteger(parsedPayday) || parsedPayday < 1 || parsedPayday > 31) {
-      setSalaryStatus({ tone: "error", text: "Maaş sıfır veya pozitif, ödeme günü 1-31 arasında olmalı." });
-      return;
-    }
-
-    setSalaryPending(true);
-    setSalaryStatus(null);
-    try {
-      await updateFinanceProfile({
-        monthlyIncome: parsedSalary,
-        payday: parsedPayday,
-        currency: salaryCurrency
-      });
-      setSalaryStatus({ tone: "ok", text: "Maaş planı kaydedildi. Günü geldiyse bakiye güncellendi." });
-      router.refresh();
-    } catch (error) {
-      setSalaryStatus({ tone: "error", text: error instanceof Error ? error.message : "Maaş planı kaydedilemedi." });
-    } finally {
-      setSalaryPending(false);
-    }
-  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -124,49 +93,19 @@ export function ManualTransactionPanel({ initialUser }: { initialUser: AuthUserP
   }
 
   return (
-    <div className="panel manual-transaction-panel">
+    <div className="panel manual-transaction-panel" id="manual-entry">
       <div className="section-title">
         <span>Gelir ve gider akışı</span>
-        <strong>maaş / tek seferlik işlem</strong>
+        <strong>tek seferlik işlem</strong>
       </div>
       <div className="manual-panel-grid">
-        <form className="salary-profile-form" onSubmit={submitSalary}>
-          <div className="mini-form-heading">
-            <Wallet size={17} />
-            <span>Aylık maaş</span>
-          </div>
-          <label className="field">
-            <span>Maaş tutarı</span>
-            <input value={salaryAmount} onChange={(event) => setSalaryAmount(event.target.value)} inputMode="decimal" placeholder="45000" />
-          </label>
-          <label className="field">
-            <span>Her ay günü</span>
-            <input value={payday} onChange={(event) => setPayday(event.target.value)} inputMode="numeric" placeholder="5" />
-          </label>
-          <label className="field">
-            <span>Para birimi</span>
-            <select value={salaryCurrency} onChange={(event) => setSalaryCurrency(event.target.value as Currency)}>
-              {currencies.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="secondary-button" type="submit" disabled={salaryPending}>
-            <CalendarClock size={16} />
-            {salaryPending ? "Kaydediliyor" : "Maaşı kaydet"}
-          </button>
-          {salaryStatus ? <p className={`form-message ${salaryStatus.tone === "error" ? "danger" : "success-message"}`}>{salaryStatus.text}</p> : null}
-        </form>
-
         <form className="manual-transaction-form" onSubmit={submit}>
           <label className="field">
             <span>{type === "income" ? "Gelir kaynağı veya açıklama" : "Satıcı veya açıklama"}</span>
             <input value={merchant} onChange={(event) => setMerchant(event.target.value)} required placeholder={type === "income" ? "Prim, freelance, iade" : "Migros, kira, fatura"} />
           </label>
           <label className="field">
-            <span>Tutar</span>
+            <span>Tutar ({currency === "TRY" ? "₺" : currency === "USD" ? "$" : "€"})</span>
             <input value={amount} onChange={(event) => setAmount(event.target.value)} required inputMode="decimal" placeholder="1250" />
           </label>
           <div className="segmented-tabs transaction-kind-tabs" aria-label="İşlem tipi">

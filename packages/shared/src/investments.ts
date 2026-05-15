@@ -76,7 +76,7 @@ export const investmentSymbolPresets: MarketSymbolResult[] = [
 ];
 
 export function createInvestmentHolding(input: InvestmentHoldingCreateRequest, now = new Date().toISOString(), userId = ""): InvestmentHolding {
-  const inputSymbol = input.symbol?.trim().toUpperCase();
+  const inputSymbol = canonicalInvestmentSymbol(input.symbol?.trim().toUpperCase());
   const requestedCurrency = normalizeCurrency(input.marketCurrency) ?? input.costCurrency ?? cashCurrencyFromSymbol(inputSymbol ?? "") ?? "TRY";
   const requestedAssetType = input.assetType;
   const isCash = requestedAssetType === "cash" || isCashSymbol(inputSymbol);
@@ -121,6 +121,14 @@ export function inferAssetType(symbol: string): InvestmentAssetType {
   return "stock";
 }
 
+function canonicalInvestmentSymbol(symbol?: string): string | undefined {
+  if (!symbol) return undefined;
+  const upper = symbol.trim().toUpperCase();
+  const compactFx = upper.match(/^([A-Z]{3})(TRY|USD|EUR)$/);
+  if (compactFx) return `${compactFx[1]}/${compactFx[2]}`;
+  return upper;
+}
+
 export function normalizeCurrency(currency?: string): Currency | undefined {
   const value = currency?.toUpperCase();
   if (!value) return undefined;
@@ -149,7 +157,11 @@ export function calculateInvestmentPortfolio(
   };
 
   const positions = holdings.map((holding) => {
-    const quote = quoteMap.get(holding.symbol.toUpperCase()) ?? (isCashSymbol(holding.symbol) ? cashQuoteFor(holding) : unavailableQuoteFor(holding));
+    const rawQuote =
+      quoteMap.get(holding.symbol.toUpperCase()) ??
+      quoteMap.get(canonicalInvestmentSymbol(holding.symbol) ?? holding.symbol.toUpperCase()) ??
+      (isCashSymbol(holding.symbol) ? cashQuoteFor(holding) : unavailableQuoteFor(holding));
+    const quote = sanitizeInvestmentQuote(rawQuote);
     const marketValue = holding.quantity * quote.price;
     const costBasis = holding.quantity * holding.averageCost;
     const marketValueTryValue = hasTrustedPrice(quote) ? convertToTry(marketValue, quote.currency) : undefined;
@@ -188,7 +200,7 @@ export function calculateInvestmentPortfolio(
   const projectedEndOfDayValueTry = roundMoney(totalMarketValueTry + totalDailyInterestTry);
   const unpricedPositionCount = positions.length - pricedPositions.length;
   const unpricedCostTry = roundMoney(positions.filter((item) => !item.isPriced).reduce((total, item) => total + item.costBasisTry, 0));
-  const marketDataMessages = positions.filter((item) => !item.isPriced).map((item) => `${item.symbol}: ${item.marketDataMessage ?? "Piyasa verisi alınamadı."}`);
+  const marketDataMessages = positions.filter((item) => !item.isPriced).map((item) => `${item.symbol}: Piyasa verisi alınamadı.`);
   const allocation = Object.entries(assetTypeLabels)
     .map(([assetType, label]) => {
       const valueTry = roundMoney(pricedPositions.filter((item) => item.assetType === assetType).reduce((total, item) => total + item.marketValueTry, 0));
@@ -286,6 +298,11 @@ function sanitizeAnnualInterestRate(value?: number): number | undefined {
 
 function hasTrustedPrice(quote: InvestmentQuote): boolean {
   return (quote.source === "twelve_data" || quote.source === "user") && quote.price > 0;
+}
+
+function sanitizeInvestmentQuote(quote: InvestmentQuote): InvestmentQuote {
+  if (hasTrustedPrice(quote)) return quote;
+  return { ...quote, message: "Piyasa verisi alınamadı." };
 }
 
 function marketDataGapMessage(

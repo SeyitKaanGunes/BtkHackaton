@@ -11,7 +11,7 @@ export default async function WhatIfPage() {
   const whatIf = await getWhatIf({ token });
 
   return (
-    <AppShell active="/what-if" accountType={user.accountType}>
+    <AppShell active="/what-if" accountType="personal" displayName={user.name}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Karar simülasyonu</p>

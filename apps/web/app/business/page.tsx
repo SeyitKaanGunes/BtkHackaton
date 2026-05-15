@@ -15,10 +15,13 @@ export default async function BusinessPage({ searchParams }: BusinessPageProps) 
   const section = parseBusinessSection(params?.section);
   const showOverview = params?.section === undefined;
   const businessData = await loadBusinessData(token);
-  const active = params?.section ? `/business?section=${section}` : "/business";
+  const activeHref = showOverview ? "/business" : `/business?section=${section}`;
+
   return (
-    <AppShell active={active} accountType={user.accountType} businessReady={Boolean(businessData)}>
-      <BusinessWorkspace initialData={businessData} activeSection={section} showOverview={showOverview} />
+    <AppShell active={activeHref} accountType="business" businessReady={Boolean(businessData)} displayName={user.name}>
+      <section className="image-page business-image-page">
+        <BusinessWorkspace initialData={businessData} activeSection={section} showOverview={showOverview} />
+      </section>
     </AppShell>
   );
 }

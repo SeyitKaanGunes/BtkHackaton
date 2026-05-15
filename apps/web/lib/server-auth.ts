@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { ApiRequestError, getCurrentUser } from "./api";
+import { ApiRequestError, getBusinesses, getCurrentUser } from "./api";
 
 export async function requireAuthToken() {
   const cookieStore = await cookies();
@@ -24,12 +24,13 @@ export async function requireAuthSession() {
 
 export async function requirePersonalSession() {
   const session = await requireAuthSession();
-  if (session.user.accountType === "business") redirect("/business");
   return session;
 }
 
 export async function requireBusinessSession() {
   const session = await requireAuthSession();
-  if (session.user.accountType !== "business") redirect("/");
+  if (session.user.accountType === "business") return session;
+  const businesses = await getBusinesses({ token: session.token });
+  if (businesses.length === 0) redirect("/dashboard");
   return session;
 }

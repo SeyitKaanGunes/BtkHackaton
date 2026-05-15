@@ -97,6 +97,10 @@ export interface DashboardRequestOptions extends AuthOptions {
   referenceDate?: string;
 }
 
+export interface AgentConversationRequestOptions extends AuthOptions {
+  limit?: number;
+}
+
 export interface BusinessOverview {
   business: Business;
   dashboard: BusinessDashboard;
@@ -165,7 +169,7 @@ async function request<T>(path: string, init?: RequestInit, options?: AuthOption
     }
     const message = error instanceof Error ? error.message : "Unknown API error";
     if (isDocumentEndpoint) {
-      throw new Error(`Belge API'sine ulaşılamadı. Demo sonuç üretilmedi. API adresini ve backend'i kontrol edin: ${message}`);
+      throw new Error(`Belge servisine şu an ulaşılamadı. Bağlantını kontrol edip tekrar dene: ${message}`);
     }
     throw new Error(`Fintwin API request failed for ${path}: ${message}`);
   }
@@ -577,8 +581,9 @@ export async function postAgentMessage(message: string, options?: AuthOptions): 
   );
 }
 
-export function getAgentConversations(options?: AuthOptions): Promise<AgentConversationSummary[]> {
-  return request<AgentConversationSummary[]>("/agent/conversations", undefined, options);
+export function getAgentConversations(options?: AgentConversationRequestOptions): Promise<AgentConversationSummary[]> {
+  const query = options?.limit ? `?limit=${encodeURIComponent(String(options.limit))}` : "";
+  return request<AgentConversationSummary[]>(`/agent/conversations${query}`, undefined, options);
 }
 
 export function synthesizeSpeech(input: TextToSpeechRequest | string, options?: AuthOptions): Promise<TextToSpeechResult> {

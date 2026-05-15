@@ -11,7 +11,7 @@ export default async function GoalsPage() {
   const planning = await getPlanningOverview({ token });
 
   return (
-    <AppShell active="/goals" accountType={user.accountType}>
+    <AppShell active="/goals" accountType="personal" displayName={user.name}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Hedef ve limit planı</p>

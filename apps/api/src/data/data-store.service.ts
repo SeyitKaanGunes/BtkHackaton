@@ -927,12 +927,12 @@ export class DataStoreService implements OnModuleInit {
     });
   }
 
-  async listAgentConversations(userId: string) {
+  async listAgentConversations(userId: string, limit = 30) {
     this.assertReady();
     const rows = await this.prisma.agentConversation.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      take: 30
+      take: limit
     });
     return rows.map((row) => ({
       id: row.id,

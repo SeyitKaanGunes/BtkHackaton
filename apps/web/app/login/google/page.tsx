@@ -35,7 +35,7 @@ export default function GoogleLoginCallbackPage() {
 
       try {
         const result = await loginWithGoogle({ idToken, nonce, accountType });
-        window.location.replace(result.user.accountType === "business" ? "/business" : "/");
+        window.location.replace(result.user.accountType === "business" ? "/business" : "/dashboard");
       } catch (loginError) {
         redirectToLogin(loginError instanceof Error ? loginError.message : "Google ile oturum açılamadı.");
       }
@@ -55,7 +55,9 @@ export default function GoogleLoginCallbackPage() {
     <main className="auth-shell">
       <section className="auth-panel auth-callback-panel">
         <div>
-          <span className="brand-mark">FS</span>
+          <span className="brand-mark image-brand-mark">
+            <img src="/fintwin-logo.png" alt="" />
+          </span>
           <p className="eyebrow">Fintwin</p>
           <h1>Google oturumu işleniyor.</h1>
           <p className="header-subtitle">{message}</p>

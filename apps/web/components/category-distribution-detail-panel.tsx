@@ -1,8 +1,11 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { DashboardSummary, Transaction } from "@fintwin/shared";
-import { ArrowDownWideNarrow, ReceiptText, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { ArrowDownWideNarrow, BookOpen, Car, HeartPulse, Home, MoreHorizontal, ReceiptText, Repeat2, Shirt, ShoppingBasket, Smartphone, Utensils, X } from "lucide-react";
+import { formatCurrency } from "../lib/format";
 
 type CategoryBreakdownItem = DashboardSummary["categoryBreakdown"][number];
 
@@ -12,6 +15,7 @@ export function CategoryDistributionDetailPanel({ dashboard, transactions }: { d
   const sorted = useMemo(() => [...dashboard.categoryBreakdown].sort((left, right) => right.value - left.value), [dashboard.categoryBreakdown]);
   const selectedCategory = sorted.find((item) => item.categoryId === selectedCategoryId) ?? null;
   const topCategory = sorted[0];
+  const chartGradient = useMemo(() => semiCircleGradient(sorted, total), [sorted, total]);
   const periodExpenses = useMemo(
     () =>
       transactions.filter((transaction) => {
@@ -54,32 +58,46 @@ export function CategoryDistributionDetailPanel({ dashboard, transactions }: { d
           <strong>{dashboard.periodLabel}</strong>
         </div>
         {sorted.length ? (
-          <div className="category-detail-list">
-            {sorted.map((item) => {
-              const percent = total > 0 ? (item.value / total) * 100 : 0;
-              const isSelected = item.categoryId === selectedCategoryId;
-              return (
-                <button
-                  className={isSelected ? "category-detail-row category-detail-button active" : "category-detail-row category-detail-button"}
-                  key={item.categoryId}
-                  onClick={() => setSelectedCategoryId(item.categoryId)}
-                  type="button"
-                >
-                  <div className="category-swatch" style={{ background: item.color }} />
-                  <div>
-                    <strong>{item.name}</strong>
-                    <span>{formatMoney(item.value)}</span>
-                  </div>
-                  <div className="category-share">
-                    <span>%{formatNumber(percent)}</span>
-                    <div className="progress-track" aria-hidden="true">
-                      <span style={{ background: item.color, width: `${Math.max(4, Math.min(percent, 100))}%` }} />
+          <div className="category-distribution-grid">
+            <div className="category-semicircle-panel" aria-label="Kategori yarım daire grafiği">
+              <div className="category-semicircle-shell">
+                <div className="category-semicircle" style={{ background: chartGradient }} />
+              </div>
+              <div className="category-semicircle-total">
+                <span>Toplam</span>
+                <strong>{formatMoney(total)}</strong>
+              </div>
+            </div>
+            <div className="category-detail-list">
+              {sorted.map((item) => {
+                const percent = total > 0 ? (item.value / total) * 100 : 0;
+                const isSelected = item.categoryId === selectedCategoryId;
+                const Icon = categoryIcon(item.name);
+                return (
+                  <button
+                    className={isSelected ? "category-detail-row category-detail-button active" : "category-detail-row category-detail-button"}
+                    key={item.categoryId}
+                    onClick={() => setSelectedCategoryId(item.categoryId)}
+                    type="button"
+                  >
+                    <span className="category-icon" style={{ "--category-color": item.color } as CSSProperties}>
+                      <Icon size={17} />
+                    </span>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <span>{formatMoney(item.value)}</span>
                     </div>
-                  </div>
-                  <span className="category-row-cta">Harcamaları aç</span>
-                </button>
-              );
-            })}
+                    <div className="category-share">
+                      <span>%{formatNumber(percent)}</span>
+                      <div className="progress-track" aria-hidden="true">
+                        <span style={{ background: item.color, width: `${Math.max(4, Math.min(percent, 100))}%` }} />
+                      </div>
+                    </div>
+                    <span className="category-row-cta">Harcamaları aç</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ) : (
           <EmptyDetail message="Fiş, ekstre veya manuel işlem eklenince kategori dağılımı burada detaylı görünür." />
@@ -179,8 +197,7 @@ function EmptyDetail({ message }: { message: string }) {
 }
 
 function formatMoney(value: number, currency = "TRY") {
-  const suffix = currency === "TRY" ? "TL" : currency;
-  return `${Math.round(value).toLocaleString("tr-TR")} ${suffix}`;
+  return formatCurrency(Math.round(value), currency);
 }
 
 function formatNumber(value: number) {
@@ -203,4 +220,31 @@ function paymentMethodLabel(method: Transaction["paymentMethod"]) {
   if (method === "debit_card") return "Banka kartı";
   if (method === "credit_card") return "Kredi kartı";
   return "Transfer";
+}
+
+function semiCircleGradient(items: CategoryBreakdownItem[], total: number) {
+  if (!items.length || total <= 0) return "conic-gradient(from 270deg, #e2e8f0 0deg 180deg, transparent 180deg 360deg)";
+  let cursor = 0;
+  const stops = items.map((item) => {
+    const start = cursor;
+    const size = Math.max(2, (item.value / total) * 180);
+    cursor = Math.min(180, cursor + size);
+    return `${item.color} ${start.toFixed(2)}deg ${cursor.toFixed(2)}deg`;
+  });
+  if (cursor < 180) stops.push(`#e2e8f0 ${cursor.toFixed(2)}deg 180deg`);
+  return `conic-gradient(from 270deg, ${stops.join(", ")}, transparent 180deg 360deg)`;
+}
+
+function categoryIcon(name: string): LucideIcon {
+  const normalized = name.toLocaleLowerCase("tr-TR");
+  if (normalized.includes("market")) return ShoppingBasket;
+  if (normalized.includes("yemek")) return Utensils;
+  if (normalized.includes("kira")) return Home;
+  if (normalized.includes("ulaş") || normalized.includes("ulas")) return Car;
+  if (normalized.includes("giyim")) return Shirt;
+  if (normalized.includes("eğitim") || normalized.includes("egitim")) return BookOpen;
+  if (normalized.includes("sağlık") || normalized.includes("saglik")) return HeartPulse;
+  if (normalized.includes("teknoloji")) return Smartphone;
+  if (normalized.includes("abonelik")) return Repeat2;
+  return MoreHorizontal;
 }

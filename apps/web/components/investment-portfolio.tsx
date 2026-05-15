@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Plus, Search, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import type { Currency, Goal, InvestmentAssetType, InvestmentPortfolioSummary, MarketSymbolResult } from "@fintwin/shared";
 import { addInvestmentHolding, deleteInvestmentHolding, searchMarketSymbols } from "../lib/api";
+import { formatCurrency } from "../lib/format";
 import { normalizeMarketSymbolQuery, shouldSearchMarketSymbols, type PortfolioFormMode } from "../lib/portfolio-form";
 
 const assetTypes: Array<{ value: InvestmentAssetType; label: string }> = [
@@ -44,6 +45,7 @@ export function InvestmentPortfolio({ initialPortfolio, goals = [], mode = "over
   const [form, setForm] = useState<FormState>({ quantity: "1", averageCost: "", costCurrency: "TRY", assetType: "stock", annualInterestRate: "" });
   const [isBusy, setIsBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const isCash = form.assetType === "cash";
 
   useEffect(() => {
@@ -64,7 +66,7 @@ export function InvestmentPortfolio({ initialPortfolio, goals = [], mode = "over
   }, [isCash, mode, query]);
 
   const sourceLabel = useMemo(() => {
-    return portfolio.hasMarketDataGap ? "Piyasa verisi eksik" : "Twelve Data";
+    return portfolio.hasMarketDataGap ? "Piyasa verisi eksik" : "Canlı piyasa";
   }, [portfolio.hasMarketDataGap]);
 
   async function submit() {
@@ -106,8 +108,11 @@ export function InvestmentPortfolio({ initialPortfolio, goals = [], mode = "over
 
   async function remove(id: string) {
     setIsBusy(true);
+    setMessage(null);
     try {
       setPortfolio(await deleteInvestmentHolding(id));
+      setConfirmDeleteId(null);
+      setMessage("Pozisyon silindi.");
     } catch (caught) {
       setMessage(caught instanceof Error ? caught.message : "Pozisyon silinemedi.");
     } finally {
@@ -263,7 +268,8 @@ export function InvestmentPortfolio({ initialPortfolio, goals = [], mode = "over
 
   return (
     <section className="portfolio-grid portfolio-grid-overview" aria-label="Yatırım portföyü">
-      <div className="panel investment-panel">
+      <div className="portfolio-main-column">
+        <div className="panel investment-panel portfolio-hero-panel">
         <div className="section-title portfolio-title-row">
           <div>
             <span>Yatırım portföyü</span>
@@ -300,7 +306,9 @@ export function InvestmentPortfolio({ initialPortfolio, goals = [], mode = "over
           </div>
         </div>
         {portfolio.warning ? <p className="form-message">{portfolio.warning}</p> : null}
+        </div>
 
+        <div className="panel allocation-panel">
         {portfolio.allocation.length > 0 ? (
           <div className="allocation-strip">
             {portfolio.allocation.map((item) => (
@@ -312,9 +320,13 @@ export function InvestmentPortfolio({ initialPortfolio, goals = [], mode = "over
             ))}
           </div>
         ) : null}
+        </div>
 
-        <PortfolioTwinPanel portfolio={portfolio} goals={goals} />
-
+        <div className="panel position-table-panel">
+        <div className="section-title">
+          <span>Varlıklarım</span>
+          <strong>{portfolio.positions.length} pozisyon</strong>
+        </div>
         <div className="position-list">
           {portfolio.positions.length === 0 ? (
             <div className="empty-state portfolio-empty-state">
@@ -324,6 +336,7 @@ export function InvestmentPortfolio({ initialPortfolio, goals = [], mode = "over
           ) : null}
           {portfolio.positions.map((position) => {
             const isUp = position.profitLossTry >= 0;
+            const isConfirmingDelete = confirmDeleteId === position.id;
             return (
               <article className="position-row" key={position.id}>
                 <div>
@@ -336,30 +349,45 @@ export function InvestmentPortfolio({ initialPortfolio, goals = [], mode = "over
                 </div>
                 <div>
                   <span>Son fiyat</span>
-                  <strong>
-                    {position.isPriced ? `${formatNumber(position.quote.price)} ${position.quote.currency}` : "Alınamadı"}
-                  </strong>
+                  <strong>{position.isPriced ? `${formatNumber(position.quote.price)} ${position.quote.currency}` : "Piyasa verisi yok"}</strong>
                 </div>
                 <div>
                   <span>Değer</span>
                   <strong>{position.isPriced ? formatTry(position.marketValueTry) : "-"}</strong>
                   {position.dailyInterestTry > 0 ? <small>+{formatTry(position.dailyInterestTry)} günlük faiz</small> : null}
-                  {!position.isPriced && position.marketDataMessage ? <small>{position.marketDataMessage}</small> : null}
+                  {!position.isPriced ? <small>Fiyat gelince değer hesaplanır.</small> : null}
                 </div>
                 <div className={position.isPriced ? (isUp ? "positive" : "negative") : undefined}>
                   {position.isPriced ? (isUp ? <TrendingUp size={16} /> : <TrendingDown size={16} />) : null}
-                  <strong>{position.isPriced ? `${isUp ? "+" : ""}${formatTry(position.profitLossTry)}` : "Hesaplanamadı"}</strong>
+                  <strong>{position.isPriced ? `${isUp ? "+" : ""}${formatTry(position.profitLossTry)}` : "Kar/zarar bekliyor"}</strong>
                 </div>
-                <button className="ghost-icon" type="button" onClick={() => void remove(position.id)} disabled={isBusy} aria-label={`${position.symbol} sil`}>
-                  <Trash2 size={16} />
-                </button>
+                {isConfirmingDelete ? (
+                  <div className="position-delete-confirm" aria-label={`${position.symbol} silme onayı`}>
+                    <span>Silinsin mi?</span>
+                    <button className="small-button danger-button" type="button" onClick={() => void remove(position.id)} disabled={isBusy}>
+                      Sil
+                    </button>
+                    <button className="small-button" type="button" onClick={() => setConfirmDeleteId(null)} disabled={isBusy}>
+                      Vazgeç
+                    </button>
+                  </div>
+                ) : (
+                  <button className="ghost-icon" type="button" onClick={() => setConfirmDeleteId(position.id)} disabled={isBusy} aria-label={`${position.symbol} sil`}>
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </article>
             );
           })}
         </div>
-        <p className="market-note">Piyasa fiyatları backend cache ile günde bir kez yenilenir. Nakit ve mevduat pozisyonları günlük faiz projeksiyonuna dahil edilir.</p>
+        <p className="market-note">Piyasa fiyatları gün içinde yenilenir. Nakit ve mevduat pozisyonları günlük faiz projeksiyonuna dahil edilir.</p>
         {message ? <p className="form-message">{message}</p> : null}
       </div>
+      </div>
+
+      <aside className="portfolio-reference-rail">
+        <PortfolioTwinPanel portfolio={portfolio} goals={goals} />
+      </aside>
 
     </section>
   );
@@ -454,7 +482,7 @@ function parseOptionalPositiveNumber(value: string, field: string): number | und
 }
 
 function formatTry(value: number): string {
-  return `${formatNumber(value)} TL`;
+  return formatCurrency(value, "TRY", { maximumFractionDigits: 2 });
 }
 
 function formatNumber(value: number): string {

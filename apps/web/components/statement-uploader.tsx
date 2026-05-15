@@ -169,7 +169,7 @@ export function StatementUploader() {
             <span>Tarih</span>
             <span>Satıcı</span>
             <span>Kategori</span>
-            <span>Tutar</span>
+            <span>Tutar (₺)</span>
             <span>Güven</span>
           </div>
           {state.data.items.map((item) => (

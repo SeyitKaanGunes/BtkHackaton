@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bell, Eye, EyeOff, Plus, XCircle } from "lucide-react";
 import type { Category, Currency, Subscription, SubscriptionLeak, SubscriptionStatus } from "@fintwin/shared";
 import { createSubscription, updateSubscription } from "../lib/api";
+import { formatCurrency } from "../lib/format";
 import { localDateInputValue, parseMoneyInput } from "../lib/input-format";
 
 const statusOptions: Array<{ value: SubscriptionStatus; label: string }> = [
@@ -83,7 +84,7 @@ export function SubscriptionManager({ initialSubscriptions, leaks, categories }:
           <input value={form.merchant} onChange={(event) => setForm((current) => ({ ...current, merchant: event.target.value }))} placeholder="Netflix, Spotify, bulut depolama" />
         </label>
         <label className="field">
-          <span>Tutar</span>
+          <span>Tutar (₺)</span>
           <input inputMode="decimal" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="149,99" />
         </label>
         <label className="field">
@@ -122,7 +123,7 @@ export function SubscriptionManager({ initialSubscriptions, leaks, categories }:
                   <span className={`chip ${subscription.status === "cancelled" ? "danger" : subscription.status === "ignored" ? "warn" : "accent"}`}>{statusLabel(subscription.status)}</span>
                   <strong>{subscription.merchant}</strong>
                   <small>
-                    {subscription.amount.toLocaleString("tr-TR")} {subscription.currency} / {subscription.cadence === "yearly" ? "yıl" : "ay"}
+                    {formatCurrency(subscription.amount, subscription.currency)}/{subscription.cadence === "yearly" ? "yıl" : "ay"}
                     {subscription.lastUsedAt ? ` · son kullanım ${subscription.lastUsedAt}` : ""}
                     {subscription.nextExpectedAt ? ` · sonraki ödeme ${subscription.nextExpectedAt}` : ""}
                   </small>

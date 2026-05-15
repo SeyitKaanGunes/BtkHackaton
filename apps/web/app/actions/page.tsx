@@ -14,7 +14,7 @@ export default async function ActionsPage() {
   const dismissedCount = actions.filter((action) => action.status === "dismissed").length;
 
   return (
-    <AppShell active="/actions" accountType={user.accountType}>
+    <AppShell active="/actions" accountType="personal" displayName={user.name}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Karar ve takip</p>

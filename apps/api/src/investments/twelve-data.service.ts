@@ -131,11 +131,13 @@ export class TwelveDataService {
   private async fetchQuote(holding: Pick<InvestmentHolding, "symbol" | "name" | "exchange" | "micCode" | "marketCurrency">): Promise<InvestmentQuote> {
     const key = this.apiKey();
     if (!key) return unavailableQuoteFor(holding, "TWELVE_DATA_API_KEY is not configured");
+    const requestSymbol = this.providerSymbol(holding.symbol);
+    const requestExchange = holding.exchange ?? this.defaultExchangeFor(requestSymbol);
 
     const remote = await this.fetchJson(
       this.url("/quote", {
-        symbol: holding.symbol,
-        exchange: holding.exchange,
+        symbol: requestSymbol,
+        exchange: requestExchange,
         mic_code: holding.micCode,
         apikey: key
       })
@@ -153,18 +155,30 @@ export class TwelveDataService {
     const updatedAt = typeof record.datetime === "string" ? this.toIsoDate(record.datetime) : new Date().toISOString();
     const percentChange = this.numberValue(record.percent_change);
     return {
-      symbol: holding.symbol.toUpperCase(),
+      symbol: requestSymbol.toUpperCase(),
       name: String(record.name ?? holding.name ?? holding.symbol),
       price,
       currency,
       change: this.numberValue(record.change),
       percentChange,
       previousClose: this.numberValue(record.previous_close),
-      exchange: typeof record.exchange === "string" ? record.exchange : holding.exchange,
+      exchange: typeof record.exchange === "string" ? record.exchange : requestExchange,
       updatedAt,
       source: "twelve_data",
       isStale: false
     };
+  }
+
+  private providerSymbol(symbol: string) {
+    const upper = symbol.trim().toUpperCase();
+    const compactFx = upper.match(/^([A-Z]{3})(TRY|USD|EUR)$/);
+    if (compactFx) return `${compactFx[1]}/${compactFx[2]}`;
+    return upper;
+  }
+
+  private defaultExchangeFor(symbol: string) {
+    if (symbol === "AAPL") return "NASDAQ";
+    return undefined;
   }
 
   private mapSymbol(item: TwelveDataSymbol): MarketSymbolResult | undefined {

@@ -32,7 +32,7 @@ export function AuthForm() {
         mode === "register"
           ? await register({ name: name.trim(), email: email.trim(), password, accountType })
           : await login({ email: email.trim(), password, accountType });
-      window.location.href = result.user.accountType === "business" ? "/business" : "/";
+      window.location.href = result.user.accountType === "business" ? "/business" : "/dashboard";
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Oturum açılamadı.");
     } finally {

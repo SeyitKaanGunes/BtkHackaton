@@ -1,12 +1,30 @@
 import Link from "next/link";
-import { ArrowRightLeft, BarChart3, Bot, Brain, Building2, CalendarPlus, CheckCircle2, Clock3, Fingerprint, LayoutDashboard, ListChecks, MessageSquareText, Repeat2, ShieldCheck, SlidersHorizontal, Sparkles, Target, TrendingUp, WandSparkles } from "lucide-react";
+import {
+  BarChart3,
+  Bell,
+  Bot,
+  Brain,
+  Building2,
+  CircleHelp,
+  Clock3,
+  Fingerprint,
+  LayoutDashboard,
+  ListChecks,
+  Repeat2,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Target,
+  TrendingUp,
+  WandSparkles
+} from "lucide-react";
 import { AgentLauncher } from "./agent-launcher";
 import { LogoutButton } from "./logout-button";
 
 type AccountType = "personal" | "business";
 
 const personalNav = [
-  { href: "/", label: "Özet", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Özet", icon: LayoutDashboard },
   { href: "/financial-profile", label: "Finansal Profil", icon: SlidersHorizontal },
   { href: "/categories", label: "Kategori Dağılımı", icon: BarChart3 },
   { href: "/spending-dna", label: "Spending DNA", icon: Brain },
@@ -20,37 +38,51 @@ const personalNav = [
 ];
 
 const businessNav = [
-  { href: "/business", label: "KOBİ", icon: Building2 },
+  { href: "/business", label: "Genel Bakış", icon: Building2 },
   { href: "/business?section=twin", label: "Finansal İkiz", icon: Sparkles },
   { href: "/business?section=dna", label: "İşletme DNA", icon: Fingerprint },
   { href: "/business?section=cashflow", label: "Nakit Akışı", icon: TrendingUp },
-  { href: "/business?section=coverage", label: "Maaş ve Kira", icon: CheckCircle2 },
-  { href: "/business?section=collections", label: "Tahsilat", icon: MessageSquareText },
-  { href: "/business?section=scenarios", label: "Senaryolar", icon: ArrowRightLeft },
-  { href: "/business?section=records", label: "Veri Girişi", icon: CalendarPlus }
+  { href: "/business?section=coverage", label: "Maaş ve Kira", icon: Target },
+  { href: "/business?section=collections", label: "Tahsilat", icon: ListChecks },
+  { href: "/business?section=scenarios", label: "Senaryolar", icon: WandSparkles },
+  { href: "/business?section=records", label: "Kayıtlar", icon: BarChart3 },
+  { href: "/business?section=assistant", label: "KOBİ Asistanı", icon: Brain }
 ];
 
 export function AppShell({
   children,
-  active = "/",
+  active = "/dashboard",
   accountType = "personal",
-  businessReady = true
+  businessReady = true,
+  displayName
 }: {
   children: React.ReactNode;
   active?: string;
   accountType?: AccountType;
   businessReady?: boolean;
+  displayName?: string;
 }) {
   const nav = accountType === "business" ? (businessReady ? businessNav : businessNav.slice(0, 1)) : personalNav;
-  const homeHref = accountType === "business" ? "/business" : "/";
+  const homeHref = accountType === "business" ? "/business" : "/dashboard";
+  const accountLabel = accountType === "business" ? "KOBİ Hesabı" : "Kişisel Hesap";
+  const shownName = displayName ?? (accountType === "business" ? "KOBİ alanı" : "Kişisel alan");
+  const initials = shownName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toLocaleUpperCase("tr-TR"))
+    .join("");
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <Link className="brand" href={homeHref}>
-          <span className="brand-mark">FS</span>
+          <span className="brand-mark image-brand-mark">
+            <img src="/fintwin-logo.png" alt="" />
+          </span>
           <span>
             <strong>Fintwin</strong>
-            <small>AI Financial Twin</small>
+            <small>{accountType === "business" ? "KOBİ çalışma alanı" : "Finansal ikiziniz"}</small>
           </span>
         </Link>
         <nav className="nav-list" aria-label="Ana navigasyon">
@@ -65,17 +97,41 @@ export function AppShell({
           })}
         </nav>
         <LogoutButton />
-        <div className="trust-note">
-          <ShieldCheck size={18} />
-          <span>Qwen/Gemini anahtarları yalnızca backend tarafında kalır.</span>
-        </div>
       </aside>
-      <main className="workspace">{children}</main>
-      <AgentLauncher
-        ariaLabel={accountType === "business" ? "KOBİ asistanını aç" : "Agent sayfasına git"}
-        href={accountType === "business" ? "/business?section=assistant" : "/agent"}
-        mode={accountType === "business" ? "link" : "modal"}
-      />
+      <div className="shell-content">
+        <header className="app-topbar" aria-label="Uygulama üst barı">
+          <label className="global-search">
+            <Search size={17} />
+            <input placeholder="Ara: işlem, hesap, kategori..." aria-label="Uygulamada ara" />
+          </label>
+          <div className="topbar-actions">
+            <nav className="account-switcher" aria-label="Hesap alanı değiştir">
+              <Link className={accountType === "personal" ? "active" : ""} href="/dashboard">
+                Kişisel
+              </Link>
+              <Link className={accountType === "business" ? "active" : ""} href="/business">
+                KOBİ
+              </Link>
+            </nav>
+            <Link className="topbar-icon-button" href="/actions" aria-label="Bildirimler">
+              <Bell size={18} />
+              <span />
+            </Link>
+            <Link className="topbar-icon-button" href="/agent" aria-label="Yardım">
+              <CircleHelp size={18} />
+            </Link>
+            <div className="topbar-user">
+              <span>{initials || "F"}</span>
+              <div>
+                <strong>{shownName}</strong>
+                <small>{accountLabel}</small>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main className="workspace">{children}</main>
+      </div>
+      <AgentLauncher ariaLabel="Agent sayfasına git" href="/agent" />
     </div>
   );
 }

@@ -2,9 +2,10 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, PiggyBank, Plus, RefreshCw, Sparkles, Target } from "lucide-react";
+import { CalendarDays, PiggyBank, Plus, RefreshCw, Sparkles, Target, X } from "lucide-react";
 import type { Goal, GoalAdviceResponse, PlanningOverview } from "@fintwin/shared";
 import { createGoal, getGoalAdvice, upsertBudget, upsertSavingsPlan } from "../lib/api";
+import { formatCurrency } from "../lib/format";
 import { localDateInputValue, parseMoneyInput } from "../lib/input-format";
 
 type Status = { tone: "ok" | "error"; text: string } | null;
@@ -26,14 +27,37 @@ export function GoalsPlanner({ initialPlanning }: { initialPlanning: PlanningOve
   const [advice, setAdvice] = useState<GoalAdviceResponse | null>(null);
   const [adviceLoading, setAdviceLoading] = useState(true);
   const [adviceVersion, setAdviceVersion] = useState(0);
+  const [budgetDrawerOpen, setBudgetDrawerOpen] = useState(false);
   const customGoals = useMemo(() => planning.goals.filter((goal) => !isSavingsGoal(goal)), [planning.goals]);
+  const adviceCacheKey = useMemo(() => goalAdviceCacheKey(planning), [planning]);
+  const budgetRows = useMemo(
+    () =>
+      [...planning.categories].sort((left, right) => {
+        const leftActive = planning.budgets.some((budget) => budget.categoryId === left.id);
+        const rightActive = planning.budgets.some((budget) => budget.categoryId === right.id);
+        if (leftActive !== rightActive) return rightActive ? 1 : -1;
+        return left.name.localeCompare(right.name, "tr");
+      }),
+    [planning.budgets, planning.categories]
+  );
+  const visibleBudgetRows = budgetRows.slice(0, 6);
+  const hiddenBudgetRows = budgetRows.slice(6);
 
   useEffect(() => {
     let cancelled = false;
+    const cached = adviceVersion === 0 ? readGoalAdviceCache(adviceCacheKey) : null;
+    if (cached) {
+      setAdvice(cached);
+      setAdviceLoading(false);
+      return;
+    }
     setAdviceLoading(true);
     getGoalAdvice()
       .then((result) => {
-        if (!cancelled) setAdvice(result);
+        if (!cancelled) {
+          setAdvice(result);
+          writeGoalAdviceCache(adviceCacheKey, result);
+        }
       })
       .catch((error) => {
         if (!cancelled) {
@@ -51,7 +75,7 @@ export function GoalsPlanner({ initialPlanning }: { initialPlanning: PlanningOve
     return () => {
       cancelled = true;
     };
-  }, [adviceVersion]);
+  }, [adviceCacheKey, adviceVersion]);
 
   async function submitSavings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -138,7 +162,32 @@ export function GoalsPlanner({ initialPlanning }: { initialPlanning: PlanningOve
   }
 
   function refreshAdvice() {
+    removeGoalAdviceCache(adviceCacheKey);
     setAdviceVersion((current) => current + 1);
+  }
+
+  function renderBudgetRow(category: PlanningOverview["categories"][number]) {
+    return (
+      <article className="budget-limit-row" key={category.id}>
+        <div className="category-swatch small" style={{ background: category.color }} />
+        <div>
+          <strong>{category.name}</strong>
+          <span>{budgetCaption(planning, category.id)}</span>
+        </div>
+        <label className="field">
+          <span>Limit (₺)</span>
+          <input
+            inputMode="decimal"
+            onChange={(event) => setBudgetInputs((current) => ({ ...current, [category.id]: event.target.value }))}
+            placeholder="3000"
+            value={budgetInputs[category.id] ?? ""}
+          />
+        </label>
+        <button className="secondary-button small-button" disabled={pending === category.id} onClick={() => void saveBudget(category.id)} type="button">
+          {pending === category.id ? "Kaydediliyor" : "Kaydet"}
+        </button>
+      </article>
+    );
   }
 
   return (
@@ -158,11 +207,11 @@ export function GoalsPlanner({ initialPlanning }: { initialPlanning: PlanningOve
             <strong>aylık / yıllık</strong>
           </div>
           <label className="field">
-            <span>Aylık biriktirme miktarı</span>
+            <span>Aylık biriktirme miktarı (₺)</span>
             <input inputMode="decimal" onChange={(event) => setMonthlyAmount(event.target.value)} placeholder="5000" value={monthlyAmount} />
           </label>
           <label className="field">
-            <span>Yıllık biriktirme miktarı</span>
+            <span>Yıllık biriktirme miktarı (₺)</span>
             <input inputMode="decimal" onChange={(event) => setYearlyAmount(event.target.value)} placeholder="60000" value={yearlyAmount} />
           </label>
           <button className="secondary-button" disabled={pending === "savings"} type="submit">
@@ -183,11 +232,11 @@ export function GoalsPlanner({ initialPlanning }: { initialPlanning: PlanningOve
           </label>
           <div className="goal-form-row">
             <label className="field">
-              <span>Hedef tutarı</span>
+              <span>Hedef tutarı (₺)</span>
               <input inputMode="decimal" onChange={(event) => setGoalTarget(event.target.value)} placeholder="150000" required value={goalTarget} />
             </label>
             <label className="field">
-              <span>Şu an biriken</span>
+              <span>Şu an biriken (₺)</span>
               <input inputMode="decimal" onChange={(event) => setGoalCurrent(event.target.value)} placeholder="25000" value={goalCurrent} />
             </label>
           </div>
@@ -206,33 +255,38 @@ export function GoalsPlanner({ initialPlanning }: { initialPlanning: PlanningOve
       <div className="panel category-budget-panel">
         <div className="section-title">
           <span>Kategori harcama limitleri</span>
-          <strong>aylık limit</strong>
+          <strong>{planning.budgets.length} aktif limit</strong>
         </div>
         <div className="budget-limit-list">
-          {planning.categories.map((category) => (
-            <article className="budget-limit-row" key={category.id}>
-              <div className="category-swatch small" style={{ background: category.color }} />
-              <div>
-                <strong>{category.name}</strong>
-                <span>{budgetCaption(planning, category.id)}</span>
-              </div>
-              <label className="field">
-                <span>Limit</span>
-                <input
-                  inputMode="decimal"
-                  onChange={(event) => setBudgetInputs((current) => ({ ...current, [category.id]: event.target.value }))}
-                  placeholder="3000"
-                  value={budgetInputs[category.id] ?? ""}
-                />
-              </label>
-              <button className="secondary-button small-button" disabled={pending === category.id} onClick={() => void saveBudget(category.id)} type="button">
-                {pending === category.id ? "Kaydediliyor" : "Kaydet"}
-              </button>
-            </article>
-          ))}
+          {visibleBudgetRows.map(renderBudgetRow)}
         </div>
+        {hiddenBudgetRows.length ? (
+          <button className="secondary-button budget-drawer-trigger" type="button" onClick={() => setBudgetDrawerOpen(true)}>
+            Tüm kategorileri düzenle ({budgetRows.length})
+          </button>
+        ) : null}
         {budgetStatus ? <p className={`form-message ${budgetStatus.tone === "error" ? "danger" : "success-message"}`}>{budgetStatus.text}</p> : null}
       </div>
+
+      {budgetDrawerOpen ? (
+        <div className="budget-drawer-backdrop" onMouseDown={() => setBudgetDrawerOpen(false)} role="presentation">
+          <aside className="budget-drawer" role="dialog" aria-label="Kategori limitlerini düzenle" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
+            <header className="budget-drawer-header">
+              <div>
+                <span>Kategori limitleri</span>
+                <strong>Tüm kategoriler</strong>
+              </div>
+              <button className="ghost-icon" onClick={() => setBudgetDrawerOpen(false)} type="button" aria-label="Kategori limitlerini kapat">
+                <X size={17} />
+              </button>
+            </header>
+            <div className="budget-drawer-list">
+              {budgetRows.map(renderBudgetRow)}
+            </div>
+            {budgetStatus ? <p className={`form-message ${budgetStatus.tone === "error" ? "danger" : "success-message"}`}>{budgetStatus.text}</p> : null}
+          </aside>
+        </div>
+      ) : null}
 
       <div className="panel active-goals-panel">
         <div className="section-title">
@@ -270,7 +324,7 @@ function PlanStat({ icon, label, value }: { icon: React.ReactNode; label: string
       {icon}
       <span>{label}</span>
       <strong>{value}</strong>
-      <small>Kaydedilen plan finansal simülasyonlarda dikkate alınır.</small>
+      <small>Simülasyonlarda kullanılır.</small>
     </article>
   );
 }
@@ -298,7 +352,7 @@ function GoalAdviceBubble({ advice, loading, onRefresh }: { advice: GoalAdviceRe
         <p>{summary}</p>
         {actions.length ? (
           <ul>
-            {actions.map((action) => (
+            {actions.slice(0, 3).map((action) => (
               <li key={action}>{action}</li>
             ))}
           </ul>
@@ -330,7 +384,7 @@ function mergeGoals(current: Goal[], next: Goal[]) {
 }
 
 function formatMoney(value: number) {
-  return `${Math.round(value).toLocaleString("tr-TR")} TL`;
+  return formatCurrency(Math.round(value));
 }
 
 function displayAmount(value: string) {
@@ -341,4 +395,31 @@ function addMonths(date: Date, months: number) {
   const next = new Date(date);
   next.setMonth(next.getMonth() + months);
   return next;
+}
+
+function goalAdviceCacheKey(planning: PlanningOverview) {
+  const goals = planning.goals.map((goal) => `${goal.id}:${goal.currentAmount}:${goal.targetAmount}:${goal.deadline}`).sort();
+  const budgets = planning.budgets.map((budget) => `${budget.categoryId}:${budget.monthlyLimit}`).sort();
+  const savings = `${planning.savingsPlan.monthly?.targetAmount ?? 0}:${planning.savingsPlan.yearly?.targetAmount ?? 0}`;
+  return `fintwin:goal-advice:${savings}:${goals.join("|")}:${budgets.join("|")}`;
+}
+
+function readGoalAdviceCache(key: string) {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as GoalAdviceResponse) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeGoalAdviceCache(key: string, value: GoalAdviceResponse) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(key, JSON.stringify(value));
+}
+
+function removeGoalAdviceCache(key: string) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(key);
 }

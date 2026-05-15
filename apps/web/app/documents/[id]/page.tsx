@@ -16,10 +16,10 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
   const document = await getDocumentDetail(id, { token });
 
   return (
-    <AppShell active="/" accountType={user.accountType}>
+    <AppShell active="/dashboard" accountType="personal" displayName={user.name}>
       <header className="workspace-header">
         <div>
-          <Link className="text-link back-link" href="/">
+          <Link className="text-link back-link" href="/dashboard">
             <ArrowLeft size={16} />
             Özete dön
           </Link>

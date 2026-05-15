@@ -11,7 +11,7 @@ export default async function FinancialProfilePage() {
   const [profile, categories] = await Promise.all([getFinancialProfile({ token }), getCategories({ token })]);
 
   return (
-    <AppShell active="/financial-profile" accountType={user.accountType}>
+    <AppShell active="/financial-profile" accountType="personal" displayName={user.name}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Finansal ikiz kurulumu</p>

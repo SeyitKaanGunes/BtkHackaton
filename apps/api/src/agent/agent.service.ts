@@ -106,7 +106,7 @@ export class AgentService {
               agent: "Supervisor Agent",
               purpose: "Mesaj niyetini seçip doğru finans uzmanına yönlendirmek.",
               status: "completed",
-              output: intent
+              output: intentTraceText(intent)
             }
           ]
         };
@@ -124,12 +124,13 @@ export class AgentService {
               agent: "Twin Agent",
               purpose: "Spending DNA metriklerini deterministik servislerden hesaplamak.",
               status: "completed",
-              output: `${topCategory?.categoryName ?? "kategori yok"} risk ${topCategory?.riskScore ?? 0}/100`
+              output: topCategory ? `${topCategory.categoryName} davranış riski incelendi.` : "Harcama davranışı incelendi."
             },
             {
               agent: "Risk Agent",
               purpose: "Davranışsal risk sinyalini kısa yoruma çevirmek.",
-              status: "completed"
+              status: "completed",
+              output: "Risk sinyali kısa yoruma çevrildi."
             }
           ]
         };
@@ -146,7 +147,7 @@ export class AgentService {
                 agent: "Simulation Agent",
                 purpose: "Mesajdan karar tutarını çıkarmak.",
                 status: "blocked",
-                output: parsedAmount.reason ?? "Tutar güveni düşük."
+                output: "Senaryo için net tutar bulunamadı."
               }
             ],
             qualityWarnings: ["Net tutar bulunmadığı için what-if varsayımı üretilmedi."]
@@ -176,7 +177,7 @@ export class AgentService {
                 agent: "Simulation Agent",
                 purpose: "Gerçek finans verisiyle karar senaryosu üretmek.",
                 status: "blocked",
-                output: "Yeterli gelir, gider, bütçe veya hedef verisi yok."
+                output: "Senaryoyu çalıştıracak finansal profil verisi eksik."
               }
             ],
             qualityWarnings: ["What-if için boş veriyle sahte senaryo üretilmedi."]
@@ -192,12 +193,13 @@ export class AgentService {
               agent: "Simulation Agent",
               purpose: "Tutar, kategori, bütçe, hedef ve nakit akışıyla üç karar senaryosu üretmek.",
               status: "completed",
-              output: `${parsedAmount.value} ${parsedAmount.currency} / ${simulation.resolvedCategoryName ?? parsedCategory.category ?? "kategori belirsiz"}`
+              output: `${simulation.resolvedCategoryName ?? parsedCategory.category ?? "Seçilen harcama"} senaryosu bütçe ve hedeflerle karşılaştırıldı.`
             },
             {
               agent: "Action Agent",
               purpose: "Riskli harcama için kullanıcı onaylı bekleme aksiyonu önermek.",
-              status: "completed"
+              status: "completed",
+              output: "Karar molası önerisi hazırlandı."
             }
           ],
           suggestedActions: [
@@ -226,13 +228,13 @@ export class AgentService {
                 agent: "Risk Agent",
                 purpose: "Aboneliklerde tekrar, fiyat artışı ve kullanım sızıntısı aramak.",
                 status: "completed",
-                output: "Sızıntı bulunmadı."
+                output: "Abonelik sızıntısı kontrol edildi."
               },
               {
                 agent: "Action Agent",
                 purpose: "Gerekiyorsa abonelik aksiyonu önermek.",
                 status: "skipped",
-                output: "Aksiyon gerektiren aday yok."
+                output: "Yeni aksiyon gerektiren abonelik bulunmadı."
               }
             ]
           };
@@ -247,13 +249,13 @@ export class AgentService {
               agent: "Risk Agent",
               purpose: "Abonelik sızıntılarını deterministik kurallarla sıralamak.",
               status: "completed",
-              output: `${leaks.length} aday, ilk aday ${topLeak.merchant}`
+              output: `${topLeak.merchant} aboneliği öncelikli risk olarak incelendi.`
             },
             {
               agent: "Action Agent",
               purpose: "Abonelik için kullanıcı onaylı takip/iptal aksiyonu önermek.",
               status: "skipped",
-              output: "Bu turda otomatik kayıt yazılmadı."
+              output: "Abonelik aksiyonu kullanıcı onayına bırakıldı."
             }
           ],
           actionProposals: [buildSubscriptionReviewProposal(topLeak)]
@@ -270,7 +272,7 @@ export class AgentService {
               agent: "Education Agent",
               purpose: "Finans kavramını kısa ve eğitim odaklı açıklamak.",
               status: education.warnings.length ? "blocked" : "completed",
-              output: education.model ? `${education.model} / maxTokens=450` : "maxTokens=450"
+              output: education.warnings.length ? "Eğitim cevabı güvenli şekilde durduruldu." : "Finansal açıklama hazırlandı."
             }
           ],
           qualityWarnings: education.warnings,
@@ -289,19 +291,19 @@ export class AgentService {
               agent: "Twin Agent",
               purpose: "Kullanıcı finans profilini token dostu bağlama çevirmek.",
               status: "completed",
-              output: `${assistant.contextChars ?? 0} karakter bağlam`
+              output: "Finansal profil özeti incelendi."
             },
             {
               agent: "LLM Agent",
               purpose: "Yalnızca özet bağlama dayanarak Türkçe cevap üretmek.",
               status: "completed",
-              output: assistant.model ?? "model bilinmiyor"
+              output: "Yanıt finansal bağlama göre hazırlandı."
             },
             {
               agent: "Evidence Guard",
               purpose: "Cevabı otomatik işlem iddiası ve riskli yatırım dili açısından kontrol etmek.",
               status: "completed",
-              output: assistant.warnings[0]
+              output: assistant.warnings.length ? "Yanıt güvenlik uyarılarıyla kontrol edildi." : "Yanıt güvenlik kontrolünden geçti."
             }
           ],
           qualityWarnings: assistant.warnings,
@@ -359,8 +361,8 @@ export class AgentService {
     return response;
   }
 
-  listConversations(userId: string) {
-    return this.store.listAgentConversations(userId);
+  listConversations(userId: string, limit?: number) {
+    return this.store.listAgentConversations(userId, limit);
   }
 
   getConversation(userId: string, id: string) {
@@ -530,6 +532,14 @@ function buildDelayPurchaseProposal(input: {
     source: "agent",
     confidence: 0.9
   };
+}
+
+function intentTraceText(intent: AgentIntent) {
+  if (intent === "simulation") return "Karar senaryosu akışı seçildi.";
+  if (intent === "subscriptions") return "Abonelik kontrol akışı seçildi.";
+  if (intent === "education") return "Finansal açıklama akışı seçildi.";
+  if (intent === "twin") return "Spending DNA akışı seçildi.";
+  return "Finansal ikiz sohbet akışı seçildi.";
 }
 
 function buildSubscriptionReviewProposal(leak: ReturnType<typeof detectSubscriptionLeakage>[number]): AgentActionProposal {

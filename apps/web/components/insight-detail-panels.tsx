@@ -1,6 +1,8 @@
 import type { DashboardSummary, SpendingDna, SpendingDnaCategory, SubscriptionLeak, WhatIfResponse } from "@fintwin/shared";
+import type { CSSProperties } from "react";
 import { AlertTriangle, CalendarClock, CheckCircle2, CircleDollarSign, Clock3, Info, MessageSquareText, PiggyBank, ShieldAlert, TrendingDown, WalletCards } from "lucide-react";
 import type { CampaignReadiness } from "../lib/api";
+import { formatCurrency, formatCurrencyText } from "../lib/format";
 
 export function WhatIfDetailPanel({ whatIf }: { whatIf: WhatIfResponse }) {
   const hasCards = whatIf.cards.length > 0;
@@ -50,11 +52,9 @@ export function EmotionalDelayDetailPanel({ whatIf, campaign }: { whatIf: WhatIf
     <section className="detail-stack">
       <div className="hero-insight panel">
         <div>
-          <p className="eyebrow">Dürtüsel harcama freni</p>
-          <h2>{delay > 0 ? `${delay} dakika bekle, sonra tekrar değerlendir.` : "Bekleme süresi için yeterli risk sinyali yok."}</h2>
-          <p>
-            Emotional Delay; kampanya hassasiyeti, nakit akışı, harcama sınırı ve veri güvenini birlikte okuyarak karar anında kısa bir soğuma süresi önerir.
-          </p>
+          <p className="eyebrow">Önerilen bekleme süresi</p>
+          <h2>{delay > 0 ? `${delay} dakika` : "Bekleme gerekmiyor"}</h2>
+          <p>Bu süre; tutar, kategori, nakit akışı ve kampanya hassasiyetine göre hesaplanır. Kararı kaydetmeden önce kısa bir kontrol anı sağlar.</p>
         </div>
         <div className="delay-orb">
           <Clock3 size={28} />
@@ -136,18 +136,79 @@ export function SubscriptionHunterDetailPanel({ leaks }: { leaks: SubscriptionLe
 
 export function SpendingDnaDetailPanel({ dna }: { dna: SpendingDna }) {
   const categories = [...dna.categories].sort((left, right) => right.riskScore - left.riskScore);
-  const metrics = dna.metrics;
+  const topRisks = categories.slice(0, 3);
+  const visibleCategories = categories.slice(0, 4);
+  const hiddenCategories = categories.slice(4);
   const commentary = dna.commentary;
+  const actionRecommendations = buildDnaActionRecommendations(categories, dna);
   return (
-    <section className="detail-stack">
-      <div className="insight-grid four">
-        <StatTile label="Genel risk" value={`${dna.overallRisk}/100`} caption={metricCaption(metrics?.overallRisk.reasons, dna.reasons)} />
-        <StatTile label="Maaş günü refleksi" value={`${dna.paydayReflexScore}/100`} caption={metricCaption(metrics?.paydayReflexScore.reasons)} />
-        <StatTile label="Hafta sonu/gece" value={`${dna.weekendNightScore}/100`} caption={metricCaption(metrics?.weekendNightScore.reasons)} />
-        <StatTile label="Tasarruf disiplini" value={`${dna.savingDiscipline}/100`} caption={metricCaption(metrics?.savingDiscipline.reasons)} />
-      </div>
+    <section className="detail-stack spending-dna-layout">
+      <section className="dna-risk-hero panel">
+        <div className="section-title">
+          <span>Öncelikli riskler</span>
+          <strong>{dna.overallRisk}/100 genel skor</strong>
+        </div>
+        <div className="dna-risk-hero-grid">
+          {topRisks.length ? (
+            topRisks.map((category, index) => (
+              <article className={`dna-risk-card ${riskClass(category.riskScore)}`} key={category.categoryId}>
+                <span>{index + 1}</span>
+                <div>
+                  <strong>{category.categoryName}</strong>
+                  <small>{formatMoney(category.monthlySpend)} bu dönem</small>
+                </div>
+                <b>{category.riskScore}/100</b>
+              </article>
+            ))
+          ) : (
+            <EmptyDetail message="Risk önceliği oluşturmak için kategori verisi bekleniyor." />
+          )}
+        </div>
+      </section>
 
-      <div className="split-layout">
+      <section className="panel dna-profile-card">
+        <div className="section-title">
+          <span>Spending DNA Profiliniz</span>
+          <strong>{dna.overallRisk}/100</strong>
+        </div>
+        <div className="dna-profile-grid">
+          <div className="dna-fingerprint" aria-hidden="true">
+            {Array.from({ length: 18 }, (_, index) => (
+              <span style={{ "--i": index } as CSSProperties} key={index} />
+            ))}
+          </div>
+          <div className="dna-profile-copy">
+            <h2>Harcamalarınızın DNA'sı</h2>
+            <p>Kalıplarınızı analiz ederek finansal davranış profilinizi oluşturduk.</p>
+            <div className="dna-score-bars">
+              {[
+                { label: "Planlama", value: dna.paydayReflexScore },
+                { label: "Disiplin", value: dna.savingDiscipline },
+                { label: "Fırsatçılık", value: dna.campaignSensitivity },
+                { label: "Duygusal Tetik", value: dna.weekendNightScore },
+                { label: "Sadakat", value: Math.min(100, Math.max(0, 100 - dna.overallRisk + 70)) }
+              ].map((item) => (
+                <div key={item.label}>
+                  <span>{item.label}</span>
+                  <i style={{ width: `${item.value}%` }} />
+                  <strong>{item.value}/100</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="dna-insight-box">
+            <strong>Öne Çıkan İçgörüler</strong>
+            <ul>
+              {dna.patterns.slice(0, 3).map((pattern) => (
+                <li key={pattern}>{formatCurrencyText(pattern)}</li>
+              ))}
+              {dna.patterns.length === 0 ? <li>Veri arttıkça davranış içgörüleri burada netleşir.</li> : null}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <div className="dna-analysis-grid">
         <div className="panel detail-panel">
           <div className="section-title">
             <span>Kategori riskleri</span>
@@ -155,9 +216,19 @@ export function SpendingDnaDetailPanel({ dna }: { dna: SpendingDna }) {
           </div>
           {categories.length ? (
             <div className="progress-list detailed">
-              {categories.map((category) => (
+              {visibleCategories.map((category) => (
                 <CategoryRiskRow category={category} key={category.categoryId} />
               ))}
+              {hiddenCategories.length ? (
+                <details className="category-risk-more">
+                  <summary>Devamını gör ({hiddenCategories.length})</summary>
+                  <div className="progress-list detailed">
+                    {hiddenCategories.map((category) => (
+                      <CategoryRiskRow category={category} key={category.categoryId} />
+                    ))}
+                  </div>
+                </details>
+              ) : null}
             </div>
           ) : (
             <EmptyDetail message="Risk skorlayacak kategori verisi henüz yok." />
@@ -172,10 +243,10 @@ export function SpendingDnaDetailPanel({ dna }: { dna: SpendingDna }) {
             </div>
             {dna.patterns.length ? (
               <ul className="detail-list">
-                {dna.patterns.map((pattern) => (
+                {dna.patterns.slice(0, 4).map((pattern) => (
                   <li key={pattern}>
                     <CheckCircle2 size={16} />
-                    <span>{pattern}</span>
+                    <span>{formatCurrencyText(pattern)}</span>
                   </li>
                 ))}
               </ul>
@@ -184,29 +255,42 @@ export function SpendingDnaDetailPanel({ dna }: { dna: SpendingDna }) {
             )}
           </div>
 
+          <div className="panel detail-panel dna-action-card">
+            <div className="section-title">
+              <span>Ne yapmalıyım?</span>
+              <strong>{actionRecommendations.length}</strong>
+            </div>
+            <div className="dna-action-list">
+              {actionRecommendations.map((item) => (
+                <article key={item.title}>
+                  <b>{item.title}</b>
+                  <span>{item.description}</span>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          {commentary?.source === "llm" ? (
           <div className="panel detail-panel spending-dna-commentary-panel">
             <div className="section-title">
               <span>Yorum</span>
-              <strong>{commentary?.source === "llm" ? "LLM" : "Beklemede"}</strong>
+              <strong>Hazır</strong>
             </div>
-            {commentary ? (
-              <div className="spending-dna-commentary">
-                <MessageSquareText size={19} />
-                <p>{commentary.summary}</p>
-                {commentary.takeaways.length ? (
-                  <ul className="reason-list compact">
-                    {commentary.takeaways.map((item) => (
-                      <li key={item}>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ) : (
-              <EmptyDetail message="Risk skorları geldikten sonra LLM yorumu burada gösterilir." />
-            )}
+            <div className="spending-dna-commentary">
+              <MessageSquareText size={19} />
+              <p>{formatCurrencyText(commentary.summary)}</p>
+              {commentary.takeaways.length ? (
+                <ul className="reason-list compact">
+                  {commentary.takeaways.map((item) => (
+                    <li key={item}>
+                      <span>{formatCurrencyText(item)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           </div>
+          ) : null}
         </div>
       </div>
     </section>
@@ -327,6 +411,39 @@ function CategoryRiskRow({ category }: { category: SpendingDnaCategory }) {
   );
 }
 
+function buildDnaActionRecommendations(categories: SpendingDnaCategory[], dna: SpendingDna) {
+  const top = categories[0];
+  const recommendations = [
+    top
+      ? {
+          title: `${top.categoryName} sınırını netleştir`,
+          description: `${formatMoney(top.monthlySpend)} harcama ve ${top.riskScore}/100 risk skoru nedeniyle bu kategori ilk kontrol noktası.`
+        }
+      : undefined,
+    dna.campaignSensitivity >= 55
+      ? {
+          title: "Kampanya kararına kısa mola koy",
+          description: "Ani indirim ve fırsat tetikleri için önce what-if etkisini görüp sonra karar ver."
+        }
+      : undefined,
+    dna.weekendNightScore >= 55
+      ? {
+          title: "Akşam harcamalarını izle",
+          description: "Hafta sonu/gece sinyali yükseliyorsa kart bildirimlerini aksiyon merkezine taşı."
+        }
+      : undefined
+  ].filter(Boolean) as Array<{ title: string; description: string }>;
+
+  return recommendations.length
+    ? recommendations.slice(0, 3)
+    : [
+        {
+          title: "Profilini güçlendir",
+          description: "Bütçe, hedef ve işlem verileri arttıkça Spending DNA önerileri daha netleşir."
+        }
+      ];
+}
+
 function StatTile({ label, value, caption }: { label: string; value: string; caption: string }) {
   return (
     <article className="detail-stat-card">
@@ -352,7 +469,7 @@ function ReasonList({ reasons, tone = "neutral", compact = false }: { reasons: s
     <ul className={compact ? "reason-list compact" : "reason-list"}>
       {reasons.map((reason) => (
         <li className={tone} key={reason}>
-          <span>{reason}</span>
+          <span>{formatCurrencyText(reason)}</span>
         </li>
       ))}
     </ul>
@@ -364,7 +481,7 @@ function EmptyDetail({ message }: { message: string }) {
 }
 
 function formatMoney(value: number) {
-  return `${Math.round(value).toLocaleString("tr-TR")} TL`;
+  return formatCurrency(Math.round(value));
 }
 
 function formatNumber(value: number) {

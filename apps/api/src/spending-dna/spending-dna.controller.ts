@@ -15,7 +15,7 @@ export class SpendingDnaController {
   ) {}
 
   @Get()
-  async get(@CurrentUser() user: AuthUser, @Query() query: DashboardPeriodOptions) {
+  async get(@CurrentUser() user: AuthUser, @Query() query: DashboardPeriodOptions & { commentary?: string }) {
     await this.store.ensureMonthlySalaryTransactions(user.id);
     const data = this.store.getPersonalData(user.id);
     const decisionSummary = summarizeDecisionJournal(await this.store.listSimulationHistory(user.id));
@@ -32,19 +32,25 @@ export class SpendingDnaController {
           ? [...(baseDna.reasons ?? []), `Karar günlüğü sağlık skoruna ${decisionSummary.healthAdjustment >= 0 ? "+" : ""}${decisionSummary.healthAdjustment} puan davranış sinyali ekledi.`]
           : baseDna.reasons
     };
-    return { ...dna, commentary: await this.buildCommentary(dna) };
+    const commentary =
+      query.commentary === "llm"
+        ? await this.buildCommentary(dna)
+        : this.unavailableCommentary("Risk skorları hızlı yüklendi. LLM yorumu bu sayfa açılışında bekletilmiyor.");
+    return { ...dna, commentary };
   }
 
-  private async buildCommentary(dna: SpendingDna): Promise<SpendingDnaCommentary> {
-    const unavailable = (summary: string): SpendingDnaCommentary => ({
+  private unavailableCommentary(summary: string): SpendingDnaCommentary {
+    return {
       summary,
       takeaways: [],
       generatedAt: new Date().toISOString(),
       source: "unavailable"
-    });
+    };
+  }
 
+  private async buildCommentary(dna: SpendingDna): Promise<SpendingDnaCommentary> {
     if (!this.qwen.isConfigured()) {
-      return unavailable("LLM yorumu için QWEN_API_KEY yapılandırılmalı. Risk skorları hesaplandı, fakat yorum üretilemedi.");
+      return this.unavailableCommentary("LLM yorumu için QWEN_API_KEY yapılandırılmalı. Risk skorları hesaplandı, fakat yorum üretilemedi.");
     }
 
     try {
@@ -86,10 +92,10 @@ export class SpendingDnaController {
             })
           }
         ],
-        { temperature: 0.25, maxTokens: 550 }
+        { temperature: 0.2, maxTokens: 320, timeoutMs: 3500 }
       );
       const parsed = parseCommentary(response.content);
-      if (!parsed.summary) return unavailable("LLM yorumu boş döndü. Risk skorları hesaplandı, fakat yorum gösterilemiyor.");
+      if (!parsed.summary) return this.unavailableCommentary("LLM yorumu boş döndü. Risk skorları hesaplandı, fakat yorum gösterilemiyor.");
       return {
         summary: parsed.summary,
         takeaways: parsed.takeaways,
@@ -98,7 +104,7 @@ export class SpendingDnaController {
         source: "llm"
       };
     } catch {
-      return unavailable("LLM yorumu şu anda alınamadı. Risk skorları hesaplandı, fakat yorum gösterilemiyor.");
+      return this.unavailableCommentary("LLM yorumu 3.5 saniye içinde alınamadı. Risk skorları hesaplandı; yorum için sayfayı sonra tekrar açabilirsin.");
     }
   }
 }

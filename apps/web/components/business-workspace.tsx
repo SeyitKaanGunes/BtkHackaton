@@ -1,6 +1,7 @@
 "use client";
 
 import { type CSSProperties, type FormEvent, type ReactNode, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, ArrowRightLeft, Bot, Building2, CalendarPlus, CheckCircle2, CircleDollarSign, Clock3, Fingerprint, Landmark, MessageSquareText, Send, ShieldAlert, Sparkles, TrendingUp, UserPlus } from "lucide-react";
 import {
@@ -21,6 +22,7 @@ import {
   type CollectionScore
 } from "@fintwin/shared";
 import { createBusiness, createBusinessCashEvent, createBusinessCustomer, simulateBusinessDecision } from "../lib/api";
+import { formatCurrency } from "../lib/format";
 
 export type BusinessWorkspaceData = {
   business: Business;
@@ -32,6 +34,17 @@ export type BusinessWorkspaceData = {
 type Status = { tone: "ok" | "error"; text: string } | null;
 type DetailFact = { label: string; value: string; tone?: "positive" | "negative" | "warning" };
 export type BusinessSectionId = "twin" | "dna" | "cashflow" | "coverage" | "collections" | "scenarios" | "records" | "assistant";
+
+const businessSectionLinks: Array<{ href: string; id: BusinessSectionId | "overview"; label: string }> = [
+  { href: "/business", id: "overview", label: "Genel bakış" },
+  { href: "/business?section=twin", id: "twin", label: "Finansal ikiz" },
+  { href: "/business?section=cashflow", id: "cashflow", label: "Nakit akışı" },
+  { href: "/business?section=coverage", id: "coverage", label: "Maaş ve kira" },
+  { href: "/business?section=collections", id: "collections", label: "Tahsilat" },
+  { href: "/business?section=scenarios", id: "scenarios", label: "Senaryolar" },
+  { href: "/business?section=records", id: "records", label: "Kayıtlar" },
+  { href: "/business?section=assistant", id: "assistant", label: "KOBİ asistanı" }
+];
 
 export function BusinessWorkspace({
   initialData,
@@ -79,12 +92,12 @@ function BusinessOnboarding() {
         <div>
           <p className="eyebrow">Ayrı KOBİ Modülü</p>
           <h1>KOBİ profili oluştur.</h1>
-          <p className="header-subtitle">Bu hesapta işletme kaydı yok. Başlangıç bilgilerini girince KOBİ dashboard gerçek DB kayıtlarından açılacak.</p>
+          <p className="header-subtitle">Bu hesapta işletme kaydı yok. Başlangıç bilgilerini girince KOBİ alanı işletme verilerinizle açılacak.</p>
         </div>
         <div className="health-score">
           <Building2 size={22} />
           <span>Kurulum</span>
-          <strong>DB</strong>
+          <strong>Veri</strong>
         </div>
       </header>
 
@@ -126,7 +139,7 @@ function BusinessDashboardView({ data, activeSection, showOverview }: { data: Bu
           <div>
             <p className="eyebrow">Ayrı KOBİ Modülü</p>
             <h1>{business.name}</h1>
-            <p className="header-subtitle">{business.sector} işletme metrikleri oturum kullanıcısına bağlı DB kayıtlarından okunur.</p>
+            <p className="header-subtitle">{business.sector} işletme metrikleri bu işletme hesabındaki güncel kayıtlardan okunur.</p>
           </div>
           <div className="health-score">
             <Building2 size={22} />
@@ -136,17 +149,35 @@ function BusinessDashboardView({ data, activeSection, showOverview }: { data: Bu
         </header>
       ) : null}
 
-      {showOverview ? <BusinessSummaryMetrics summary={insights.summary} /> : null}
-      <BusinessSectionContent
-        activeSection={activeSection}
-        businessId={business.id}
-        customers={customers}
-        dashboard={dashboard}
-        detail={!showOverview}
-        insights={insights}
-        scores={scores}
-      />
+      <BusinessSectionNav activeSection={activeSection} showOverview={showOverview} />
+      {showOverview ? <BusinessOverviewCockpit businessId={business.id} customers={customers} dashboard={dashboard} insights={insights} scores={scores} /> : null}
+      {!showOverview ? (
+        <BusinessSectionContent
+          activeSection={activeSection}
+          businessId={business.id}
+          customers={customers}
+          dashboard={dashboard}
+          detail
+          insights={insights}
+          scores={scores}
+        />
+      ) : null}
     </>
+  );
+}
+
+function BusinessSectionNav({ activeSection, showOverview }: { activeSection: BusinessSectionId; showOverview: boolean }) {
+  return (
+    <nav className="business-section-nav" aria-label="KOBİ modülleri">
+      {businessSectionLinks.map((item) => {
+        const active = showOverview ? item.id === "overview" : item.id === activeSection;
+        return (
+          <Link className={active ? "active" : ""} href={item.href} key={item.id}>
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -198,6 +229,37 @@ function BusinessSummaryMetrics({ summary }: { summary: BusinessSummaryInsight }
       <Metric icon={<AlertTriangle size={20} />} label="Geciken alacak" value={formatTry(summary.overdueReceivables)} />
       <Metric icon={<TrendingUp size={20} />} label="30 gün sonu" value={formatTry(summary.projected30Days)} />
       <Metric icon={<ShieldAlert size={20} />} label="Nakit risk skoru" value={`${summary.cashRiskScore}/100`} />
+    </section>
+  );
+}
+
+function BusinessOverviewCockpit({
+  businessId,
+  customers,
+  dashboard,
+  insights,
+  scores
+}: {
+  businessId: string;
+  customers: BusinessCustomer[];
+  dashboard: BusinessDashboard;
+  insights: BusinessInsights;
+  scores: CollectionScore[];
+}) {
+  return (
+    <section className="business-reference-cockpit">
+      <BusinessSummaryMetrics summary={insights.summary} />
+      <div className="business-reference-grid">
+        <CashflowForecastPanel detail={false} points={insights.cashflow} />
+        <CoveragePanel coverage={insights.coverage} detail={false} />
+        <CollectionPriorityPanel detail={false} priorities={insights.collectionPriorities} />
+        <ScenarioSimulatorPanel businessId={businessId} detail={false} scenarios={insights.scenarios} />
+        <BusinessAssistantPanel dashboard={dashboard} detail={false} insights={insights} />
+        <section className="split-layout business-data-entry business-overview-records">
+          <CashEventsPanel businessId={businessId} dashboard={dashboard} />
+          <CustomersPanel businessId={businessId} customers={customers} scores={scores} />
+        </section>
+      </div>
     </section>
   );
 }
@@ -377,7 +439,7 @@ function CashflowForecastPanel({ detail, points }: { detail: boolean; points: Bu
     <section className={detail ? "panel cashflow-forecast-panel detail-panel" : "panel cashflow-forecast-panel"}>
       {detail ? (
         <BusinessSectionIntro
-          description="Gelecek 30 gün için kayıtlı tahsilat ve ödeme olaylarından deterministik nakit bakiyesi tahmini."
+          description="Gelecek 30 gün için tahsilat ve ödeme takviminden hesaplanan nakit bakiyesi tahmini."
           eyebrow="Nakit Akışı"
           facts={detailFacts}
           title="Riskli günleri ve nakit hareketlerini birlikte izle"
@@ -597,7 +659,7 @@ function ScenarioSimulatorPanel({ businessId, detail, scenarios }: { businessId:
     <section className={detail ? "panel business-scenario-panel detail-panel" : "panel business-scenario-panel"}>
       {detail ? (
         <BusinessSectionIntro
-          description="Seçili varsayımın 30 gün sonu kasa etkisini kayıtlı nakit olayları üzerinden karşılaştırır."
+          description="Seçili varsayımın 30 gün sonu kasa etkisini mevcut nakit akışıyla karşılaştırır."
           eyebrow="Senaryolar"
           facts={detailFacts}
           title="What-if senaryo simülatörü"
@@ -634,7 +696,7 @@ function ScenarioSimulatorPanel({ businessId, detail, scenarios }: { businessId:
           <input value={decision} onChange={(event) => setDecision(event.target.value)} required minLength={2} placeholder="Espresso makinesi alımı" />
         </label>
         <label className="field">
-          <span>Tutar</span>
+          <span>Tutar (₺)</span>
           <input value={amount} onChange={(event) => setAmount(event.target.value)} required inputMode="decimal" placeholder="65000" />
         </label>
         <button className="secondary-button" type="submit" disabled={pending}>
@@ -739,7 +801,7 @@ function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: Bu
     <section className={detail ? "panel business-assistant-panel detail-panel" : "panel business-assistant-panel"}>
       {detail ? (
         <BusinessSectionIntro
-          description="Bay Yengeç, KOBİ nakit verilerini kişisel ekranla karıştırmadan okur ve kayıtlı tahsilat/ödeme bilgilerine göre karar destek cevabı verir."
+          description="Bay Yengeç, KOBİ nakit akışını okur ve tahsilat/ödeme bilgilerine göre karar destek cevabı verir."
           eyebrow="KOBİ Asistanı"
           facts={facts}
           title="İşletme sorularını hızlıca yanıtla"
@@ -797,7 +859,7 @@ function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: Bu
           </div>
           <div className="business-assistant-note">
             <Send size={16} />
-            <span>Bu cevap kayıtlı KOBİ nakit olayları, tahsilat verisi ve müşteri skorlarından deterministik olarak hazırlanır.</span>
+            <span>Bu cevap KOBİ nakit akışı, tahsilat verisi ve müşteri skorlarına göre hazırlanır.</span>
           </div>
         </div>
       </div>
@@ -821,7 +883,7 @@ function RecordsOverviewPanel({ customers, dashboard, scores }: { customers: Bus
   return (
     <section className="panel records-overview-panel detail-panel">
       <BusinessSectionIntro
-        description="Nakit olayları ve müşteri kayıtları bu moddaki tüm analizlerin deterministik veri kaynağıdır."
+        description="Nakit olayları ve müşteri kayıtları bu moddaki tüm analizlerin temelidir."
         eyebrow="Veri Girişi"
         facts={facts}
         title="Kayıtları güncelle, analizlerin kalitesini artır"
@@ -898,7 +960,7 @@ function CashEventsPanel({ businessId, dashboard }: { businessId: string; dashbo
           <input value={title} onChange={(event) => setTitle(event.target.value)} required placeholder="Müşteri tahsilatı" />
         </label>
         <label className="field">
-          <span>Tutar</span>
+          <span>Tutar (₺)</span>
           <input value={amount} onChange={(event) => setAmount(event.target.value)} required inputMode="decimal" placeholder="50000" />
         </label>
         <label className="field">
@@ -1285,7 +1347,7 @@ function dataConfidenceLabel(confidence: BusinessDna["dataConfidenceLevel"]) {
 }
 
 function formatTry(value: number) {
-  return `${Math.round(value).toLocaleString("tr-TR")} TL`;
+  return formatCurrency(Math.round(value));
 }
 
 function parseOptionalMoney(value: string | number | undefined, field: string) {

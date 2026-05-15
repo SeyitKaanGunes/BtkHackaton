@@ -11,15 +11,15 @@ export default async function EmotionalDelayPage() {
   const [whatIf, campaign] = await Promise.all([getWhatIf({ token }), getCampaignReadiness({ token })]);
 
   return (
-    <AppShell active="/emotional-delay" accountType={user.accountType}>
+    <AppShell active="/emotional-delay" accountType="personal" displayName={user.name}>
       <header className="workspace-header">
         <div>
-          <p className="eyebrow">Dürtüsel harcama freni</p>
+          <p className="eyebrow">Karar molası</p>
           <h1>
             <Clock3 size={30} />
             Emotional Delay
           </h1>
-          <p className="header-subtitle">Riskli harcama anında kaç dakika beklemek gerektiğini ve bu önerinin hangi sinyallerden çıktığını gör.</p>
+          <p className="header-subtitle">Bir harcama kararının bütçe, nakit akışı ve kampanya hassasiyeti üzerindeki etkisini kısa bir bekleme önerisiyle birlikte gör.</p>
         </div>
       </header>
 

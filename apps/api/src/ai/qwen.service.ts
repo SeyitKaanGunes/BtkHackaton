@@ -22,6 +22,8 @@ export interface QwenChatResult {
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 }
 
+type QwenChatOptions = { temperature?: number; model?: string; maxTokens?: number; timeoutMs?: number };
+
 @Injectable()
 export class QwenService {
   private readonly baseURL = process.env.QWEN_BASE_URL ?? QWEN_BASE_URL;
@@ -33,7 +35,7 @@ export class QwenService {
     return Boolean(process.env.QWEN_API_KEY);
   }
 
-  async chat(messages: QwenMessage[], options: { temperature?: number; model?: string; maxTokens?: number } = {}): Promise<QwenChatResult> {
+  async chat(messages: QwenMessage[], options: QwenChatOptions = {}): Promise<QwenChatResult> {
     if (!this.isConfigured()) {
       throw new Error("QWEN_API_KEY is not configured.");
     }
@@ -50,20 +52,29 @@ export class QwenService {
   private async createChatCompletion(
     model: string,
     messages: QwenMessage[],
-    options: { temperature?: number; maxTokens?: number }
+    options: { temperature?: number; maxTokens?: number; timeoutMs?: number }
   ): Promise<QwenChatResult> {
-    const response = await this.getClient().chat.completions.create({
-      model,
-      temperature: options.temperature ?? 0.2,
-      max_tokens: options.maxTokens,
-      messages: messages as ChatCompletionMessageParam[]
-    });
+    const abortController = options.timeoutMs ? new AbortController() : undefined;
+    const timeout = abortController ? setTimeout(() => abortController.abort(), options.timeoutMs) : undefined;
+    try {
+    const response = await this.getClient().chat.completions.create(
+      {
+        model,
+        temperature: options.temperature ?? 0.2,
+        max_tokens: options.maxTokens,
+        messages: messages as ChatCompletionMessageParam[]
+      },
+      abortController ? { signal: abortController.signal } : undefined
+    );
 
     return {
       content: response.choices[0]?.message?.content ?? "",
       model: response.model ?? model,
       usage: response.usage
     };
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   }
 
   private getClient() {
@@ -76,7 +87,16 @@ export class QwenService {
 
   private shouldTrySecondaryModel(model: string, error: unknown) {
     if (!this.secondaryModel || this.secondaryModel === model) return false;
+    if (isTimeoutLikeError(error)) return false;
     const status = typeof (error as { status?: unknown }).status === "number" ? (error as { status: number }).status : undefined;
     return status !== 401 && status !== 403;
   }
+}
+
+function isTimeoutLikeError(error: unknown) {
+  const candidate = error as { name?: unknown; code?: unknown; message?: unknown };
+  const name = typeof candidate.name === "string" ? candidate.name.toLowerCase() : "";
+  const code = typeof candidate.code === "string" ? candidate.code.toLowerCase() : "";
+  const message = typeof candidate.message === "string" ? candidate.message.toLowerCase() : "";
+  return name.includes("abort") || name.includes("timeout") || code.includes("abort") || code.includes("timeout") || message.includes("aborted") || message.includes("timeout");
 }

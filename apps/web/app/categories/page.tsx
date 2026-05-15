@@ -25,7 +25,7 @@ export default async function CategoriesPage({ searchParams }: CategoriesPagePro
   const [dashboard, transactions] = await Promise.all([getPersonalDashboard({ token, period }), getTransactions({ token })]);
 
   return (
-    <AppShell active="/categories" accountType={user.accountType}>
+    <AppShell active="/categories" accountType="personal" displayName={user.name}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Harcama analizi</p>

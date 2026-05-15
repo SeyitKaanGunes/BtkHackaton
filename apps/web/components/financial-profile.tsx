@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Trash2, WalletCards } from "lucide-react";
 import type { Account, Budget, Category, Currency, Goal, UserProfile } from "@fintwin/shared";
 import { createAccount, createBudget, createGoal, createTransaction, deleteAccount, deleteBudget, deleteGoal, updateFinanceProfile } from "../lib/api";
+import { formatCurrency } from "../lib/format";
 import { localDateInputValue, parseMoneyInput } from "../lib/input-format";
 
 const currencies: Currency[] = ["TRY", "USD", "EUR"];
@@ -186,7 +187,7 @@ export function FinancialProfilePanel({
             <strong>maaş / ödeme günü</strong>
           </div>
           <label className="field">
-            <span>Aylık gelir</span>
+            <span>Aylık gelir ({currency === "TRY" ? "₺" : currency === "USD" ? "$" : "€"})</span>
             <input inputMode="decimal" value={income} onChange={(event) => setIncome(event.target.value)} placeholder="45000" />
           </label>
           <label className="field">
@@ -219,7 +220,7 @@ export function FinancialProfilePanel({
             <input value={fixedForm.merchant} onChange={(event) => setFixedForm((current) => ({ ...current, merchant: event.target.value }))} placeholder="Kira, okul, aidat" />
           </label>
           <label className="field">
-            <span>Tutar</span>
+            <span>Tutar (₺)</span>
             <input inputMode="decimal" value={fixedForm.amount} onChange={(event) => setFixedForm((current) => ({ ...current, amount: event.target.value }))} placeholder="15000" />
           </label>
           <label className="field">
@@ -386,5 +387,5 @@ function categoryLabel(categories: Category[], categoryId: string) {
 }
 
 function formatMoney(value: number, currency: Currency) {
-  return `${value.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} ${currency}`;
+  return formatCurrency(value, currency, { maximumFractionDigits: 2 });
 }

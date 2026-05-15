@@ -11,7 +11,7 @@ export default async function AddPortfolioAssetPage() {
   const investmentPortfolio = await getInvestmentPortfolio({ token });
 
   return (
-    <AppShell active="/portfolio" accountType={user.accountType}>
+    <AppShell active="/portfolio" accountType="personal" displayName={user.name}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Portföy kaydı</p>

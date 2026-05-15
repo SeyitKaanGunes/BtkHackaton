@@ -12,7 +12,7 @@ export default async function SubscriptionsPage() {
   const [leaks, subscriptions, categories] = await Promise.all([getSubscriptionLeaks({ token }), getSubscriptions({ token }), getCategories({ token, kind: "expense" })]);
 
   return (
-    <AppShell active="/subscriptions" accountType={user.accountType}>
+    <AppShell active="/subscriptions" accountType="personal" displayName={user.name}>
       <header className="workspace-header">
         <div>
           <p className="eyebrow">Tekrarlı gider kontrolü</p>

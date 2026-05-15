@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Fintwin",
-  description: "AI Financial Digital Twin dashboard"
+  description: "Kişisel ve KOBİ finansal ikiz uygulaması"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

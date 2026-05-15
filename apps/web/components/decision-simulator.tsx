@@ -4,6 +4,7 @@ import { FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clock3, History, WandSparkles, XCircle } from "lucide-react";
 import type { Category, DecisionJournalSummary, SimulationHistoryItem, UserDecisionAction, WhatIfResponse } from "@fintwin/shared";
 import { getCategories, getSimulationHistory, getSimulationSummary, getWhatIf, postDecisionEvent, type CampaignReadiness } from "../lib/api";
+import { formatCurrency, formatCurrencyText } from "../lib/format";
 import { localDateInputValue, parseMoneyInput } from "../lib/input-format";
 import { EmotionalDelayDetailPanel, WhatIfDetailPanel } from "./insight-detail-panels";
 
@@ -129,7 +130,7 @@ function DecisionInputPanel({
       </div>
       <form className="decision-simulator-form" onSubmit={submit}>
         <label className="field">
-          <span>Tutar</span>
+          <span>Tutar (₺)</span>
           <input inputMode="decimal" onChange={(event) => setAmount(event.target.value)} placeholder="3500" required value={amount} />
         </label>
         <label className="field">
@@ -208,11 +209,11 @@ function DecisionHistoryPanel({
         <strong>{history.length}</strong>
       </div>
       <div className="decision-summary-grid">
-        <DecisionSummaryStat label="Net korunan nakit" value={`${summary.netProtectedCash.toLocaleString("tr-TR")} TL`} />
+        <DecisionSummaryStat label="Net korunan nakit" value={formatCurrency(summary.netProtectedCash)} />
         <DecisionSummaryStat label="Ertelenen/iptal" value={`${summary.delayedCount + summary.cancelledCount}`} />
         <DecisionSummaryStat label="Sağlık etkisi" value={`${summary.healthAdjustment >= 0 ? "+" : ""}${summary.healthAdjustment}`} />
       </div>
-      <p className="panel-copy compact-copy">{summary.insight}</p>
+      <p className="panel-copy compact-copy">{formatCurrencyText(summary.insight)}</p>
       <div className="decision-outcome-row">
         <button className="secondary-button small-button" disabled={!canRecord || Boolean(pending)} type="button" onClick={() => void record("bought")}>
           <CheckCircle2 size={15} />
@@ -246,7 +247,7 @@ function DecisionHistoryPanel({
               <div>
                 <strong>{item.question}</strong>
                 <span>
-                  {item.amount ? `${item.amount.toLocaleString("tr-TR")} TL` : "Tutar yok"} · {item.categoryName ?? "Kategori yok"} · {new Date(item.createdAt).toLocaleDateString("tr-TR")}
+                  {item.amount ? formatCurrency(item.amount) : "Tutar yok"} · {item.categoryName ?? "Kategori yok"} · {new Date(item.createdAt).toLocaleDateString("tr-TR")}
                 </span>
               </div>
               <small>{item.decisionEvents[0] ? decisionLabel(item.decisionEvents[0].userAction) : "Karar bekliyor"}</small>
