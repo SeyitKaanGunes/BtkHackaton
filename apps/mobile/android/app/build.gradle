@@ -69,6 +69,13 @@ def enableProguardInReleaseBuilds = false
  * this variant is about 6MiB larger per architecture than default.
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+def googleWebClientId = (
+    findProperty("FINTWIN_GOOGLE_WEB_CLIENT_ID")
+        ?: System.getenv("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID")
+        ?: System.getenv("NEXT_PUBLIC_GOOGLE_CLIENT_ID")
+        ?: System.getenv("GOOGLE_OAUTH_CLIENT_ID")
+        ?: ""
+).toString().trim()
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -76,12 +83,16 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.fintwinmobile"
+    buildFeatures {
+        buildConfig true
+    }
     defaultConfig {
         applicationId "com.fintwinmobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        buildConfigField "String", "GOOGLE_WEB_CLIENT_ID", groovy.json.JsonOutput.toJson(googleWebClientId)
     }
     signingConfigs {
         debug {

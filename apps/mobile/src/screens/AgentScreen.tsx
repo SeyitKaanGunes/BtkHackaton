@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from "react-native";
 import * as RNFS from "react-native-fs";
 import Sound, { AVEncoderAudioQualityIOSType, type AudioSet, type RecordBackType } from "react-native-nitro-sound";
-import { Mic, Send, Shield, Sparkles, Volume2 } from "lucide-react-native";
-import type { ActionItem, AgentResponse } from "@fintwin/shared";
-import { approveAction, dismissAction, sendAgentMessage, transcribeSpeech } from "../api";
+import { History, Mic, Send, Shield, Sparkles, Volume2 } from "lucide-react-native";
+import type { ActionItem, AgentConversationSummary, AgentResponse, SpeechCapabilities } from "@fintwin/shared";
+import { approveAction, dismissAction, getSpeechCapabilities, loadAgentConversations, sendAgentMessage, transcribeSpeech } from "../api";
 import { speakWithGemini } from "../audio";
 import { Btn, Card, Chip, Eyebrow, ScreenHeader, SectionTitle } from "../ui";
 import { radius, space, usePalette } from "../theme";
@@ -43,9 +43,13 @@ export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void 
   const [busyMode, setBusyMode] = useState<BusyMode | null>(null);
   const [actionPendingId, setActionPendingId] = useState<string | null>(null);
   const [recordMillis, setRecordMillis] = useState(0);
+  const [capabilities, setCapabilities] = useState<SpeechCapabilities | null>(null);
+  const [history, setHistory] = useState<AgentConversationSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const loading = busyMode !== null;
   const recording = busyMode === "record";
+  const visibleActionProposals =
+    response?.actionProposals?.filter((proposal) => !response.suggestedActions.some((action) => action.type === proposal.type && action.title === proposal.title)) ?? [];
   const idleTranslateY = idleProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -5] });
   const idleScale = idleProgress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.035] });
 
@@ -59,6 +63,11 @@ export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void 
     animation.start();
     return () => animation.stop();
   }, [idleProgress]);
+
+  useEffect(() => {
+    void getSpeechCapabilities().then(setCapabilities).catch(() => setCapabilities(null));
+    void loadAgentConversations().then(setHistory).catch(() => setHistory([]));
+  }, []);
 
   async function ask() {
     if (loading) return;
@@ -138,6 +147,7 @@ export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void 
       setResponse(next);
       onActionChanged?.();
       setTurns((items) => [...items, { id: `assistant-${Date.now()}`, role: "assistant", text: next.answer }]);
+      void loadAgentConversations().then(setHistory).catch(() => undefined);
     } catch (nextError) {
       setError(formatError(nextError, "Agent cevabı alınamadı."));
     }
@@ -181,8 +191,21 @@ export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void 
       <ScreenHeader
         eyebrow="Finans Asistanı"
         title="Agent ile konuş."
-        subtitle="Yazılı soru, OpenAI STT ile ses dosyası okuma ve Gemini TTS ile sesli cevap iOS tarafında hazır."
+        subtitle="Yazılı soru, OpenAI STT ile ses dosyası okuma ve Gemini TTS ile sesli cevap mobil uygulamada hazır."
       />
+
+      <Card>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <SectionTitle>Ses yetenekleri</SectionTitle>
+          <Chip label={capabilities ? "API durumu" : "Kontrol bekliyor"} tone={capabilities ? "accent" : "neutral"} small />
+        </View>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+          <Chip label={`STT ${capabilities?.stt.available ? "hazır" : "kapalı"}`} tone={capabilities?.stt.available ? "good" : "warn"} small />
+          <Chip label={`TTS ${capabilities?.tts.available ? "hazır" : "kapalı"}`} tone={capabilities?.tts.available ? "good" : "warn"} small />
+        </View>
+        {capabilities?.stt.reason ? <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>STT: {capabilities.stt.reason}</Text> : null}
+        {capabilities?.tts.reason ? <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>TTS: {capabilities.tts.reason}</Text> : null}
+      </Card>
 
       <Card>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
@@ -283,6 +306,24 @@ export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void 
         </View>
       </View>
 
+      <Card>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <SectionTitle>Konuşma geçmişi</SectionTitle>
+          <History color={p.muted} size={14} />
+        </View>
+        {history.length ? (
+          history.slice(0, 5).map((item) => (
+            <View key={item.id} style={{ borderColor: p.line, borderWidth: 1, borderRadius: radius.md, padding: space[3], gap: 5, backgroundColor: p.surface2 }}>
+              <Text style={{ color: p.ink, fontSize: 13, fontWeight: "900" }}>{item.message}</Text>
+              <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }} numberOfLines={3}>{item.answer}</Text>
+              <Text style={{ color: p.muted, fontSize: 11 }}>{new Date(item.createdAt).toLocaleDateString("tr-TR")}</Text>
+            </View>
+          ))
+        ) : (
+          <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>Henüz kayıtlı Agent konuşması yok.</Text>
+        )}
+      </Card>
+
       {response ? (
         <View style={{ gap: space[3] }}>
           <Card>
@@ -314,6 +355,94 @@ export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void 
                 <View key={`${e.label}-${i}`} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderTopColor: p.line, borderTopWidth: i === 0 ? 0 : 1 }}>
                   <Text style={{ color: p.muted, fontSize: 13, flex: 1, paddingRight: 10 }}>{e.label}</Text>
                   <Text style={{ color: p.ink, fontWeight: "800", fontSize: 13 }}>{e.value}</Text>
+                </View>
+              ))}
+            </Card>
+          ) : null}
+
+          {response.quality ? (
+            <Card>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <SectionTitle>Cevap kalitesi</SectionTitle>
+                <Chip label={response.quality.grounded ? "Grounded" : "Uyarı"} tone={response.quality.grounded ? "good" : "warn"} small />
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {response.quality.model ? <Chip label={`Model · ${response.quality.model}`} tone="accent" small /> : null}
+                {response.quality.tokenUsage?.totalTokens ? <Chip label={`Token · ${response.quality.tokenUsage.totalTokens}`} tone="neutral" small /> : null}
+                {response.quality.contextChars ? <Chip label={`Bağlam · ${response.quality.contextChars} karakter`} tone="neutral" small /> : null}
+              </View>
+              {response.quality.warnings.length ? (
+                <View style={{ gap: 6 }}>
+                  {response.quality.warnings.map((warning, index) => (
+                    <Text key={`${warning}-${index}`} style={{ color: p.warn, fontSize: 12, lineHeight: 17, fontWeight: "700" }}>
+                      • {warning}
+                    </Text>
+                  ))}
+                </View>
+              ) : (
+                <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>
+                  Cevap kayıtlı bağlamla üretildi.
+                </Text>
+              )}
+              {response.quality.truncatedSections?.length ? (
+                <Text style={{ color: p.muted, fontSize: 11, lineHeight: 16 }}>
+                  Kırpılan bölümler: {response.quality.truncatedSections.join(", ")}
+                </Text>
+              ) : null}
+            </Card>
+          ) : null}
+
+          {response.agenticPlan?.length ? (
+            <Card>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <SectionTitle>Agent akışı</SectionTitle>
+                <Chip label={`${response.agenticPlan.length} adım`} tone="accent" small />
+              </View>
+              {response.agenticPlan.map((step, index) => (
+                <View
+                  key={`${step.agent}-${index}`}
+                  style={{ borderColor: p.line, borderWidth: 1, borderRadius: radius.md, padding: space[3], gap: 6, backgroundColor: p.surface2 }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                    <Text style={{ color: p.ink, fontWeight: "900", fontSize: 13 }}>{step.agent}</Text>
+                    <Chip label={agentStepStatusLabel(step.status)} tone={step.status === "completed" ? "good" : step.status === "blocked" ? "warn" : "neutral"} small />
+                  </View>
+                  <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>{step.purpose}</Text>
+                  {step.output ? <Text style={{ color: p.ink, fontSize: 12, lineHeight: 17 }}>{step.output}</Text> : null}
+                </View>
+              ))}
+            </Card>
+          ) : null}
+
+          {response.assumptions.length ? (
+            <Card>
+              <SectionTitle>Varsayımlar</SectionTitle>
+              {response.assumptions.map((assumption, index) => (
+                <View key={`${assumption}-${index}`} style={{ flexDirection: "row", gap: 8, alignItems: "flex-start", paddingVertical: 4 }}>
+                  <Text style={{ color: p.accent, fontWeight: "900", fontSize: 14 }}>•</Text>
+                  <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17, flex: 1 }}>{assumption}</Text>
+                </View>
+              ))}
+            </Card>
+          ) : null}
+
+          {visibleActionProposals.length ? (
+            <Card>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <SectionTitle>Onay gerektiren öneriler</SectionTitle>
+                <Chip label={`${visibleActionProposals.length}`} tone="accent" small />
+              </View>
+              {visibleActionProposals.map((proposal) => (
+                <View
+                  key={proposal.id}
+                  style={{ borderColor: p.line, borderWidth: 1, borderRadius: radius.md, padding: space[3], gap: 6, backgroundColor: p.surface2 }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                    <Text style={{ color: p.ink, fontWeight: "900", fontSize: 13, flex: 1 }}>{proposal.title}</Text>
+                    <Chip label={proposal.requiresApproval ? "Onay gerekli" : "Bilgi"} tone="accent" small />
+                  </View>
+                  <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>{proposal.reason}</Text>
+                  <Text style={{ color: p.muted, fontSize: 11, lineHeight: 16 }}>{proposalPayloadText(proposal.payload)}</Text>
                 </View>
               ))}
             </Card>
@@ -408,6 +537,20 @@ function actionStatusLabel(status: ActionItem["status"]) {
   if (status === "approved") return "Onaylandı";
   if (status === "dismissed") return "Reddedildi";
   return "Bekliyor";
+}
+
+function agentStepStatusLabel(status: NonNullable<AgentResponse["agenticPlan"]>[number]["status"]) {
+  if (status === "completed") return "Tamam";
+  if (status === "blocked") return "Blok";
+  return "Atlandı";
+}
+
+function proposalPayloadText(payload: Record<string, unknown>) {
+  const visible = Object.entries(payload)
+    .filter(([, value]) => typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    .slice(0, 4)
+    .map(([key, value]) => `${key}: ${String(value)}`);
+  return visible.length ? visible.join(" · ") : "Öneri detayları yapılandırılmış olarak hazır.";
 }
 
 function voiceButtonLabel(mode: BusyMode | null, recordMillis: number) {

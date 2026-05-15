@@ -1,7 +1,13 @@
 import type {
   ActionItem,
   AgentResponse,
+  AgentConversationSummary,
+  Account,
+  AccountCreateRequest,
   AiCfoSimulation,
+  Budget,
+  BudgetCreateRequest,
+  BudgetUpsertRequest,
   Business,
   BusinessCashEvent,
   BusinessCashEventCreateRequest,
@@ -15,13 +21,23 @@ import type {
   DashboardPeriod,
   DashboardSummary,
   DecisionJournalSummary,
+  DecisionEvent,
+  DecisionEventCreateRequest,
+  DocumentDetail,
+  DocumentHistoryItem,
   FinancialProfile,
+  Goal,
+  GoalAdviceResponse,
+  GoalCreateRequest,
   InvestmentHoldingCreateRequest,
   InvestmentPortfolioSummary,
   MarketSymbolResult,
+  PlanningOverview,
   ReceiptExpenseImportResult,
   ReceiptScanResult,
   RiskLevel,
+  SavingsPlanUpsertRequest,
+  SpeechCapabilities,
   SpeechToTextRequest,
   SpeechToTextResult,
   SpendingDna,
@@ -37,6 +53,7 @@ import type {
   TextToSpeechResult,
   Transaction,
   TransactionType,
+  WhatIfRequest,
   WhatIfResponse
 } from "@fintwin/shared";
 import { NativeModules, Platform } from "react-native";
@@ -57,6 +74,7 @@ export interface AuthResponse {
     email: string;
     name: string;
     persona: string;
+    accountType: "personal" | "business";
     monthlyIncome: number;
     payday: number;
     currency: string;
@@ -230,15 +248,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-export function login(input: { email: string; password: string }) {
+export function login(input: { email: string; password: string; accountType?: "personal" | "business" }) {
   return request<AuthResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify(input)
   });
 }
 
-export function register(input: { name: string; email: string; password: string }) {
+export function register(input: { name: string; email: string; password: string; accountType?: "personal" | "business" }) {
   return request<AuthResponse>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function loginWithGoogle(input: { idToken: string; nonce?: string; accountType?: "personal" | "business" }) {
+  return request<AuthResponse>("/auth/google", {
     method: "POST",
     body: JSON.stringify(input)
   });
@@ -258,6 +283,10 @@ export function updateFinanceProfile(input: Partial<Pick<AuthUserProfile, "month
 export function loadCategories(kind?: TransactionType): Promise<Category[]> {
   const query = kind ? `?kind=${encodeURIComponent(kind)}` : "";
   return request<Category[]>(`/categories${query}`);
+}
+
+export function loadTransactions(): Promise<Transaction[]> {
+  return request<Transaction[]>("/transactions");
 }
 
 function periodQuery(options: MobileHomeOptions = {}) {
@@ -281,9 +310,26 @@ export async function loadMobileHome(options: MobileHomeOptions = {}): Promise<{
   investmentPortfolio: InvestmentPortfolioSummary;
   businessOverview: BusinessOverview | null;
   financialProfile: FinancialProfile;
+  planningOverview: PlanningOverview;
+  documents: DocumentHistoryItem[];
 }> {
   const query = periodQuery(options);
-  const [user, dashboard, dna, campaign, leaks, subscriptions, simulation, decisionSummary, decisionHistory, investmentPortfolio, businessOverview, financialProfile] = await Promise.all([
+  const [
+    user,
+    dashboard,
+    dna,
+    campaign,
+    leaks,
+    subscriptions,
+    simulation,
+    decisionSummary,
+    decisionHistory,
+    investmentPortfolio,
+    businessOverview,
+    financialProfile,
+    planningOverview,
+    documents
+  ] = await Promise.all([
     getCurrentUser(),
     request<DashboardSummary>(`/dashboard/personal${query}`),
     request<SpendingDna>(`/spending-dna${query}`),
@@ -301,9 +347,26 @@ export async function loadMobileHome(options: MobileHomeOptions = {}): Promise<{
       if (error instanceof ApiRequestError && error.status === 404) return null;
       throw error;
     }),
-    loadFinancialProfile()
+    loadFinancialProfile(),
+    loadPlanningOverview(),
+    loadDocumentHistory()
   ]);
-  return { user, dashboard, dna, campaign, leaks, subscriptions, simulation, decisionSummary, decisionHistory, investmentPortfolio, businessOverview, financialProfile };
+  return {
+    user,
+    dashboard,
+    dna,
+    campaign,
+    leaks,
+    subscriptions,
+    simulation,
+    decisionSummary,
+    decisionHistory,
+    investmentPortfolio,
+    businessOverview,
+    financialProfile,
+    planningOverview,
+    documents
+  };
 }
 
 export async function loadFinancialProfile(): Promise<FinancialProfile> {
@@ -313,6 +376,67 @@ export async function loadFinancialProfile(): Promise<FinancialProfile> {
     request<unknown>("/goals").then((value) => (Array.isArray(value) ? (value as FinancialProfile["goals"]) : (value as { goals?: FinancialProfile["goals"] }).goals ?? []))
   ]);
   return { accounts, budgets, goals };
+}
+
+export function createAccount(input: AccountCreateRequest): Promise<Account> {
+  return request<Account>("/accounts", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function deleteAccount(id: string): Promise<Account> {
+  return request<Account>(`/accounts/${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  });
+}
+
+export function createBudget(input: BudgetCreateRequest): Promise<Budget> {
+  return request<Budget>("/budgets", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function deleteBudget(id: string): Promise<Budget> {
+  return request<Budget>(`/budgets/${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  });
+}
+
+export function loadPlanningOverview(): Promise<PlanningOverview> {
+  return request<PlanningOverview>("/goals");
+}
+
+export function getGoalAdvice(): Promise<GoalAdviceResponse> {
+  return request<GoalAdviceResponse>("/goals/advice");
+}
+
+export function createGoal(input: GoalCreateRequest): Promise<Goal> {
+  return request<Goal>("/goals", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function deleteGoal(id: string): Promise<Goal> {
+  return request<Goal>(`/goals/${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  });
+}
+
+export function upsertSavingsPlan(input: SavingsPlanUpsertRequest): Promise<PlanningOverview["savingsPlan"]> {
+  return request<PlanningOverview["savingsPlan"]>("/goals/savings-plan", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function upsertBudget(input: BudgetUpsertRequest): Promise<Budget> {
+  return request<Budget>("/goals/budgets", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
 }
 
 export function loadSubscriptions(): Promise<Subscription[]> {
@@ -341,6 +465,20 @@ export function loadSimulationHistory(): Promise<SimulationHistoryItem[]> {
   return request<SimulationHistoryItem[]>("/simulations/history");
 }
 
+export function runWhatIf(input: WhatIfRequest = {}): Promise<WhatIfResponse> {
+  return request<WhatIfResponse>("/simulations/what-if", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function postDecisionEvent(id: string, input: DecisionEventCreateRequest): Promise<DecisionEvent> {
+  return request<DecisionEvent>(`/simulations/${encodeURIComponent(id)}/decision`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
 export function loadInvestmentPortfolio(): Promise<InvestmentPortfolioSummary> {
   return request<InvestmentPortfolioSummary>("/investments/portfolio");
 }
@@ -366,6 +504,10 @@ export function sendAgentMessage(message: string) {
   return request<AgentResponse>("/agent/chat", { method: "POST", body: JSON.stringify({ message }) });
 }
 
+export function loadAgentConversations(): Promise<AgentConversationSummary[]> {
+  return request<AgentConversationSummary[]>("/agent/conversations");
+}
+
 export function synthesizeSpeech(input: TextToSpeechRequest | string): Promise<TextToSpeechResult> {
   const body = typeof input === "string" ? { text: input } : input;
   return request<TextToSpeechResult>("/speech/tts", { method: "POST", body: JSON.stringify(body) });
@@ -373,6 +515,10 @@ export function synthesizeSpeech(input: TextToSpeechRequest | string): Promise<T
 
 export function transcribeSpeech(input: SpeechToTextRequest): Promise<SpeechToTextResult> {
   return request<SpeechToTextResult>("/speech/stt", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function getSpeechCapabilities(): Promise<SpeechCapabilities> {
+  return request<SpeechCapabilities>("/speech/capabilities");
 }
 
 export function scanReceipt(imageBase64?: string, mimeType?: string) {
@@ -423,6 +569,14 @@ export function createTransaction(input: {
 
 export function importTransactionsCsv(csv: string): Promise<{ imported: number; rows: Transaction[] }> {
   return request<{ imported: number; rows: Transaction[] }>("/transactions/import-csv", { method: "POST", body: JSON.stringify({ csv }) });
+}
+
+export function loadDocumentHistory(): Promise<DocumentHistoryItem[]> {
+  return request<DocumentHistoryItem[]>("/documents");
+}
+
+export function loadDocumentDetail(id: string): Promise<DocumentDetail> {
+  return request<DocumentDetail>(`/documents/${encodeURIComponent(id)}`);
 }
 
 export function saveFcmToken(input: { token: string; platform: "ios" | "android" | "web" }): Promise<{ saved: true; platform: string }> {

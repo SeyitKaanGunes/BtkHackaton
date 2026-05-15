@@ -12,7 +12,8 @@ export default defineConfig({
   define: {
     __DEV__: "true",
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
-    "process.env.EXPO_PUBLIC_API_URL": JSON.stringify(process.env.EXPO_PUBLIC_API_URL ?? "")
+    "process.env.EXPO_PUBLIC_API_URL": JSON.stringify(process.env.EXPO_PUBLIC_API_URL ?? ""),
+    "process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": JSON.stringify(process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "")
   },
   resolve: {
     extensions: [".web.tsx", ".web.ts", ".web.jsx", ".web.js", ".tsx", ".ts", ".jsx", ".js"],

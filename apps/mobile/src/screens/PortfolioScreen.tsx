@@ -3,8 +3,8 @@ import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from "reac
 import DocumentPicker from "react-native-document-picker";
 import * as RNFS from "react-native-fs";
 import { CheckCircle2, FileText, FileUp, Plus, Search, Trash2, TrendingDown, TrendingUp, X } from "lucide-react-native";
-import { statementErrorMessage, type Currency, type InvestmentAssetType, type InvestmentPortfolioSummary, type MarketSymbolResult, type StatementConfirmResult, type StatementPreviewResult } from "@fintwin/shared";
-import { addInvestmentHolding, confirmStatementImport, deleteInvestmentHolding, importStatementPreview, loadInvestmentPortfolio, searchInvestmentSymbols, StatementApiError } from "../api";
+import { statementErrorMessage, type Currency, type Goal, type InvestmentAssetType, type InvestmentPortfolioSummary, type MarketSymbolResult, type StatementConfirmResult, type StatementPreviewResult } from "@fintwin/shared";
+import { addInvestmentHolding, ApiRequestError, confirmStatementImport, createSubscriptionReminder, deleteInvestmentHolding, importStatementPreview, loadInvestmentPortfolio, loadPlanningOverview, searchInvestmentSymbols, StatementApiError } from "../api";
 import { Btn, Card, Chip, Divider, Eyebrow, KV, Muted, ScreenHeader, SectionTitle } from "../ui";
 import { radius, space, usePalette } from "../theme";
 
@@ -83,6 +83,7 @@ export function BankStatementImporter({ onImported }: { onImported?: () => void 
 export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
   const p = usePalette();
   const [portfolio, setPortfolio] = useState<InvestmentPortfolioSummary | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MarketSymbolResult[]>([]);
   const [selected, setSelected] = useState<MarketSymbolResult | null>(null);
@@ -97,6 +98,9 @@ export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
 
   useEffect(() => {
     void loadInvestmentPortfolio().then(setPortfolio);
+    void loadPlanningOverview()
+      .then((planning) => setGoals(planning.goals))
+      .catch(() => setGoals([]));
   }, []);
 
   useEffect(() => {
@@ -222,6 +226,8 @@ export function PortfolioScreen({ onImported }: { onImported?: () => void }) {
           </View>
         </Card>
       ) : null}
+
+      <PortfolioTwinPanel portfolio={portfolio} goals={goals} />
 
       <Card>
         <SectionTitle>Varlik Ekle</SectionTitle>
@@ -516,24 +522,311 @@ function BankStatementCard({
       {flow.phase === "confirmed" ? (
         <>
           <Divider />
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <CheckCircle2 color={p.good} size={17} />
-            <Text style={{ color: p.good, fontSize: 13, fontWeight: "900" }}>
-              {flow.data.importedCount} harcama kalemi eklendi
-            </Text>
-          </View>
-          <Text style={{ color: p.muted, fontSize: 12 }}>
-            {flow.data.duplicateCount ? `${flow.data.duplicateCount} yinelenen kalem atlandı.` : "Ekstre harcama geçmişine işlendi."}
-          </Text>
-          <Btn label="Yeni ekstre yükle" onPress={() => setFlow({ phase: "idle" })} variant="secondary" icon={<X color={p.ink} size={14} />} />
+          <StatementConfirmedContent
+            result={flow.data}
+            onReset={() => setFlow({ phase: "idle" })}
+          />
         </>
       ) : null}
     </Card>
   );
 }
 
+type ReminderStatus = { phase: "saving" | "saved" | "error"; message?: string };
+
+function StatementConfirmedContent({ result, onReset }: { result: StatementConfirmResult; onReset: () => void }) {
+  const p = usePalette();
+  const [activeTab, setActiveTab] = useState<"transactions" | "subscriptions">(
+    result.recurringSubscriptions.length ? "subscriptions" : "transactions"
+  );
+  const [reminderDates, setReminderDates] = useState<Record<string, string>>(() =>
+    Object.fromEntries(result.recurringSubscriptions.map((subscription) => [subscription.id, subscription.nextEstimatedAt]))
+  );
+  const [reminderStatuses, setReminderStatuses] = useState<Record<string, ReminderStatus>>({});
+
+  async function scheduleReminder(subscriptionId: string) {
+    const subscription = result.recurringSubscriptions.find((item) => item.id === subscriptionId);
+    if (!subscription) return;
+    const remindAt = reminderDates[subscriptionId] ?? subscription.nextEstimatedAt;
+    setReminderStatuses((current) => ({ ...current, [subscriptionId]: { phase: "saving" } }));
+    try {
+      await createSubscriptionReminder({
+        merchant: subscription.merchant,
+        amount: subscription.amount,
+        remindAt,
+        note: `${result.statementMonth} ekstresinden tespit edildi`
+      });
+      setReminderStatuses((current) => ({ ...current, [subscriptionId]: { phase: "saved" } }));
+    } catch (error) {
+      setReminderStatuses((current) => ({
+        ...current,
+        [subscriptionId]: { phase: "error", message: toReminderErrorMessage(error) }
+      }));
+    }
+  }
+
+  return (
+    <>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <CheckCircle2 color={p.good} size={17} />
+        <Text style={{ color: p.good, fontSize: 13, fontWeight: "900" }}>
+          {result.importedCount} harcama kalemi eklendi
+        </Text>
+      </View>
+      <Text style={{ color: p.muted, fontSize: 12 }}>
+        {result.duplicateCount ? `${result.duplicateCount} yinelenen kalem atlandı.` : "Ekstre harcama geçmişine işlendi."}
+      </Text>
+
+      <View style={{ flexDirection: "row", gap: 6 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: activeTab === "transactions" }}
+          onPress={() => setActiveTab("transactions")}
+          style={{
+            flex: 1,
+            minHeight: 38,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: radius.md,
+            backgroundColor: activeTab === "transactions" ? p.accent : p.surface2,
+            borderColor: activeTab === "transactions" ? p.accent : p.line,
+            borderWidth: 1
+          }}
+        >
+          <Text style={{ color: activeTab === "transactions" ? p.onAccent : p.ink, fontWeight: "800", fontSize: 12 }}>
+            Harcama kalemleri
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: activeTab === "subscriptions" }}
+          onPress={() => setActiveTab("subscriptions")}
+          style={{
+            flex: 1,
+            minHeight: 38,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: radius.md,
+            backgroundColor: activeTab === "subscriptions" ? p.accent : p.surface2,
+            borderColor: activeTab === "subscriptions" ? p.accent : p.line,
+            borderWidth: 1
+          }}
+        >
+          <Text style={{ color: activeTab === "subscriptions" ? p.onAccent : p.ink, fontWeight: "800", fontSize: 12 }}>
+            Tekrar eden abonelikler
+          </Text>
+        </Pressable>
+      </View>
+
+      {activeTab === "transactions" ? (
+        <View style={{ gap: 8 }}>
+          {result.transactions.map((transaction) => (
+            <View
+              key={transaction.id}
+              style={{
+                borderColor: p.line,
+                borderWidth: 1,
+                borderRadius: radius.md,
+                padding: 10,
+                backgroundColor: p.surface2,
+                flexDirection: "row",
+                justifyContent: "space-between",
+                gap: 8,
+                alignItems: "center"
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: p.ink, fontWeight: "900", fontSize: 13 }} numberOfLines={1}>{transaction.merchant}</Text>
+                <Text style={{ color: p.muted, fontSize: 11 }} numberOfLines={1}>{transaction.categoryId}</Text>
+              </View>
+              <Text style={{ color: p.ink, fontWeight: "900", fontSize: 13 }}>{transaction.amount.toLocaleString("tr-TR")} TL</Text>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={{ gap: 8 }}>
+          {result.recurringSubscriptions.length ? (
+            result.recurringSubscriptions.map((subscription) => {
+              const status = reminderStatuses[subscription.id];
+              const saving = status?.phase === "saving";
+              const saved = status?.phase === "saved";
+              const errored = status?.phase === "error";
+              return (
+                <View
+                  key={subscription.id}
+                  style={{
+                    borderColor: p.line,
+                    borderWidth: 1,
+                    borderRadius: radius.md,
+                    padding: 12,
+                    backgroundColor: p.surface2,
+                    gap: 8
+                  }}
+                >
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: p.ink, fontWeight: "900", fontSize: 14 }} numberOfLines={1}>{subscription.merchant}</Text>
+                      <Text style={{ color: p.muted, fontSize: 11 }}>
+                        {subscription.amount.toLocaleString("tr-TR")} TL · {subscription.occurrenceCount} tekrar · %{Math.round(subscription.confidence * 100)} güven
+                      </Text>
+                      <Text style={{ color: p.muted, fontSize: 11 }}>
+                        Son yükleme: {subscription.lastChargedAt} · Tahmini sıradaki: {subscription.nextEstimatedAt}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <Text style={{ color: p.muted, fontSize: 12, fontWeight: "800" }}>Hatırlat (YYYY-MM-DD)</Text>
+                    <TextInput
+                      value={reminderDates[subscription.id] ?? subscription.nextEstimatedAt}
+                      onChangeText={(value) => setReminderDates((current) => ({ ...current, [subscription.id]: value }))}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={p.muted}
+                      style={{
+                        minHeight: 40,
+                        flexGrow: 1,
+                        flexBasis: 140,
+                        borderColor: p.line,
+                        borderWidth: 1,
+                        borderRadius: radius.md,
+                        paddingHorizontal: 12,
+                        color: p.ink,
+                        backgroundColor: p.surface,
+                        fontSize: 13
+                      }}
+                    />
+                  </View>
+                  <Btn
+                    label={saving ? "Kuruluyor" : saved ? "Hatırlatma kuruldu" : "Bu tarihte hatırlat"}
+                    onPress={() => void scheduleReminder(subscription.id)}
+                    disabled={saving || saved}
+                    variant={saved ? "secondary" : "primary"}
+                  />
+                  {errored ? <Text style={{ color: p.danger, fontSize: 11, fontWeight: "800" }}>{status?.message}</Text> : null}
+                </View>
+              );
+            })
+          ) : (
+            <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>Tekrar eden abonelik bulunamadı.</Text>
+          )}
+        </View>
+      )}
+
+      <Btn label="Yeni ekstre yükle" onPress={onReset} variant="secondary" icon={<X color={p.ink} size={14} />} />
+    </>
+  );
+}
+
+function toReminderErrorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError) {
+    return error.code ? `${error.code}: ${error.message}` : error.message;
+  }
+  return error instanceof Error ? error.message : "Hatırlatma kurulamadı.";
+}
+
 function countImportableSelected(data: StatementPreviewResult, selected: Set<number>, skipDuplicates: boolean) {
   return data.items.filter((item) => selected.has(item.index) && (!skipDuplicates || !item.existingTransactionId)).length;
+}
+
+function PortfolioTwinPanel({ portfolio, goals }: { portfolio: InvestmentPortfolioSummary; goals: Goal[] }) {
+  const p = usePalette();
+  const topAllocation = [...portfolio.allocation].sort((left, right) => right.weight - left.weight)[0];
+  const cashWeight = portfolio.allocation.find((item) => item.assetType === "cash")?.weight ?? 0;
+  const emergencyGoal = goals.find((goal) => /acil|emergency/i.test(goal.title));
+  const shortTermGoalGap = goals
+    .filter((goal) => daysUntil(goal.deadline) <= 180)
+    .reduce((total, goal) => total + Math.max(0, goal.targetAmount - goal.currentAmount), 0);
+  const riskNotes = [
+    topAllocation && topAllocation.weight >= 70
+      ? `${topAllocation.label} portföyün %${topAllocation.weight.toLocaleString("tr-TR")} kısmını oluşturuyor; yoğunlaşma riski izlenmeli.`
+      : undefined,
+    cashWeight < 10 && portfolio.totalMarketValueTry > 0
+      ? "Nakit/mevduat oranı düşük; kısa vadeli hedefler için likidite tamponu kontrol edilmeli."
+      : undefined,
+    emergencyGoal && emergencyGoal.currentAmount < emergencyGoal.targetAmount * 0.5
+      ? `Acil durum hedefi henüz %${Math.round((emergencyGoal.currentAmount / emergencyGoal.targetAmount) * 100)} seviyesinde; yüksek riskli varlık yoğunluğu varsa nakit tampon öncelikli izlenmeli.`
+      : undefined,
+    shortTermGoalGap > 0 && cashWeight < 25
+      ? `Önümüzdeki 6 ay hedeflerinde ${formatTry(shortTermGoalGap)} açık var; kısa vadeli hedefler için nakit/mevduat oranı düşük kalabilir.`
+      : undefined,
+    portfolio.hasMarketDataGap
+      ? `${portfolio.unpricedPositionCount} pozisyon için fiyat alınamadı; kar/zarar yalnızca fiyatlanan varlıklardan hesaplanıyor.`
+      : undefined,
+    portfolio.totalDailyInterestTry > 0
+      ? `Mevduat/nakit günlük faiz projeksiyonu ${formatTry(portfolio.totalDailyInterestTry)}.`
+      : undefined
+  ].filter((note): note is string => Boolean(note));
+
+  return (
+    <Card>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <SectionTitle>Portföy İkizi</SectionTitle>
+        <Chip label={portfolio.hasMarketDataGap ? "Eksik veri var" : "Dağılım okunuyor"} tone={portfolio.hasMarketDataGap ? "warn" : "accent"} small />
+      </View>
+      {portfolio.positions.length ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <TwinFact label="En yoğun varlık sınıfı" value={topAllocation ? `${topAllocation.label} · %${topAllocation.weight.toLocaleString("tr-TR")}` : "Yok"} />
+          <TwinFact label="Fiyatlanamayan maliyet" value={formatTry(portfolio.unpricedCostTry)} />
+          <TwinFact label="Veri güveni" value={portfolio.hasMarketDataGap ? "Orta" : "Yüksek"} />
+          <TwinFact label="Hedef uyumu" value={shortTermGoalGap > 0 ? `${formatTry(shortTermGoalGap)} kısa vade açığı` : "Kısa vade açık yok"} />
+        </View>
+      ) : (
+        <View
+          style={{
+            borderColor: p.line,
+            borderWidth: 1,
+            borderRadius: radius.md,
+            padding: space[3],
+            backgroundColor: p.surface2,
+            gap: 4
+          }}
+        >
+          <Text style={{ color: p.ink, fontWeight: "900", fontSize: 14 }}>Hedef uyumu beklemede</Text>
+          <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>
+            {goals.length
+              ? `${goals.length} finansal hedef var; pozisyon eklendiğinde likidite, yoğunlaşma ve kısa vade açığı birlikte okunacak.`
+              : "Pozisyon ve hedef eklendiğinde dağılım riski, piyasa veri boşlukları ve hedef uyumu birlikte açıklanır."}
+          </Text>
+        </View>
+      )}
+      {riskNotes.length ? (
+        <View style={{ gap: 6 }}>
+          {riskNotes.map((note) => (
+            <View key={note} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+              <Text style={{ color: p.accent, fontWeight: "900", fontSize: 14 }}>•</Text>
+              <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17, flex: 1 }}>{note}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </Card>
+  );
+}
+
+function TwinFact({ label, value }: { label: string; value: string }) {
+  const p = usePalette();
+  return (
+    <View
+      style={{
+        flexBasis: "47%",
+        flexGrow: 1,
+        borderColor: p.line,
+        borderWidth: 1,
+        borderRadius: radius.md,
+        padding: space[3],
+        gap: 4,
+        backgroundColor: p.surface2
+      }}
+    >
+      <Text style={{ color: p.muted, fontSize: 11, fontWeight: "800" }}>{label}</Text>
+      <Text style={{ color: p.ink, fontSize: 14, fontWeight: "900" }}>{value}</Text>
+    </View>
+  );
+}
+
+function daysUntil(dateOnly: string) {
+  const now = new Date();
+  const date = new Date(`${dateOnly}T12:00:00.000Z`);
+  return Math.ceil((date.getTime() - now.getTime()) / 86_400_000);
 }
 
 function Choice({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
