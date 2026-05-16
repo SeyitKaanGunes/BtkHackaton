@@ -818,6 +818,10 @@ function ScenarioSimulatorPanel({ businessId, detail, scenarios }: { businessId:
 }
 
 type BusinessAssistantPromptId = "coverage" | "risk" | "collections" | "critical";
+type BusinessAssistantDetailItem = {
+  label: string;
+  value: string;
+};
 
 const businessAssistantPrompts: Array<{ id: BusinessAssistantPromptId; label: string }> = [
   { id: "coverage", label: "Maaş ve kirayı karşılayabilir miyim?" },
@@ -831,6 +835,7 @@ function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: Bu
   const [question, setQuestion] = useState("");
   const [customQuestion, setCustomQuestion] = useState<string | null>(null);
   const [customPrompt, setCustomPrompt] = useState<BusinessAssistantPromptId | null>(null);
+  const [traceOpen, setTraceOpen] = useState(false);
   const activePrompt = customPrompt ?? selectedPrompt;
   const answer = businessAssistantAnswer(activePrompt, dashboard, insights, customQuestion ?? undefined);
   const activeQuestionLabel = customQuestion ?? businessAssistantPrompts.find((prompt) => prompt.id === selectedPrompt)?.label ?? "KOBİ sorusu";
@@ -841,24 +846,46 @@ function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: Bu
     { label: "Tahsilat", value: formatTry(insights.summary.expectedCollections30Days), tone: "positive" },
     { label: "Kritik gün", value: criticalDate ? formatDateLabel(criticalDate.date) : "Görünmüyor" }
   ];
+  const answerDetails: BusinessAssistantDetailItem[] = [
+    { label: "Sonuç", value: answer.result },
+    { label: "Neden", value: answer.reason },
+    { label: "Soru odağı", value: answer.focus },
+    { label: "Varsayımlar", value: answer.assumptions },
+    { label: "Veri güveni", value: answer.confidence },
+    ...(answer.missingData ? [{ label: "Eksik veri", value: answer.missingData }] : []),
+    { label: "Önerilen aksiyon", value: answer.action }
+  ];
+  const compactDetailLabels: Set<string> = new Set(["Sonuç", "Neden", "Veri güveni", "Önerilen aksiyon"]);
+  const visibleAnswerDetails = detail ? answerDetails : answerDetails.filter((item) => compactDetailLabels.has(item.label));
+  const traceSteps: string[] = [
+    "KOBİ nakit akışı ve tahsilat verileri okundu.",
+    `${answer.focus} odağı belirlendi.`,
+    "Sonuç, varsayımlar ve veri güveni deterministik olarak hazırlandı."
+  ];
 
   function selectPrompt(prompt: BusinessAssistantPromptId) {
     setSelectedPrompt(prompt);
     setCustomPrompt(null);
     setCustomQuestion(null);
+    setTraceOpen(false);
   }
 
-  function submitQuestion(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function applyQuestion() {
     const trimmedQuestion = question.trim();
     if (!trimmedQuestion) return;
     setCustomQuestion(trimmedQuestion);
     setCustomPrompt(inferBusinessAssistantPrompt(trimmedQuestion));
     setQuestion("");
+    setTraceOpen(false);
+  }
+
+  function submitQuestion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    applyQuestion();
   }
 
   return (
-    <section className={detail ? "panel business-assistant-panel detail-panel" : "panel business-assistant-panel"}>
+    <section className={detail ? "business-assistant-panel business-agent-panel detail-panel" : "panel business-assistant-panel business-agent-panel"}>
       {detail ? (
         <BusinessSectionIntro
           description="Bay Yengeç, KOBİ nakit akışını okur ve tahsilat/ödeme bilgilerine göre karar destek cevabı verir."
@@ -873,87 +900,95 @@ function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: Bu
         </div>
       )}
 
-      {detail ? (
-        <div className="business-assistant-shell">
-          <div className="business-assistant-picker">
-            <div className="business-assistant-avatar">
-              <span className="agent-pet" aria-hidden="true" />
-              <div>
-                <strong>Bay Yengeç</strong>
-                <span>Veriye dayalı KOBİ cevabı</span>
+      <div className={detail ? "agent-console business-agent-console" : "agent-console compact-agent-console business-agent-console"}>
+        <div className="chat-turns agent-chat-thread">
+          <div className="chat-turn user">
+            <div className="chat-bubble user">
+              <span>{activeQuestionLabel}</span>
+            </div>
+          </div>
+          <div className="agent-turn-with-trace">
+            <div className={traceOpen ? "agent-trace-chain is-open" : "agent-trace-chain"} aria-label="KOBİ asistanı çalışma akışı">
+              <button className="agent-trace-summary" onClick={() => setTraceOpen((current) => !current)} type="button">
+                <span className="agent-node-dot completed" />
+                <strong>KOBİ akışı</strong>
+                <small>{traceSteps.length} adım</small>
+              </button>
+              <div className="agent-node-list">
+                {traceSteps.map((step) => (
+                  <div className="agent-node-line" key={step}>
+                    <span className="agent-node-dot completed" />
+                    <span>{step}</span>
+                  </div>
+                ))}
               </div>
             </div>
-            {businessAssistantPrompts.map((prompt) => (
-              <button className={!customPrompt && prompt.id === selectedPrompt ? "business-assistant-question active" : "business-assistant-question"} key={prompt.id} type="button" onClick={() => selectPrompt(prompt.id)}>
-                <MessageSquareText size={17} />
-                <span>{prompt.label}</span>
-              </button>
-            ))}
-            <form className="business-assistant-freeform" onSubmit={submitQuestion}>
-              <label className="field">
-                <span>Serbest soru</span>
-                <input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Nakit sıkışır mı?" />
-              </label>
-              <button className="secondary-button" type="submit">
-                <Send size={16} />
-                Sor
-              </button>
-            </form>
+            <div className="chat-bubble agent">
+              <span className="agent-pet agent-message-pet" aria-hidden="true" />
+              <span className="business-agent-answer-text">
+                <strong>{answer.result}</strong>
+                <small>{answer.reason}</small>
+              </span>
+            </div>
           </div>
+        </div>
 
-          <div className="business-assistant-answer">
-            <div className="business-assistant-answer-head">
-              <Bot size={20} />
-              <div>
-                <span>{activeQuestionLabel}</span>
-                <strong>{answer.result}</strong>
-              </div>
+        <div className="agent-followups business-agent-followups">
+          <div className="agent-suggestions">
+            <div className="section-title">
+              <span>Karar destek özeti</span>
+              <strong>{visibleAnswerDetails.length}</strong>
             </div>
-            <div className="scenario-decision-grid">
-              <DetailRow label="Sonuç" value={answer.result} />
-              <DetailRow label="Neden" value={answer.reason} />
-              <DetailRow label="Soru odağı" value={answer.focus} />
-              <DetailRow label="Varsayımlar" value={answer.assumptions} />
-              <DetailRow label="Veri güveni" value={answer.confidence} />
-              {answer.missingData ? <DetailRow label="Eksik veri" value={answer.missingData} /> : null}
-              <DetailRow label="Önerilen aksiyon" value={answer.action} />
-            </div>
-            <div className="business-assistant-note">
-              <Send size={16} />
-              <span>Bu cevap KOBİ nakit akışı, tahsilat verisi ve müşteri skorlarına göre hazırlanır.</span>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="business-assistant-compact">
-          <div className="business-assistant-avatar">
-            <span className="agent-pet" aria-hidden="true" />
-            <div>
-              <strong>Bay Yengeç</strong>
-              <span>Veriye dayalı KOBİ cevabı</span>
-            </div>
-          </div>
-          <div className="business-assistant-answer business-assistant-compact-answer">
-            <div className="business-assistant-answer-head">
-              <Bot size={20} />
-              <div>
-                <span>{activeQuestionLabel}</span>
-                <strong>{answer.result}</strong>
-              </div>
-            </div>
-            <p>{answer.reason}</p>
-            <small>{answer.action}</small>
-          </div>
-          <div className="business-assistant-quick-prompts">
-            {businessAssistantPrompts.slice(0, 3).map((prompt) => (
-              <button className={!customPrompt && prompt.id === selectedPrompt ? "business-assistant-question active" : "business-assistant-question"} key={prompt.id} type="button" onClick={() => selectPrompt(prompt.id)}>
-                <MessageSquareText size={17} />
-                <span>{prompt.label}</span>
-              </button>
+            {visibleAnswerDetails.map((item) => (
+              <article className="suggested-action business-agent-detail" key={`${item.label}-${item.value}`}>
+                <div>
+                  <span className="chip accent">{item.label}</span>
+                  <p>{item.value}</p>
+                </div>
+              </article>
             ))}
           </div>
+          <div className="agent-suggestions business-agent-prompts">
+            <div className="section-title">
+              <span>Hazır sorular</span>
+              <strong>{businessAssistantPrompts.length}</strong>
+            </div>
+            <div className="business-agent-prompt-grid">
+              {businessAssistantPrompts.map((prompt) => (
+                <button
+                  className={!customPrompt && prompt.id === selectedPrompt ? "business-agent-prompt active" : "business-agent-prompt"}
+                  key={prompt.id}
+                  type="button"
+                  onClick={() => selectPrompt(prompt.id)}
+                >
+                  <MessageSquareText size={17} />
+                  <span>{prompt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      )}
+
+        <form className="agent-input business-agent-input" onSubmit={submitQuestion}>
+          <textarea
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                applyQuestion();
+              }
+            }}
+            placeholder="KOBİ nakit akışı, tahsilat veya ödeme riski sor."
+            aria-label="KOBİ asistanına soru sor"
+          />
+          <div className="agent-button-stack">
+            <button className="icon-button" title="KOBİ asistanına gönder" type="submit">
+              <Send size={18} />
+            </button>
+          </div>
+        </form>
+      </div>
     </section>
   );
 }

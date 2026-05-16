@@ -9925,3 +9925,155 @@ body {
     margin-left: 0 !important;
   }
 }
+
+/* KOBI assistant uses the canonical personal agent chat surface. */
+.business-agent-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.business-agent-panel.detail-panel {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.business-agent-panel .business-section-intro {
+  width: 100%;
+}
+
+.business-agent-console {
+  width: 100%;
+}
+
+.business-agent-console .agent-chat-thread {
+  min-height: min(54vh, 560px);
+}
+
+.business-agent-answer-text {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.business-agent-answer-text strong {
+  color: inherit;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.business-agent-answer-text small {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.business-agent-followups {
+  display: grid;
+  gap: 12px;
+}
+
+.business-agent-detail {
+  padding: 12px !important;
+}
+
+.business-agent-detail p {
+  margin: 8px 0 0;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.business-agent-prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.business-agent-prompt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  padding: 9px 10px;
+  text-align: left;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.business-agent-prompt svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.business-agent-prompt:hover,
+.business-agent-prompt:focus-visible,
+.business-agent-prompt.active {
+  border-color: #bfdbfe;
+  background: var(--accent-soft);
+  color: var(--accent);
+  outline: none;
+}
+
+.business-agent-input textarea {
+  font: inherit;
+}
+
+.business-agent-console.compact-agent-console {
+  display: grid !important;
+  gap: 12px !important;
+  padding: 0 !important;
+}
+
+.business-agent-console.compact-agent-console .agent-chat-thread {
+  min-height: 250px;
+  padding: 12px !important;
+}
+
+.business-agent-console.compact-agent-console .agent-trace-chain {
+  width: min(320px, calc(100% - 10px)) !important;
+  margin-left: 10px !important;
+}
+
+.business-agent-console.compact-agent-console .agent-chat-thread .chat-bubble {
+  max-width: 100%;
+}
+
+.business-agent-console.compact-agent-console .business-agent-followups {
+  padding: 10px;
+}
+
+.business-agent-console.compact-agent-console .business-agent-prompt-grid {
+  grid-template-columns: 1fr;
+}
+
+.business-agent-console.compact-agent-console .business-agent-input {
+  position: static;
+  bottom: auto;
+  padding: 10px !important;
+}
+
+.business-agent-console.compact-agent-console .business-agent-input textarea {
+  min-height: 74px !important;
+}
+
+@media (max-width: 720px) {
+  .business-agent-panel.detail-panel {
+    max-width: none;
+  }
+
+  .business-agent-prompt-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .business-agent-console.compact-agent-console .agent-trace-chain {
+    margin-left: 0 !important;
+  }
+}
