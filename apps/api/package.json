@@ -6,7 +6,7 @@
   "scripts": {
     "start:dev": "npm run build -w @fintwin/shared && npm run prisma:generate && tsx watch src/main.ts",
     "start": "node dist/src/main.js",
-    "build": "npm run build -w @fintwin/shared && npm run prisma:generate && tsc -p tsconfig.json",
+    "build": "npm run build -w @fintwin/shared && npm run prisma:generate && tsc -p tsconfig.build.json",
     "lint": "npm run build -w @fintwin/shared && npm run prisma:generate && tsc -p tsconfig.json --noEmit",
     "typecheck": "npm run build -w @fintwin/shared && npm run prisma:generate && tsc -p tsconfig.json --noEmit",
     "test": "npm run build -w @fintwin/shared && npm run prisma:generate && vitest run",
