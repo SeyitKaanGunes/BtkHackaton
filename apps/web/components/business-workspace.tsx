@@ -871,8 +871,59 @@ function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: Bu
         </div>
       )}
 
-      <div className="business-assistant-shell">
-        <div className="business-assistant-picker">
+      {detail ? (
+        <div className="business-assistant-shell">
+          <div className="business-assistant-picker">
+            <div className="business-assistant-avatar">
+              <span className="agent-pet" aria-hidden="true" />
+              <div>
+                <strong>Bay Yengeç</strong>
+                <span>Veriye dayalı KOBİ cevabı</span>
+              </div>
+            </div>
+            {businessAssistantPrompts.map((prompt) => (
+              <button className={!customPrompt && prompt.id === selectedPrompt ? "business-assistant-question active" : "business-assistant-question"} key={prompt.id} type="button" onClick={() => selectPrompt(prompt.id)}>
+                <MessageSquareText size={17} />
+                <span>{prompt.label}</span>
+              </button>
+            ))}
+            <form className="business-assistant-freeform" onSubmit={submitQuestion}>
+              <label className="field">
+                <span>Serbest soru</span>
+                <input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Nakit sıkışır mı?" />
+              </label>
+              <button className="secondary-button" type="submit">
+                <Send size={16} />
+                Sor
+              </button>
+            </form>
+          </div>
+
+          <div className="business-assistant-answer">
+            <div className="business-assistant-answer-head">
+              <Bot size={20} />
+              <div>
+                <span>{activeQuestionLabel}</span>
+                <strong>{answer.result}</strong>
+              </div>
+            </div>
+            <div className="scenario-decision-grid">
+              <DetailRow label="Sonuç" value={answer.result} />
+              <DetailRow label="Neden" value={answer.reason} />
+              <DetailRow label="Soru odağı" value={answer.focus} />
+              <DetailRow label="Varsayımlar" value={answer.assumptions} />
+              <DetailRow label="Veri güveni" value={answer.confidence} />
+              {answer.missingData ? <DetailRow label="Eksik veri" value={answer.missingData} /> : null}
+              <DetailRow label="Önerilen aksiyon" value={answer.action} />
+            </div>
+            <div className="business-assistant-note">
+              <Send size={16} />
+              <span>Bu cevap KOBİ nakit akışı, tahsilat verisi ve müşteri skorlarına göre hazırlanır.</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="business-assistant-compact">
           <div className="business-assistant-avatar">
             <span className="agent-pet" aria-hidden="true" />
             <div>
@@ -880,47 +931,27 @@ function BusinessAssistantPanel({ dashboard, detail, insights }: { dashboard: Bu
               <span>Veriye dayalı KOBİ cevabı</span>
             </div>
           </div>
-          {businessAssistantPrompts.map((prompt) => (
-            <button className={!customPrompt && prompt.id === selectedPrompt ? "business-assistant-question active" : "business-assistant-question"} key={prompt.id} type="button" onClick={() => selectPrompt(prompt.id)}>
-              <MessageSquareText size={17} />
-              <span>{prompt.label}</span>
-            </button>
-          ))}
-          <form className="business-assistant-freeform" onSubmit={submitQuestion}>
-            <label className="field">
-              <span>Serbest soru</span>
-              <input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Nakit sıkışır mı?" />
-            </label>
-            <button className="secondary-button" type="submit">
-              <Send size={16} />
-              Sor
-            </button>
-          </form>
-        </div>
-
-        <div className="business-assistant-answer">
-          <div className="business-assistant-answer-head">
-            <Bot size={20} />
-            <div>
-              <span>{activeQuestionLabel}</span>
-              <strong>{answer.result}</strong>
+          <div className="business-assistant-answer business-assistant-compact-answer">
+            <div className="business-assistant-answer-head">
+              <Bot size={20} />
+              <div>
+                <span>{activeQuestionLabel}</span>
+                <strong>{answer.result}</strong>
+              </div>
             </div>
+            <p>{answer.reason}</p>
+            <small>{answer.action}</small>
           </div>
-          <div className="scenario-decision-grid">
-            <DetailRow label="Sonuç" value={answer.result} />
-            <DetailRow label="Neden" value={answer.reason} />
-            <DetailRow label="Soru odağı" value={answer.focus} />
-            <DetailRow label="Varsayımlar" value={answer.assumptions} />
-            <DetailRow label="Veri güveni" value={answer.confidence} />
-            {answer.missingData ? <DetailRow label="Eksik veri" value={answer.missingData} /> : null}
-            <DetailRow label="Önerilen aksiyon" value={answer.action} />
-          </div>
-          <div className="business-assistant-note">
-            <Send size={16} />
-            <span>Bu cevap KOBİ nakit akışı, tahsilat verisi ve müşteri skorlarına göre hazırlanır.</span>
+          <div className="business-assistant-quick-prompts">
+            {businessAssistantPrompts.slice(0, 3).map((prompt) => (
+              <button className={!customPrompt && prompt.id === selectedPrompt ? "business-assistant-question active" : "business-assistant-question"} key={prompt.id} type="button" onClick={() => selectPrompt(prompt.id)}>
+                <MessageSquareText size={17} />
+                <span>{prompt.label}</span>
+              </button>
+            ))}
           </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

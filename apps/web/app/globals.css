@@ -9240,6 +9240,182 @@ h1 {
   background: var(--accent);
 }
 
+.business-dashboard-reference-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 360px) !important;
+  gap: 18px !important;
+}
+
+.business-reference-main {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.business-reference-main > * {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.business-reference-main .business-section-nav a {
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.business-reference-main > .business-summary-grid {
+  grid-template-columns: repeat(3, minmax(180px, 1fr)) !important;
+}
+
+.business-reference-main > .business-summary-grid .metric {
+  min-height: 112px !important;
+  gap: 8px !important;
+}
+
+.business-reference-main > .business-summary-grid .metric strong {
+  font-size: clamp(21px, 1.45vw, 27px) !important;
+  line-height: 1 !important;
+  white-space: nowrap;
+}
+
+.business-reference-main > .cashflow-forecast-panel {
+  overflow: hidden;
+}
+
+.business-reference-main > .cashflow-forecast-panel .cashflow-events {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.business-reference-main > .cashflow-forecast-panel .cashflow-event {
+  grid-template-columns: minmax(62px, 0.38fr) auto;
+  gap: 6px 10px;
+}
+
+.business-reference-main > .cashflow-forecast-panel .cashflow-event small {
+  grid-column: 1 / -1;
+}
+
+.business-dashboard-lower-grid {
+  grid-template-columns: minmax(340px, 0.92fr) minmax(340px, 1fr) !important;
+  align-items: stretch;
+}
+
+.business-dashboard-lower-grid .priority-list {
+  gap: 8px;
+}
+
+.business-dashboard-lower-grid .priority-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 10px;
+  padding: 12px !important;
+}
+
+.business-dashboard-lower-grid .priority-row strong {
+  display: block;
+  line-height: 1.2;
+}
+
+.business-dashboard-lower-grid .priority-row b {
+  align-self: start;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.business-dashboard-lower-grid .priority-row small {
+  grid-column: 1 / -1;
+  line-height: 1.35;
+}
+
+.business-dashboard-lower-grid .priority-row p {
+  display: none;
+}
+
+.business-dashboard-lower-grid .business-scenario-panel .scenario-tabs button {
+  min-height: 42px;
+  font-size: 12px;
+  line-height: 1.16;
+}
+
+.business-dashboard-lower-grid .scenario-result {
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.business-dashboard-lower-grid .scenario-result b {
+  grid-column: 2;
+  justify-self: start;
+  font-size: 14px;
+}
+
+.business-dashboard-lower-grid .scenario-result p {
+  display: none;
+}
+
+.business-overview-records > .panel {
+  min-width: 0;
+}
+
+.business-overview-records .action-row,
+.business-overview-records .score-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  align-items: start;
+  padding: 12px !important;
+}
+
+.business-overview-records .action-row span,
+.business-overview-records .score-row span {
+  min-width: 0;
+}
+
+.business-overview-records .action-row small,
+.business-overview-records .score-row small {
+  grid-column: 1 / -1;
+}
+
+.business-assistant-answer .business-detail-row {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: none !important;
+}
+
+.business-assistant-compact {
+  display: grid;
+  gap: 12px;
+}
+
+.business-assistant-compact-answer {
+  gap: 12px !important;
+  padding: 14px !important;
+}
+
+.business-assistant-compact-answer .business-assistant-answer-head {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.business-assistant-compact-answer > p,
+.business-assistant-compact-answer > small {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.76) !important;
+  line-height: 1.45;
+}
+
+.business-assistant-compact-answer > small {
+  display: block;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+}
+
+.business-assistant-quick-prompts {
+  display: grid;
+  gap: 8px;
+}
+
+.business-assistant-quick-prompts .business-assistant-question {
+  min-height: 42px;
+}
+
 @media (max-width: 1180px) {
   .portfolio-image-page .position-row,
   .position-row {
