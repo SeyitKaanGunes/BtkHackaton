@@ -23,6 +23,7 @@ import {
 } from "@fintwin/shared";
 import { createBusiness, createBusinessCashEvent, createBusinessCustomer, simulateBusinessDecision } from "../lib/api";
 import { formatCurrency } from "../lib/format";
+import { localDateInputValue, parseMoneyInput } from "../lib/input-format";
 
 export type BusinessWorkspaceData = {
   business: Business;
@@ -38,6 +39,7 @@ export type BusinessSectionId = "twin" | "dna" | "cashflow" | "coverage" | "coll
 const businessSectionLinks: Array<{ href: string; id: BusinessSectionId | "overview"; label: string }> = [
   { href: "/business", id: "overview", label: "Genel bakış" },
   { href: "/business?section=twin", id: "twin", label: "Finansal ikiz" },
+  { href: "/business?section=dna", id: "dna", label: "İşletme DNA" },
   { href: "/business?section=cashflow", id: "cashflow", label: "Nakit akışı" },
   { href: "/business?section=coverage", id: "coverage", label: "Maaş ve kira" },
   { href: "/business?section=collections", id: "collections", label: "Tahsilat" },
@@ -1446,8 +1448,8 @@ function parseOptionalMoney(value: string | number | undefined, field: string) {
   }
   const raw = (value ?? "").trim();
   if (!raw) return undefined;
-  const parsed = Number(raw.replace(/\./g, "").replace(",", "."));
-  if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`${field} geçerli sıfır veya pozitif sayı olmalı.`);
+  const parsed = parseMoneyInput(raw);
+  if (parsed === undefined) throw new Error(`${field} geçerli sıfır veya pozitif sayı olmalı.`);
   return parsed;
 }
 
@@ -1463,13 +1465,6 @@ function parseOptionalInteger(value: string, field: string) {
   const parsed = Number(raw);
   if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${field} geçerli sıfır veya pozitif tam sayı olmalı.`);
   return parsed;
-}
-
-function localDateInputValue(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 function riskLabel(level: string) {
