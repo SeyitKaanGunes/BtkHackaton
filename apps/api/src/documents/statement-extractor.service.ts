@@ -1,6 +1,6 @@
 import { Inject, Injectable, HttpStatus } from "@nestjs/common";
 import type { StatementLineItem } from "@fintwin/shared";
-import { QwenService } from "../ai/qwen.service.js";
+import { GeminiService } from "../ai/gemini.service.js";
 import { isTextExtractionWeak, PdfExtractorService } from "./pdf-extractor.service.js";
 import { StatementImportException } from "./statement-import.exception.js";
 import { cleanStatementText } from "./statement-line-cleaner.js";
@@ -37,12 +37,12 @@ type ChunkExtraction = {
 @Injectable()
 export class StatementExtractorService {
   constructor(
-    @Inject(QwenService) private readonly qwen: QwenService,
+    @Inject(GeminiService) private readonly gemini: GeminiService,
     @Inject(PdfExtractorService) private readonly pdfExtractor: PdfExtractorService
   ) {}
 
   async extractFromText(text: string): Promise<RawExtraction> {
-    this.ensureQwenConfigured();
+    this.ensureGeminiConfigured();
 
     const textAnalysis = cleanStatementText(text);
     const { candidateLines, droppedCount } = textAnalysis;
@@ -59,7 +59,7 @@ export class StatementExtractorService {
     for (const [index, chunk] of chunks.entries()) {
       console.log(`[StatementExtractor] Extracting statement chunk ${index + 1}/${chunks.length}`);
       try {
-        const response = await this.qwen.chat(
+        const response = await this.gemini.chat(
           [
             { role: "system", content: STATEMENT_CHUNK_INSTRUCTION },
             { role: "user", content: chunk.join("\n") }
@@ -82,7 +82,7 @@ export class StatementExtractorService {
     }
 
     if (parsedChunkCount === 0) {
-      throw new StatementImportException("STATEMENT_JSON_PARSE_FAILED", "Qwen ekstre yanıtı JSON olarak ayrıştırılamadı.");
+      throw new StatementImportException("STATEMENT_JSON_PARSE_FAILED", "Gemini ekstre yanıtı JSON olarak ayrıştırılamadı.");
     }
 
     const validated = validateItems(rawItems);
@@ -95,21 +95,21 @@ export class StatementExtractorService {
   }
 
   async extractFromImage(base64: string, mimeType: string): Promise<RawExtraction> {
-    this.ensureQwenConfigured();
+    this.ensureGeminiConfigured();
 
     try {
       const extracted = await this.extractImageItems(base64, mimeType, "Ekstre görselindeki harcama satırlarını çıkar.");
       return buildRawExtraction(extracted.items, extracted.warnings, extracted.tokenUsage);
     } catch (error) {
       if (error instanceof SyntaxError) {
-        throw new StatementImportException("STATEMENT_JSON_PARSE_FAILED", "Qwen ekstre görseli yanıtı JSON olarak ayrıştırılamadı.");
+        throw new StatementImportException("STATEMENT_JSON_PARSE_FAILED", "Gemini ekstre görseli yanıtı JSON olarak ayrıştırılamadı.");
       }
       throw error;
     }
   }
 
   async extractFromPdfVision(base64: string): Promise<RawExtraction> {
-    this.ensureQwenConfigured();
+    this.ensureGeminiConfigured();
 
     const { images, pageCount } = await this.pdfExtractor.renderPageImages(base64);
     const tokenUsage = emptyTokenUsage();
@@ -130,7 +130,7 @@ export class StatementExtractorService {
         warnings.push(...extracted.warnings.map((warning) => `Sayfa ${image.pageNumber}: ${warning}`));
       } catch (error) {
         if (error instanceof SyntaxError) {
-          warnings.push(`Sayfa ${image.pageNumber}: Qwen vision yanıtı JSON olarak ayrıştırılamadı.`);
+          warnings.push(`Sayfa ${image.pageNumber}: Gemini vision yanıtı JSON olarak ayrıştırılamadı.`);
           continue;
         }
         throw error;
@@ -138,7 +138,7 @@ export class StatementExtractorService {
     }
 
     if (parsedPageCount === 0) {
-      throw new StatementImportException("STATEMENT_JSON_PARSE_FAILED", "Qwen PDF vision yanıtı JSON olarak ayrıştırılamadı.");
+      throw new StatementImportException("STATEMENT_JSON_PARSE_FAILED", "Gemini PDF vision yanıtı JSON olarak ayrıştırılamadı.");
     }
 
     return buildRawExtraction(items, warnings, tokenUsage);
@@ -149,7 +149,7 @@ export class StatementExtractorService {
     mimeType: string,
     userText: string
   ): Promise<{ items: StatementLineItem[]; warnings: string[]; tokenUsage: RawExtraction["tokenUsage"] }> {
-    const response = await this.qwen.chat(
+    const response = await this.gemini.chat(
       [
         { role: "system", content: STATEMENT_CHUNK_INSTRUCTION },
         {
@@ -203,11 +203,11 @@ export class StatementExtractorService {
     throw new StatementImportException("STATEMENT_UNSUPPORTED_FILE_TYPE", "Desteklenmeyen ekstre dosya tipi.");
   }
 
-  private ensureQwenConfigured() {
-    if (!this.qwen.isConfigured()) {
+  private ensureGeminiConfigured() {
+    if (!this.gemini.isConfigured()) {
       throw new StatementImportException(
         "STATEMENT_AI_NOT_CONFIGURED",
-        "Ekstre analizi için QWEN_API_KEY tanımlı değil. Demo sonuç üretilmedi.",
+        "Ekstre analizi için GEMINI_API_KEY tanımlı değil. Demo sonuç üretilmedi.",
         HttpStatus.SERVICE_UNAVAILABLE
       );
     }
@@ -281,5 +281,5 @@ function mergeUsage(target: RawExtraction["tokenUsage"], usage: RawExtraction["t
 }
 
 function getVisionModel(): string {
-  return process.env.QWEN_VISION_MODEL ?? "qwen3.6-flash-2026-04-16";
+  return process.env.GEMINI_VISION_MODEL ?? "gemini-3-flash-preview";
 }

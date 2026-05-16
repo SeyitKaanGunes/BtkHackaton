@@ -2,42 +2,42 @@ import { Injectable } from "@nestjs/common";
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
-const QWEN_BASE_URL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
-const QWEN_PRIMARY_MODEL = "qwen3.6-flash-2026-04-16";
-const QWEN_SECONDARY_MODEL = "qwen3.6-flash";
+const GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
+const GEMINI_PRIMARY_MODEL = "gemini-3-flash-preview";
+const GEMINI_SECONDARY_MODEL = "gemini-2.5-flash";
 
 type ChatRole = "system" | "user" | "assistant";
 type TextPart = { type: "text"; text: string };
 type ImagePart = { type: "image_url"; image_url: { url: string } };
 type ChatContent = string | Array<TextPart | ImagePart>;
 
-export interface QwenMessage {
+export interface GeminiMessage {
   role: ChatRole;
   content: ChatContent;
 }
 
-export interface QwenChatResult {
+export interface GeminiChatResult {
   content: string;
   model: string;
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
 }
 
-type QwenChatOptions = { temperature?: number; model?: string; maxTokens?: number; timeoutMs?: number };
+type GeminiChatOptions = { temperature?: number; model?: string; maxTokens?: number; timeoutMs?: number };
 
 @Injectable()
-export class QwenService {
-  private readonly baseURL = process.env.QWEN_BASE_URL ?? QWEN_BASE_URL;
-  private readonly textModel = process.env.QWEN_TEXT_MODEL ?? QWEN_PRIMARY_MODEL;
-  private readonly secondaryModel = process.env.QWEN_SECONDARY_MODEL ?? QWEN_SECONDARY_MODEL;
+export class GeminiService {
+  private readonly baseURL = process.env.GEMINI_BASE_URL ?? GEMINI_OPENAI_BASE_URL;
+  private readonly textModel = process.env.GEMINI_TEXT_MODEL ?? GEMINI_PRIMARY_MODEL;
+  private readonly secondaryModel = process.env.GEMINI_SECONDARY_MODEL ?? GEMINI_SECONDARY_MODEL;
   private client?: OpenAI;
 
   isConfigured() {
-    return Boolean(process.env.QWEN_API_KEY);
+    return Boolean(process.env.GEMINI_API_KEY);
   }
 
-  async chat(messages: QwenMessage[], options: QwenChatOptions = {}): Promise<QwenChatResult> {
+  async chat(messages: GeminiMessage[], options: GeminiChatOptions = {}): Promise<GeminiChatResult> {
     if (!this.isConfigured()) {
-      throw new Error("QWEN_API_KEY is not configured.");
+      throw new Error("GEMINI_API_KEY is not configured.");
     }
 
     const model = options.model ?? this.textModel;
@@ -51,27 +51,27 @@ export class QwenService {
 
   private async createChatCompletion(
     model: string,
-    messages: QwenMessage[],
+    messages: GeminiMessage[],
     options: { temperature?: number; maxTokens?: number; timeoutMs?: number }
-  ): Promise<QwenChatResult> {
+  ): Promise<GeminiChatResult> {
     const abortController = options.timeoutMs ? new AbortController() : undefined;
     const timeout = abortController ? setTimeout(() => abortController.abort(), options.timeoutMs) : undefined;
     try {
-    const response = await this.getClient().chat.completions.create(
-      {
-        model,
-        temperature: options.temperature ?? 0.2,
-        max_tokens: options.maxTokens,
-        messages: messages as ChatCompletionMessageParam[]
-      },
-      abortController ? { signal: abortController.signal } : undefined
-    );
+      const response = await this.getClient().chat.completions.create(
+        {
+          model,
+          temperature: options.temperature ?? 0.2,
+          max_tokens: options.maxTokens,
+          messages: messages as ChatCompletionMessageParam[]
+        },
+        abortController ? { signal: abortController.signal } : undefined
+      );
 
-    return {
-      content: response.choices[0]?.message?.content ?? "",
-      model: response.model ?? model,
-      usage: response.usage
-    };
+      return {
+        content: response.choices[0]?.message?.content ?? "",
+        model: response.model ?? model,
+        usage: response.usage
+      };
     } finally {
       if (timeout) clearTimeout(timeout);
     }
@@ -79,7 +79,7 @@ export class QwenService {
 
   private getClient() {
     this.client ??= new OpenAI({
-      apiKey: process.env.QWEN_API_KEY,
+      apiKey: process.env.GEMINI_API_KEY,
       baseURL: this.baseURL
     });
     return this.client;

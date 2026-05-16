@@ -29,7 +29,7 @@ import {
 } from "@fintwin/shared/dist/demo-data.js";
 import { AgentController } from "../src/agent/agent.controller.js";
 import { AgentService } from "../src/agent/agent.service.js";
-import { QwenService } from "../src/ai/qwen.service.js";
+import { GeminiService } from "../src/ai/gemini.service.js";
 import { ActionsController } from "../src/actions/actions.controller.js";
 import { AuthService } from "../src/auth/auth.service.js";
 import type { GoogleOAuthService } from "../src/auth/google-oauth.service.js";
@@ -60,7 +60,7 @@ describe("API feature services", () => {
 
   it("routes agent questions through LangGraph and returns explainability", async () => {
     const store = createTestStore();
-    const agent = new AgentService(store, new QwenService());
+    const agent = new AgentService(store, new GeminiService());
     const before = store.getPersonalData(authUser.id).actions.length;
     const result = await agent.chat(authUser.id, "10000 TL harcarsam ne olur?");
     expect(result.routedAgents).toContain("Simulation Agent");
@@ -92,7 +92,7 @@ describe("API feature services", () => {
 
   it("asks for an amount when a what-if chat message only contains model or date-like numbers", async () => {
     const store = createTestStore();
-    const agent = new AgentService(store, new QwenService());
+    const agent = new AgentService(store, new GeminiService());
     const result = await agent.chat(authUser.id, "iPhone 15 alsam ne olur?");
     expect(result.routedAgents).toContain("Simulation Agent");
     expect(result.answer).toContain("tutarı");
@@ -103,7 +103,7 @@ describe("API feature services", () => {
   it("does not mention undefined subscription recommendations when no leakage exists", async () => {
     const store = createTestStore();
     store.subscriptions = [];
-    const agent = new AgentService(store, new QwenService());
+    const agent = new AgentService(store, new GeminiService());
 
     const result = await agent.chat(authUser.id, "Abonelik sızıntım var mı?");
 
@@ -127,7 +127,7 @@ describe("API feature services", () => {
       }
     ];
     const before = store.getPersonalData(authUser.id).actions.length;
-    const agent = new AgentService(store, new QwenService());
+    const agent = new AgentService(store, new GeminiService());
 
     const result = await agent.chat(authUser.id, "Abonelik sızıntım var mı?");
 
@@ -144,8 +144,8 @@ describe("API feature services", () => {
 
   it("agent eval: deterministic twin and simulation routes do not call the LLM", async () => {
     const store = createTestStore();
-    const chat = vi.fn(async () => ({ content: "unexpected", model: "test-qwen" }));
-    const agent = new AgentService(store, { isConfigured: () => true, chat } as unknown as QwenService);
+    const chat = vi.fn(async () => ({ content: "unexpected", model: "test-gemini" }));
+    const agent = new AgentService(store, { isConfigured: () => true, chat } as unknown as GeminiService);
 
     const twin = await agent.chat(authUser.id, "Risk profilim ve sağlık skorum nasıl?");
     const simulation = await agent.chat(authUser.id, "8500 TL teknoloji alırsam ne olur?");
@@ -156,9 +156,9 @@ describe("API feature services", () => {
     expect(chat).not.toHaveBeenCalled();
   });
 
-  it("fails fast for assistant chat when Qwen is unavailable", async () => {
+  it("fails fast for assistant chat when Gemini is unavailable", async () => {
     const store = createTestStore();
-    const agent = new AgentService(store, unconfiguredQwen());
+    const agent = new AgentService(store, unconfiguredGemini());
 
     await expect(agent.chat(authUser.id, "Finans durumumu özetle")).rejects.toThrow("sessiz özet cevabı üretilmedi");
   });
@@ -171,10 +171,10 @@ describe("API feature services", () => {
         confidence: 0.84,
         warnings: []
       }),
-      model: "test-qwen",
+      model: "test-gemini",
       usage: { prompt_tokens: 120, completion_tokens: 40, total_tokens: 160 }
     }));
-    const agent = new AgentService(store, { isConfigured: () => true, chat } as unknown as QwenService);
+    const agent = new AgentService(store, { isConfigured: () => true, chat } as unknown as GeminiService);
 
     const result = await agent.chat(authUser.id, "Finans durumumu özetle");
 
@@ -183,7 +183,7 @@ describe("API feature services", () => {
     expect(result.agenticPlan?.map((step) => step.agent)).toEqual(expect.arrayContaining(["Twin Agent", "LLM Agent", "Evidence Guard"]));
     expect(result.quality).toMatchObject({
       grounded: true,
-      model: "test-qwen",
+      model: "test-gemini",
       tokenUsage: { totalTokens: 160 },
       contextVersion: 2
     });
@@ -195,8 +195,8 @@ describe("API feature services", () => {
     const store = createTestStore();
     const agent = new AgentService(store, {
       isConfigured: () => true,
-      chat: vi.fn(async () => ({ content: "bu json degil", model: "test-qwen" }))
-    } as unknown as QwenService);
+      chat: vi.fn(async () => ({ content: "bu json degil", model: "test-gemini" }))
+    } as unknown as GeminiService);
 
     await expect(agent.chat(authUser.id, "Finans durumumu özetle")).rejects.toThrow("sessiz özet cevabı üretilmedi");
   });
@@ -207,22 +207,22 @@ describe("API feature services", () => {
       isConfigured: () => true,
       chat: vi.fn(async () => ({
         content: JSON.stringify({ answer: "DB'ye yazdım ve işlemi yaptım.", confidence: 0.9, warnings: [] }),
-        model: "test-qwen"
+        model: "test-gemini"
       }))
-    } as unknown as QwenService);
+    } as unknown as GeminiService);
 
     await expect(agent.chat(authUser.id, "Finans durumumu özetle")).rejects.toThrow("güvenlik kontrolü");
   });
 
   it("keeps education agent calls token-limited", async () => {
     const store = createTestStore();
-    const chat = vi.fn(async () => ({ content: "Faiz, paranın zaman maliyetidir.", model: "test-qwen" }));
-    const agent = new AgentService(store, { isConfigured: () => true, chat } as unknown as QwenService);
+    const chat = vi.fn(async () => ({ content: "Faiz, paranın zaman maliyetidir.", model: "test-gemini" }));
+    const agent = new AgentService(store, { isConfigured: () => true, chat } as unknown as GeminiService);
 
     const result = await agent.chat(authUser.id, "Faiz nedir anlat");
 
     expect(result.routedAgents).toContain("Education Agent");
-    expect(result.agenticPlan?.some((step) => step.output?.includes("maxTokens=450"))).toBe(true);
+    expect(result.agenticPlan?.some((step) => step.output?.includes("Finansal açıklama hazırlandı"))).toBe(true);
     expect(chat).toHaveBeenCalledWith(expect.any(Array), expect.objectContaining({ maxTokens: 450 }));
   });
 
@@ -294,7 +294,7 @@ describe("API feature services", () => {
 
   it("rejects invalid agent and what-if request bodies before defaulting", async () => {
     const store = createTestStore();
-    const agentController = new AgentController(new AgentService(store, new QwenService()));
+    const agentController = new AgentController(new AgentService(store, new GeminiService()));
     const simulationsController = new SimulationsController(store);
 
     expect(() => agentController.chat(authUser, { message: "   " })).toThrow("message is required");
@@ -310,21 +310,21 @@ describe("API feature services", () => {
   });
 
   it("rejects receipt OCR when no document is provided", async () => {
-    const documents = createTestDocuments(new QwenService());
+    const documents = createTestDocuments(new GeminiService());
     await expect(documents.scanReceipt({})).rejects.toThrow("imageBase64 is required");
   });
 
-  it("rejects receipt OCR with a clear error when Qwen is not configured", async () => {
-    const documents = createTestDocuments(unconfiguredQwen());
+  it("rejects receipt OCR with a clear error when Gemini is not configured", async () => {
+    const documents = createTestDocuments(unconfiguredGemini());
     await expectHttpException(documents.scanReceipt({ imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" }), 503, {
       code: "RECEIPT_AI_NOT_CONFIGURED",
-      message: "Fiş analizi için QWEN_API_KEY tanımlı değil. Demo sonuç üretilmedi."
+      message: "Fiş analizi için GEMINI_API_KEY tanımlı değil. Demo sonuç üretilmedi."
     });
   });
 
   it("imports a scanned receipt as an expense transaction", async () => {
     const store = createTestStore();
-    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(qwenWith(receiptJson)), store);
+    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(geminiWith(receiptJson)), store);
     const before = store.transactions.length;
     const result = await receiptAgent.importReceipt(authUser.id, { imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" });
     expect(result.agentName).toBe("Receipt Agent");
@@ -335,7 +335,7 @@ describe("API feature services", () => {
 
   it("rejects scanned receipt imports when the date is missing instead of using today", async () => {
     const store = createTestStore();
-    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(qwenWith(receiptWithoutDateJson)), store);
+    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(geminiWith(receiptWithoutDateJson)), store);
     await expectHttpException(receiptAgent.importReceipt(authUser.id, { imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" }), 400, {
       code: "RECEIPT_INVALID_DATE",
       message: "Fiş tarihi okunamadı; bugüne çekilmeden işlem reddedildi."
@@ -344,7 +344,7 @@ describe("API feature services", () => {
 
   it("rejects scanned receipt imports with invalid payment metadata", async () => {
     const store = createTestStore();
-    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(qwenWith(receiptInvalidPaymentJson)), store);
+    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(geminiWith(receiptInvalidPaymentJson)), store);
     const before = store.transactions.length;
 
     await expectHttpException(receiptAgent.importReceipt(authUser.id, { imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" }), 400, {
@@ -356,7 +356,7 @@ describe("API feature services", () => {
 
   it("maps unknown document categories to cat-other instead of market", async () => {
     const store = createTestStore();
-    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(qwenWith(receiptUnknownCategoryJson)), store);
+    const receiptAgent = new ReceiptExpenseAgentService(createTestDocuments(geminiWith(receiptUnknownCategoryJson)), store);
     const result = await receiptAgent.importReceipt(authUser.id, { imageBase64: "ZmFrZS1pbWFnZQ==", mimeType: "image/jpeg" });
     expect(result.transaction.categoryId).toBe("cat-other");
   });
@@ -364,7 +364,7 @@ describe("API feature services", () => {
   it("previews and confirms statement line items as categorized expense transactions", async () => {
     const store = createTestStore();
     const statementRepository = createTestStatementRepository();
-    const statementAgent = new StatementExpenseAgentService(createTestDocuments(qwenWith(statementJson)), store, statementRepository);
+    const statementAgent = new StatementExpenseAgentService(createTestDocuments(geminiWith(statementJson)), store, statementRepository);
     const before = store.transactions.length;
     const preview = await statementAgent.previewStatement(authUser.id, { statementText: "StreamPlus 219 TL 2026-05-01" });
     const result = await statementAgent.confirmStatement(authUser.id, { documentId: preview.documentId, skipDuplicates: false });
@@ -380,7 +380,7 @@ describe("API feature services", () => {
   it("rejects invalid statement selections without marking the document imported", async () => {
     const store = createTestStore();
     const statementRepository = createTestStatementRepository();
-    const statementAgent = new StatementExpenseAgentService(createTestDocuments(qwenWith(statementJson)), store, statementRepository);
+    const statementAgent = new StatementExpenseAgentService(createTestDocuments(geminiWith(statementJson)), store, statementRepository);
     const preview = await statementAgent.previewStatement(authUser.id, { statementText: "StreamPlus 219 TL 2026-05-01" });
 
     await expect(statementAgent.confirmStatement(authUser.id, { documentId: preview.documentId, selectedItemIndexes: [] })).rejects.toThrow(
@@ -485,12 +485,12 @@ describe("API feature services", () => {
     expect(salaryMonthRange("2026-05", "2026-07")).toEqual(["2026-05", "2026-06", "2026-07"]);
   });
 
-  it("rejects statement previews with a clear error when Qwen is not configured", async () => {
+  it("rejects statement previews with a clear error when Gemini is not configured", async () => {
     const statementRepository = createTestStatementRepository();
-    const statementAgent = new StatementExpenseAgentService(createTestDocuments(unconfiguredQwen()), createTestStore(), statementRepository);
+    const statementAgent = new StatementExpenseAgentService(createTestDocuments(unconfiguredGemini()), createTestStore(), statementRepository);
     await expectHttpException(statementAgent.previewStatement(authUser.id, { statementText: "StreamPlus 219 TL 2026-05-01" }), 503, {
       code: "STATEMENT_AI_NOT_CONFIGURED",
-      message: "Ekstre analizi için QWEN_API_KEY tanımlı değil. Demo sonuç üretilmedi."
+      message: "Ekstre analizi için GEMINI_API_KEY tanımlı değil. Demo sonuç üretilmedi."
     });
   });
 
@@ -929,11 +929,11 @@ async function expectHttpException(promise: Promise<unknown>, status: number, re
   }
 }
 
-function createTestDocuments(qwen: QwenService): DocumentsService {
+function createTestDocuments(gemini: GeminiService): DocumentsService {
   const pdfExtractor = {
     extractText: vi.fn()
   } as unknown as PdfExtractorService;
-  return new DocumentsService(qwen, new StatementExtractorService(qwen, pdfExtractor));
+  return new DocumentsService(gemini, new StatementExtractorService(gemini, pdfExtractor));
 }
 
 function createTestStatementRepository(): StatementDocumentRepository {
@@ -1026,18 +1026,18 @@ const statementJson = JSON.stringify({
   ]
 });
 
-function qwenWith(content: string): QwenService {
+function geminiWith(content: string): GeminiService {
   return {
     isConfigured: () => true,
-    chat: vi.fn(async () => ({ content, model: "test-qwen" }))
-  } as unknown as QwenService;
+    chat: vi.fn(async () => ({ content, model: "test-gemini" }))
+  } as unknown as GeminiService;
 }
 
-function unconfiguredQwen(): QwenService {
+function unconfiguredGemini(): GeminiService {
   return {
     isConfigured: () => false,
     chat: vi.fn()
-  } as unknown as QwenService;
+  } as unknown as GeminiService;
 }
 
 function unconfiguredGoogle(): GoogleOAuthService {

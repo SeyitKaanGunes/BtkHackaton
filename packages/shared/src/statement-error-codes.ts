@@ -1,5 +1,5 @@
 export const STATEMENT_ERROR_MESSAGES: Record<string, string> = {
-  STATEMENT_AI_NOT_CONFIGURED: "Ekstre analizi için QWEN_API_KEY tanımlı değil. Demo sonuç üretilmedi; lütfen API yapılandırmasını tamamlayın.",
+  STATEMENT_AI_NOT_CONFIGURED: "Ekstre analizi için GEMINI_API_KEY tanımlı değil. Demo sonuç üretilmedi; lütfen API yapılandırmasını tamamlayın.",
   STATEMENT_TEXT_EXTRACTION_FAILED: "PDF metni okunamadı. Dosya bozuk olabilir, lütfen başka bir PDF deneyin.",
   STATEMENT_OCR_FAILED: "Taranmış PDF görsele çevrilemedi. Daha net bir PDF veya görsel yükleyin.",
   STATEMENT_PDF_VISION_PAGE_LIMIT: "Taranmış PDF vision OCR için çok uzun. En fazla 3 sayfalık ekstre yükleyin.",
@@ -16,7 +16,7 @@ export function statementErrorMessage(code: string | undefined, fallback: string
 }
 
 export const RECEIPT_ERROR_MESSAGES: Record<string, string> = {
-  RECEIPT_AI_NOT_CONFIGURED: "Fiş analizi için QWEN_API_KEY tanımlı değil. Demo sonuç üretilmedi; lütfen API yapılandırmasını tamamlayın.",
+  RECEIPT_AI_NOT_CONFIGURED: "Fiş analizi için GEMINI_API_KEY tanımlı değil. Demo sonuç üretilmedi; lütfen API yapılandırmasını tamamlayın.",
   RECEIPT_AI_REQUEST_FAILED: "Fiş yapay zeka servisine ulaşılamadı. Lütfen tekrar deneyin.",
   RECEIPT_JSON_PARSE_FAILED: "Fiş yapay zeka yanıtı ayrıştırılamadı. Lütfen daha net bir görsel ile tekrar deneyin.",
   RECEIPT_INVALID_AMOUNT: "Fiş tutarı okunamadı. İşlem DB'ye yazılmadı.",

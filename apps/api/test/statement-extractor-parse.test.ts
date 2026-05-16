@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { QwenService } from "../src/ai/qwen.service.js";
+import type { GeminiService } from "../src/ai/gemini.service.js";
 import type { PdfExtractorService } from "../src/documents/pdf-extractor.service.js";
 import { isTextExtractionWeak } from "../src/documents/pdf-extractor.service.js";
 import { StatementExtractorService } from "../src/documents/statement-extractor.service.js";
@@ -82,10 +82,10 @@ describe("StatementExtractorService extractFromText parsing", () => {
 
   it("uses PDF vision fallback when PDF text extraction is weak", async () => {
     const chat = vi.fn().mockResolvedValue({ content: validChunk, model: "mock", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } });
-    const mockQwen = {
+    const mockGemini = {
       isConfigured: () => true,
       chat
-    } as unknown as QwenService;
+    } as unknown as GeminiService;
     const pdfExtractor = {
       extractText: vi.fn(async () => ({ text: "", pageCount: 1 })),
       renderPageImages: vi.fn(async () => ({
@@ -93,7 +93,7 @@ describe("StatementExtractorService extractFromText parsing", () => {
         images: [{ pageNumber: 1, mimeType: "image/png", base64: "ZmFrZS1wbmc=", width: 1600, height: 2200 }]
       }))
     } as unknown as PdfExtractorService;
-    const extractor = new StatementExtractorService(mockQwen, pdfExtractor);
+    const extractor = new StatementExtractorService(mockGemini, pdfExtractor);
 
     const result = await extractor.extract({ fileBase64: "ZmFrZS1wZGY=", mimeType: "application/pdf" });
 
@@ -115,9 +115,9 @@ function createExtractor(content: string): StatementExtractorService {
 }
 
 function createExtractorFromChat(chat: ReturnType<typeof vi.fn>): StatementExtractorService {
-  const mockQwen = {
+  const mockGemini = {
     isConfigured: () => true,
     chat
-  } as unknown as QwenService;
-  return new StatementExtractorService(mockQwen, {} as PdfExtractorService);
+  } as unknown as GeminiService;
+  return new StatementExtractorService(mockGemini, {} as PdfExtractorService);
 }

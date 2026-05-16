@@ -9,7 +9,7 @@ import {
   type SavingsPlanUpsertRequest
 } from "@fintwin/shared";
 import type { AuthUser } from "../auth/auth-user.js";
-import { QwenService } from "../ai/qwen.service.js";
+import { GeminiService } from "../ai/gemini.service.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
 import { DataStoreService } from "../data/data-store.service.js";
@@ -24,7 +24,7 @@ const savingsTitles = {
 export class GoalsController {
   constructor(
     @Inject(DataStoreService) private readonly store: DataStoreService,
-    @Inject(QwenService) private readonly qwen: QwenService
+    @Inject(GeminiService) private readonly gemini: GeminiService
   ) {}
 
   @Get()
@@ -119,12 +119,12 @@ export class GoalsController {
       source: "unavailable"
     });
 
-    if (!this.qwen.isConfigured()) {
-      return unavailable("Hedef tavsiyesi için QWEN_API_KEY yapılandırılmalı. Hedefler kaydedildi, fakat kişisel yorum üretilemedi.");
+    if (!this.gemini.isConfigured()) {
+      return unavailable("Hedef tavsiyesi için GEMINI_API_KEY yapılandırılmalı. Hedefler kaydedildi, fakat kişisel yorum üretilemedi.");
     }
 
     try {
-      const response = await this.qwen.chat(
+      const response = await this.gemini.chat(
         [
           {
             role: "system",

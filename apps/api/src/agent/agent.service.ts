@@ -16,7 +16,7 @@ import {
   type AgentQualitySignal,
   type AgentResponse
 } from "@fintwin/shared";
-import { QwenService, type QwenChatResult } from "../ai/qwen.service.js";
+import { GeminiService, type GeminiChatResult } from "../ai/gemini.service.js";
 import { DataStoreService } from "../data/data-store.service.js";
 import { buildTokenFriendlyAgentContext } from "./agent-context.js";
 import { composeSimulationAnswer } from "./simulation-response.js";
@@ -89,7 +89,7 @@ const AgentState = Annotation.Root({
 export class AgentService {
   constructor(
     @Inject(DataStoreService) private readonly store: DataStoreService,
-    @Inject(QwenService) private readonly qwen: QwenService
+    @Inject(GeminiService) private readonly gemini: GeminiService
   ) {}
 
   async chat(userId: string, message: string): Promise<AgentResponse> {
@@ -396,10 +396,10 @@ export class AgentService {
 
   private async educationalAnswer(message: string): Promise<EducationAnswer> {
     const unavailable =
-      "Finansal eğitim cevabı için Qwen yapılandırması gerekli. QWEN_API_KEY eklenmeden bu bölüm demo cevap üretmez.";
-    if (!this.qwen.isConfigured()) return { answer: unavailable, warnings: [unavailable] };
+      "Finansal eğitim cevabı için Gemini yapılandırması gerekli. GEMINI_API_KEY eklenmeden bu bölüm demo cevap üretmez.";
+    if (!this.gemini.isConfigured()) return { answer: unavailable, warnings: [unavailable] };
     try {
-      const response = await this.qwen.chat([
+      const response = await this.gemini.chat([
         { role: "system", content: "Türkçe, kısa ve finansal tavsiye yerine eğitim odaklı açıklama yap. En fazla 5 kısa paragraf yaz." },
         { role: "user", content: message }
     ], { maxTokens: 450 });
@@ -418,12 +418,12 @@ export class AgentService {
     const context = await this.buildAgentContext(userId);
     const diagnostics = contextDiagnostics(context);
 
-    if (!this.qwen.isConfigured()) {
-      throw new ServiceUnavailableException("Fintwin Agent için QWEN_API_KEY tanımlı değil; sessiz özet cevabı üretilmedi.");
+    if (!this.gemini.isConfigured()) {
+      throw new ServiceUnavailableException("Fintwin Agent için GEMINI_API_KEY tanımlı değil; sessiz özet cevabı üretilmedi.");
     }
 
     try {
-      const response = await this.qwen.chat(
+      const response = await this.gemini.chat(
         [
           {
             role: "system",
@@ -457,7 +457,7 @@ export class AgentService {
       return this.parseAssistantAnswer(response, diagnostics);
     } catch (error) {
       if (error instanceof ServiceUnavailableException) throw error;
-      throw new ServiceUnavailableException("Qwen Agent cevabı alınamadı; sessiz özet cevabı üretilmedi.");
+      throw new ServiceUnavailableException("Gemini Agent cevabı alınamadı; sessiz özet cevabı üretilmedi.");
     }
   }
 
@@ -470,12 +470,12 @@ export class AgentService {
     return buildTokenFriendlyAgentContext({ ...data, user: data.user }, decisionHistory);
   }
 
-  private parseAssistantAnswer(response: QwenChatResult, diagnostics: ReturnType<typeof contextDiagnostics>): StructuredAssistantAnswer {
+  private parseAssistantAnswer(response: GeminiChatResult, diagnostics: ReturnType<typeof contextDiagnostics>): StructuredAssistantAnswer {
     const parsed = parseStructuredAssistantJson(response.content);
     const answer = requiredAssistantText(parsed.answer);
     const guardWarnings = validateAssistantSafety(answer);
     if (guardWarnings.length) {
-      throw new ServiceUnavailableException(`Qwen Agent güvenlik kontrolü geçemedi: ${guardWarnings.join(", ")}`);
+      throw new ServiceUnavailableException(`Gemini Agent güvenlik kontrolü geçemedi: ${guardWarnings.join(", ")}`);
     }
     return {
       answer,
@@ -563,15 +563,15 @@ function buildSubscriptionReviewProposal(leak: ReturnType<typeof detectSubscript
 function parseStructuredAssistantJson(content: string): Record<string, unknown> {
   const text = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
   const json = text.startsWith("{") && text.endsWith("}") ? text : text.match(/\{[\s\S]*\}/)?.[0];
-  if (!json) throw new SyntaxError("Qwen Agent JSON output missing.");
+  if (!json) throw new SyntaxError("Gemini Agent JSON output missing.");
   const parsed = JSON.parse(json) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new SyntaxError("Qwen Agent JSON output must be an object.");
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new SyntaxError("Gemini Agent JSON output must be an object.");
   return parsed as Record<string, unknown>;
 }
 
 function requiredAssistantText(value: unknown) {
   const text = typeof value === "string" ? value.trim() : "";
-  if (!text) throw new SyntaxError("Qwen Agent answer is empty.");
+  if (!text) throw new SyntaxError("Gemini Agent answer is empty.");
   return text;
 }
 
@@ -586,7 +586,7 @@ function normalizeStringArray(value: unknown) {
   return value.map((item) => String(item).trim()).filter(Boolean).slice(0, 5);
 }
 
-function normalizeUsage(usage: QwenChatResult["usage"]): AgentQualitySignal["tokenUsage"] | undefined {
+function normalizeUsage(usage: GeminiChatResult["usage"]): AgentQualitySignal["tokenUsage"] | undefined {
   if (!usage) return undefined;
   return {
     promptTokens: usage.prompt_tokens,

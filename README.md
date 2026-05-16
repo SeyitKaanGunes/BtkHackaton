@@ -8,8 +8,8 @@ AI-powered Financial Digital Twin platform for personal finance first, with a se
 - Mobile: React Native CLI, iOS first and Android-compatible
 - Backend: NestJS
 - DB: PostgreSQL with Prisma schema
-- AI: LangChain + LangGraph with Qwen API (DashScope OpenAI-compatible)
-- OCR: Qwen multimodal structured JSON output
+- AI: LangChain + LangGraph with Gemini API through the OpenAI-compatible endpoint
+- OCR: Gemini multimodal structured JSON output
 - Auth: JWT plus web Google sign-in via Google Identity Services
 - Notifications: in-app action reminders; FCM token intake is wired but push delivery is a separate production decision
 - Charts: Recharts on web
@@ -36,11 +36,9 @@ Use `.env.production.example` as the deployment checklist. For the API, these va
 - `DIRECT_URL`: Supabase direct/session-pooler URI, used by Prisma migrations.
 - `JWT_SECRET`: a random secret with at least 32 characters.
 - `API_CORS_ORIGINS`: comma-separated web origins allowed to call the API.
-- `QWEN_API_KEY`: required for production AI/OCR flows.
+- `GEMINI_API_KEY`: required for production AI, OCR, speech-to-text, and text-to-speech flows.
 - `TWELVE_DATA_API_KEY`: required for production portfolio market data.
 - `GOOGLE_OAUTH_CLIENT_ID`: Google OAuth Web Client ID used by the API to verify web `id_token` values.
-- `OPENAI_API_KEY`: required for production speech-to-text.
-- `GEMINI_API_KEY`: required for production text-to-speech. `GOOGLE_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY` can be used by the API service instead.
 
 For the web app, set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. `NEXT_PUBLIC_GOOGLE_CLIENT_ID` must be the same Google OAuth Web Client ID configured as `GOOGLE_OAUTH_CLIENT_ID` on the API.
 The Google OAuth web client must allow `http://localhost:3000` as a JavaScript origin for local development and `http://localhost:3000/login/google` as a redirect URI for the redirect-based sign-in flow. In production, add the deployed web origin and `<web-origin>/login/google`; keep the OAuth consent screen app name/domain aligned with the deployed product.
@@ -68,16 +66,15 @@ Frontend deployments only need the public API URL:
 - Web: `NEXT_PUBLIC_API_URL="https://your-api-domain.com"` and `NEXT_PUBLIC_GOOGLE_CLIENT_ID="<your-google-oauth-web-client-id>"`
 - Mobile build env: `EXPO_PUBLIC_API_URL="https://your-api-domain.com"`
 
-Qwen defaults:
+Gemini defaults:
 
-- Primary text model: `qwen3.6-flash-2026-04-16`
-- Primary vision model: `qwen3.6-flash-2026-04-16`
-- Secondary model: `qwen3.6-flash`
-- Base URL: `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
-- Key env name: `QWEN_API_KEY`
-- Provider limits to keep in mind: 1M context window, 991K maximum input, 64K maximum output, 60 RPM, 1,000,000 TPM.
-
-The API currently uses Qwen through the OpenAI-compatible DashScope endpoint. Future Gemini migration should change this provider layer rather than spreading Gemini-specific calls across controllers or agents.
+- Primary text model: `gemini-3-flash-preview`
+- Primary vision model: `gemini-3-flash-preview`
+- Secondary model: `gemini-2.5-flash`
+- STT model: `gemini-2.5-flash`
+- TTS model: `gemini-3.1-flash-tts-preview`
+- OpenAI-compatible base URL: `https://generativelanguage.googleapis.com/v1beta/openai`
+- Key env name: `GEMINI_API_KEY`
 
 Market data defaults:
 
@@ -90,7 +87,7 @@ Integration smoke checks:
 
 ```bash
 npm run smoke:integrations
-npm run smoke:integrations -- --only qwen,twelve
+npm run smoke:integrations -- --only gemini,twelve
 ```
 
 ## Product Focus
@@ -105,4 +102,4 @@ The KOBI features live separately under the business module: AI CFO Lite, cash f
 - `Statement Agent`: `POST /documents/statement-agent/preview` reads an end-of-month statement PDF/image/text and returns categorized spending rows for review; `POST /documents/statement-agent/confirm` adds the selected rows as expense transactions.
 - Subscription reminders: `POST /actions/subscription-reminder` creates a dated pending action from recurring subscriptions detected in the statement analysis.
 
-Document agents require `QWEN_API_KEY`; they no longer return demo receipt or statement results when the key or input document is missing.
+Document agents require `GEMINI_API_KEY`; they no longer return demo receipt or statement results when the key or input document is missing.

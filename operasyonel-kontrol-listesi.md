@@ -5,7 +5,7 @@ Bu dosya repodaki mevcut durumu prod/dev operasyonu açısından not eder. Amaç
 ## Mevcut Güçlü Taraflar
 
 - `.env.example` ve `.env.production.example` ayrılmış.
-- API `NODE_ENV=production` için `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `QWEN_API_KEY`, `TWELVE_DATA_API_KEY`, Google OAuth, OpenAI STT ve Gemini TTS anahtarlarını doğruluyor.
+- API `NODE_ENV=production` için `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `GEMINI_API_KEY`, `TWELVE_DATA_API_KEY`, Google OAuth, Gemini STT ve Gemini TTS anahtarlarını doğruluyor.
 - Placeholder prod secret değerleri reddediliyor.
 - API Supabase/Postgres bağlantısı hazır değilse fail-fast davranıyor.
 - Web oturum tokenını `localStorage` yerine HttpOnly `fintwin_token` cookie ile tutuyor.
@@ -65,7 +65,7 @@ Auth, agent, OCR, speech, reminder ve FCM token endpointleri için temel in-proc
 
 - `/auth/login`, `/auth/register`, `/auth/google` için sıkı limit.
 - `/documents/*`, `/agent/chat`, `/speech/*` için credential/IP scope limit.
-- Qwen/OpenAI/Gemini hata/kota durumları için 429/503 ayrımı.
+- Gemini hata/kota durumları için 429/503 ayrımı.
 
 ### 6. Security headers / Helmet
 
@@ -87,13 +87,13 @@ Kontrol listesi:
 - Redirect URI: `https://web-domain/login/google`
 - Consent screen uygulama adı artık eski LMS adı olmamalı.
 
-### 2. Qwen/Gemini/OpenAI kota ve model erişimi
+### 2. Gemini kota ve model erişimi
 
 Env validation anahtarları zorluyor ama sağlayıcı tarafındaki model erişimi/kota runtime'da anlaşılır. Özellikle TTS tarafında model erişimi daha önce sorun çıkardı.
 
 Uygulanan:
 - `npm run smoke:integrations`
-  - Qwen text chat ve küçük vision görseli
+  - Gemini text chat ve küçük vision görseli
   - Gemini TTS kısa metin
   - OpenAI API key/models kontrolü
   - Twelve Data USD/TRY quote
@@ -206,7 +206,7 @@ Temel prod runbook eklendi: `docs/prod-runbook.md`.
 - Supabase bağlantısı koparsa ne yapılır.
 - Prisma DLL lock lokal hatası nasıl çözülür.
 - Google OAuth redirect mismatch nasıl çözülür.
-- Qwen/Gemini/OpenAI 401/403/429 durumları.
+- Gemini 401/403/429 durumları.
 - Twelve Data kota dolarsa kullanıcıya ne söylenir.
 
 ### 3. Secret commit koruması hook'a bağlanmalı
@@ -233,7 +233,7 @@ Repo kökünde `api-dev.out.log`, `web-dev.err.log`, `.codex-dev.log` gibi log d
 3. Prod DB migration akışını `migrate deploy` çizgisine taşı.
 4. Rate limit + Helmet ekle.
 5. Google OAuth prod domain/consent ayarlarını tamamla.
-6. Qwen/Gemini/OpenAI/Twelve Data smoke scriptlerini yaz.
+6. Gemini/Twelve Data smoke scriptlerini yaz.
 7. FCM/reminder job ürün kararını netleştir.
 8. Mobil izinleri sadeleştir.
 9. Backup/restore ve veri silme/export runbook'unu yaz.

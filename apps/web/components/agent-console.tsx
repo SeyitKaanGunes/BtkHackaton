@@ -469,7 +469,7 @@ function agentStepDescription(step: NonNullable<AgentResponse["agenticPlan"]>[nu
 }
 
 function isUserFacingAgentStepText(text: string) {
-  return !/(maxTokens|model|token|karakter bağlam|geçmiş cevap|sohbet geçmiş|mevcut kayıt|otomatik kayıt|qwen|gemini)/i.test(text);
+  return !/(maxTokens|model|token|karakter bağlam|geçmiş cevap|sohbet geçmiş|mevcut kayıt|otomatik kayıt|gemini)/i.test(text);
 }
 
 function conversationSummaryToResponse(item: AgentConversationSummary): AgentResponse {

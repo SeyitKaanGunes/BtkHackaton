@@ -3,7 +3,7 @@ import { calculateSpendingDna, summarizeDecisionJournal, type DashboardPeriodOpt
 import type { AuthUser } from "../auth/auth-user.js";
 import { CurrentUser } from "../auth/current-user.decorator.js";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
-import { QwenService } from "../ai/qwen.service.js";
+import { GeminiService } from "../ai/gemini.service.js";
 import { DataStoreService } from "../data/data-store.service.js";
 
 @Controller("spending-dna")
@@ -11,7 +11,7 @@ import { DataStoreService } from "../data/data-store.service.js";
 export class SpendingDnaController {
   constructor(
     @Inject(DataStoreService) private readonly store: DataStoreService,
-    @Inject(QwenService) private readonly qwen: QwenService
+    @Inject(GeminiService) private readonly gemini: GeminiService
   ) {}
 
   @Get()
@@ -49,12 +49,12 @@ export class SpendingDnaController {
   }
 
   private async buildCommentary(dna: SpendingDna): Promise<SpendingDnaCommentary> {
-    if (!this.qwen.isConfigured()) {
-      return this.unavailableCommentary("LLM yorumu için QWEN_API_KEY yapılandırılmalı. Risk skorları hesaplandı, fakat yorum üretilemedi.");
+    if (!this.gemini.isConfigured()) {
+      return this.unavailableCommentary("LLM yorumu için GEMINI_API_KEY yapılandırılmalı. Risk skorları hesaplandı, fakat yorum üretilemedi.");
     }
 
     try {
-      const response = await this.qwen.chat(
+      const response = await this.gemini.chat(
         [
           {
             role: "system",

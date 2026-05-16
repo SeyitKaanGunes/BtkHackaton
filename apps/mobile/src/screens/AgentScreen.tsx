@@ -191,7 +191,7 @@ export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void 
       <ScreenHeader
         eyebrow="Finans Asistanı"
         title="Agent ile konuş."
-        subtitle="Yazılı soru, OpenAI STT ile ses dosyası okuma ve Gemini TTS ile sesli cevap mobil uygulamada hazır."
+        subtitle="Yazılı soru, Gemini STT ile ses dosyası okuma ve Gemini TTS ile sesli cevap mobil uygulamada hazır."
       />
 
       <Card>
@@ -230,7 +230,7 @@ export function AgentScreen({ onActionChanged }: { onActionChanged?: () => void 
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: p.ink, fontWeight: "900", fontSize: 14 }}>Fintwin Agent</Text>
-            <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>Money Crab yanında · OpenAI STT · Gemini TTS</Text>
+            <Text style={{ color: p.muted, fontSize: 12, lineHeight: 17 }}>Money Crab yanında · Gemini STT · Gemini TTS</Text>
           </View>
           <Chip label={busyLabel(busyMode)} tone={loading ? "accent" : "good"} small />
         </View>
@@ -528,7 +528,7 @@ function busyLabel(mode: BusyMode | null) {
 
 function busyDescription(mode: BusyMode | null) {
   if (mode === "record") return "Mikrofon açık. Bitirince tekrar mikrofon butonuna bas.";
-  if (mode === "stt") return "OpenAI STT ses dosyasını metne çeviriyor.";
+  if (mode === "stt") return "Gemini STT ses dosyasını metne çeviriyor.";
   if (mode === "tts") return "Gemini TTS cevabı seslendiriyor.";
   return "Agent finans verilerini okuyup cevap hazırlıyor.";
 }

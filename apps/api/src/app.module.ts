@@ -6,8 +6,8 @@ import { ActionsController } from "./actions/actions.controller.js";
 import { AgentController } from "./agent/agent.controller.js";
 import { AgentService } from "./agent/agent.service.js";
 import { GeminiTtsService } from "./ai/gemini-tts.service.js";
-import { OpenAiSpeechService } from "./ai/openai-speech.service.js";
-import { QwenService } from "./ai/qwen.service.js";
+import { GeminiSpeechService } from "./ai/gemini-speech.service.js";
+import { GeminiService } from "./ai/gemini.service.js";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthService } from "./auth/auth.service.js";
 import { GoogleOAuthService } from "./auth/google-oauth.service.js";
@@ -84,12 +84,12 @@ import { TransactionsController } from "./transactions/transactions.controller.j
     DataStoreService,
     DocumentsService,
     GeminiTtsService,
+    GeminiSpeechService,
     GoogleOAuthService,
     JwtAuthGuard,
-    OpenAiSpeechService,
     PdfExtractorService,
     PrismaService,
-    QwenService,
+    GeminiService,
     RateLimitGuard,
     ReceiptExpenseAgentService,
     StatementDocumentRepository,

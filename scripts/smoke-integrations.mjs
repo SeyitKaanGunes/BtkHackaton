@@ -10,9 +10,8 @@ loadEnvFile(resolve(root, ".env"));
 loadEnvFile(resolve(root, "apps/api/.env"));
 
 const checks = {
-  qwen: smokeQwen,
-  gemini: smokeGemini,
-  openai: smokeOpenAi,
+  gemini: smokeGeminiOpenAi,
+  "gemini-tts": smokeGeminiTts,
   twelve: smokeTwelveData
 };
 
@@ -33,7 +32,7 @@ if (failed) process.exit(1);
 
 function requestedProviders() {
   const only = readArgValue("--only");
-  if (!only) return new Set(["qwen", "gemini", "openai", "twelve"]);
+  if (!only) return new Set(["gemini", "gemini-tts", "twelve"]);
   return new Set(
     only
       .split(",")
@@ -42,10 +41,10 @@ function requestedProviders() {
   );
 }
 
-async function smokeQwen() {
-  const apiKey = requiredEnv("QWEN_API_KEY");
-  const baseUrl = env("QWEN_BASE_URL") ?? "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
-  const model = env("QWEN_TEXT_MODEL") ?? "qwen3.6-flash-2026-04-16";
+async function smokeGeminiOpenAi() {
+  const apiKey = requiredEnv("GEMINI_API_KEY");
+  const baseUrl = env("GEMINI_BASE_URL") ?? "https://generativelanguage.googleapis.com/v1beta/openai";
+  const model = env("GEMINI_TEXT_MODEL") ?? "gemini-3-flash-preview";
   const endpoint = `${trimSlash(baseUrl)}/chat/completions`;
   const payload = await postJson(endpoint, {
     headers: { authorization: `Bearer ${apiKey}` },
@@ -56,9 +55,9 @@ async function smokeQwen() {
     }
   });
   const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content !== "string" || !content.trim()) throw new Error("Qwen boş cevap döndürdü.");
+  if (typeof content !== "string" || !content.trim()) throw new Error("Gemini boş cevap döndürdü.");
 
-  const visionModel = env("QWEN_VISION_MODEL") ?? model;
+  const visionModel = env("GEMINI_VISION_MODEL") ?? model;
   const visionPayload = await postJson(endpoint, {
     headers: { authorization: `Bearer ${apiKey}` },
     body: {
@@ -81,13 +80,12 @@ async function smokeQwen() {
     }
   });
   const visionContent = visionPayload?.choices?.[0]?.message?.content;
-  if (typeof visionContent !== "string" || !visionContent.trim()) throw new Error("Qwen vision boş cevap döndürdü.");
+  if (typeof visionContent !== "string" || !visionContent.trim()) throw new Error("Gemini vision boş cevap döndürdü.");
   return `${model} text ve ${visionModel} vision cevap verdi`;
 }
 
-async function smokeGemini() {
-  const apiKey = env("GEMINI_API_KEY") ?? env("GOOGLE_API_KEY") ?? env("GOOGLE_GENERATIVE_AI_API_KEY");
-  if (!apiKey) throw new Error("GEMINI_API_KEY, GOOGLE_API_KEY veya GOOGLE_GENERATIVE_AI_API_KEY eksik.");
+async function smokeGeminiTts() {
+  const apiKey = requiredEnv("GEMINI_API_KEY");
   const model = env("GEMINI_TTS_MODEL") ?? "gemini-3.1-flash-tts-preview";
   const payload = await postJson(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     headers: { "x-goog-api-key": apiKey },
@@ -106,15 +104,6 @@ async function smokeGemini() {
   const audioPart = payload?.candidates?.[0]?.content?.parts?.find((part) => part?.inlineData?.data || part?.inline_data?.data);
   if (!audioPart) throw new Error("Gemini TTS audio cevabı bulunamadı.");
   return `${model} audio döndürdü`;
-}
-
-async function smokeOpenAi() {
-  const apiKey = requiredEnv("OPENAI_API_KEY");
-  const payload = await getJson("https://api.openai.com/v1/models", {
-    headers: { authorization: `Bearer ${apiKey}` }
-  });
-  if (!Array.isArray(payload?.data)) throw new Error("OpenAI models listesi alınamadı.");
-  return "API anahtarı modeller endpointinde doğrulandı";
 }
 
 async function smokeTwelveData() {

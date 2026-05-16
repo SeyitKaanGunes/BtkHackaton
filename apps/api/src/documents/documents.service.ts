@@ -1,9 +1,9 @@
 import { BadGatewayException, BadRequestException, HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
 import type { ReceiptScanResult } from "@fintwin/shared";
-import { QwenService } from "../ai/qwen.service.js";
+import { GeminiService } from "../ai/gemini.service.js";
 import { StatementExtractorService, type RawExtraction } from "./statement-extractor.service.js";
 
-const QWEN_PRIMARY_MODEL = "qwen3.6-flash-2026-04-16";
+const GEMINI_PRIMARY_MODEL = "gemini-3-flash-preview";
 
 const RECEIPT_INSTRUCTION = `Sen bir Türkçe fiş/fatura çıkarıcı asistansın. Yalnızca aşağıdaki şemada saf JSON döndür, başka hiçbir metin/markdown/açıklama ekleme:
 {
@@ -28,7 +28,7 @@ type StatementExtraction = RawExtraction & { sourceType: "pdf-text" | "pdf-visio
 @Injectable()
 export class DocumentsService {
   constructor(
-    @Inject(QwenService) private readonly qwen: QwenService,
+    @Inject(GeminiService) private readonly gemini: GeminiService,
     @Inject(StatementExtractorService) private readonly statementExtractor: StatementExtractorService
   ) {}
 
@@ -36,11 +36,11 @@ export class DocumentsService {
     if (!input.imageBase64) {
       throw new BadRequestException("imageBase64 is required for receipt scanning.");
     }
-    if (!this.qwen.isConfigured()) {
+    if (!this.gemini.isConfigured()) {
       throw new HttpException(
         {
           code: "RECEIPT_AI_NOT_CONFIGURED",
-          message: "Fiş analizi için QWEN_API_KEY tanımlı değil. Demo sonuç üretilmedi."
+          message: "Fiş analizi için GEMINI_API_KEY tanımlı değil. Demo sonuç üretilmedi."
         },
         HttpStatus.SERVICE_UNAVAILABLE
       );
@@ -51,7 +51,7 @@ export class DocumentsService {
       "Bu fiş/fatura görselinden alanları çıkar." +
       (input.textHint ? ` Kullanıcı notu: ${input.textHint}` : "");
 
-    const response = await this.qwen.chat(
+    const response = await this.gemini.chat(
       [
         { role: "system", content: RECEIPT_INSTRUCTION },
         {
@@ -62,7 +62,7 @@ export class DocumentsService {
           ]
         }
       ],
-      { model: process.env.QWEN_VISION_MODEL ?? QWEN_PRIMARY_MODEL, temperature: 0, maxTokens: 900 }
+      { model: process.env.GEMINI_VISION_MODEL ?? GEMINI_PRIMARY_MODEL, temperature: 0, maxTokens: 900 }
     ).catch(() => {
       throw new BadGatewayException({
         code: "RECEIPT_AI_REQUEST_FAILED",

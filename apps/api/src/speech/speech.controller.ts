@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
 import type { SpeechCapabilities, SpeechToTextRequest, TextToSpeechRequest } from "@fintwin/shared";
+import { GeminiSpeechService } from "../ai/gemini-speech.service.js";
 import { GeminiTtsService } from "../ai/gemini-tts.service.js";
-import { OpenAiSpeechService } from "../ai/openai-speech.service.js";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard.js";
 import { RateLimit } from "../rate-limit/rate-limit.decorator.js";
 
@@ -10,17 +10,17 @@ import { RateLimit } from "../rate-limit/rate-limit.decorator.js";
 export class SpeechController {
   constructor(
     @Inject(GeminiTtsService) private readonly geminiTts: GeminiTtsService,
-    @Inject(OpenAiSpeechService) private readonly openAiSpeech: OpenAiSpeechService
+    @Inject(GeminiSpeechService) private readonly geminiSpeech: GeminiSpeechService
   ) {}
 
   @Get("capabilities")
   capabilities(): SpeechCapabilities {
-    const sttAvailable = this.openAiSpeech.isConfigured();
+    const sttAvailable = this.geminiSpeech.isConfigured();
     const ttsAvailable = this.geminiTts.isConfigured();
     return {
       stt: {
         available: sttAvailable,
-        ...(sttAvailable ? {} : { reason: "OPENAI_API_KEY tanımlı olmadığı için konuşarak gönderme kapalı." })
+        ...(sttAvailable ? {} : { reason: "GEMINI_API_KEY tanımlı olmadığı için konuşarak gönderme kapalı." })
       },
       tts: {
         available: ttsAvailable,
@@ -38,6 +38,6 @@ export class SpeechController {
   @Post("stt")
   @RateLimit({ limit: 12, windowMs: 60_000, scope: "credential" })
   transcribe(@Body() body: SpeechToTextRequest) {
-    return this.openAiSpeech.transcribe(body);
+    return this.geminiSpeech.transcribe(body);
   }
 }
