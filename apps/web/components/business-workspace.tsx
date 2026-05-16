@@ -141,26 +141,23 @@ function BusinessDashboardView({ data, activeSection, showOverview }: { data: Bu
             <h1>{business.name}</h1>
             <p className="header-subtitle">{business.sector} işletme metrikleri bu işletme hesabındaki güncel kayıtlardan okunur.</p>
           </div>
-          <div className="health-score">
-            <Building2 size={22} />
-            <span>Likidite riski</span>
-            <strong>{riskLabel(dashboard.liquidityRisk)}</strong>
-          </div>
         </header>
       ) : null}
 
-      <BusinessSectionNav activeSection={activeSection} showOverview={showOverview} />
       {showOverview ? <BusinessOverviewCockpit businessId={business.id} customers={customers} dashboard={dashboard} insights={insights} scores={scores} /> : null}
       {!showOverview ? (
-        <BusinessSectionContent
-          activeSection={activeSection}
-          businessId={business.id}
-          customers={customers}
-          dashboard={dashboard}
-          detail
-          insights={insights}
-          scores={scores}
-        />
+        <>
+          <BusinessSectionNav activeSection={activeSection} showOverview={showOverview} />
+          <BusinessSectionContent
+            activeSection={activeSection}
+            businessId={business.id}
+            customers={customers}
+            dashboard={dashboard}
+            detail
+            insights={insights}
+            scores={scores}
+          />
+        </>
       ) : null}
     </>
   );
@@ -247,19 +244,80 @@ function BusinessOverviewCockpit({
   scores: CollectionScore[];
 }) {
   return (
-    <section className="business-reference-cockpit">
-      <BusinessSummaryMetrics summary={insights.summary} />
-      <div className="business-reference-grid">
+    <section className="dashboard-reference-layout business-dashboard-reference-layout">
+      <div className="dashboard-reference-main business-reference-main">
+        <BusinessSectionNav activeSection="twin" showOverview />
+        <BusinessSummaryMetrics summary={insights.summary} />
         <CashflowForecastPanel detail={false} points={insights.cashflow} />
-        <CoveragePanel coverage={insights.coverage} detail={false} />
-        <CollectionPriorityPanel detail={false} priorities={insights.collectionPriorities} />
-        <ScenarioSimulatorPanel businessId={businessId} detail={false} scenarios={insights.scenarios} />
-        <BusinessAssistantPanel dashboard={dashboard} detail={false} insights={insights} />
+        <section className="dashboard-lower-grid business-dashboard-lower-grid">
+          <CollectionPriorityPanel detail={false} priorities={insights.collectionPriorities} />
+          <ScenarioSimulatorPanel businessId={businessId} detail={false} scenarios={insights.scenarios} />
+        </section>
         <section className="split-layout business-data-entry business-overview-records">
           <CashEventsPanel businessId={businessId} dashboard={dashboard} />
           <CustomersPanel businessId={businessId} customers={customers} scores={scores} />
         </section>
       </div>
+      <aside className="dashboard-reference-rail business-reference-rail">
+        <BusinessRiskCard customers={customers} dashboard={dashboard} insights={insights} />
+        <BusinessQuickActionsPanel />
+        <CoveragePanel coverage={insights.coverage} detail={false} />
+        <BusinessAssistantPanel dashboard={dashboard} detail={false} insights={insights} />
+      </aside>
+    </section>
+  );
+}
+
+function BusinessRiskCard({ customers, dashboard, insights }: { customers: BusinessCustomer[]; dashboard: BusinessDashboard; insights: BusinessInsights }) {
+  const cashEventCount = dashboard.upcomingPayments.length + dashboard.expectedCollections.length;
+  const criticalDate = insights.twin.criticalDates[0];
+  return (
+    <section className="health-card panel business-risk-card">
+      <div className="score-ring" style={{ "--score": insights.summary.cashRiskScore } as CSSProperties}>
+        <strong>{insights.summary.cashRiskScore}</strong>
+        <span>/100</span>
+        <small>risk</small>
+      </div>
+      <div>
+        <p className="eyebrow muted">Nakit Sağlığı</p>
+        <h2>{riskLabel(insights.summary.riskLevel)}</h2>
+        <p>
+          {criticalDate
+            ? `${formatDateLabel(criticalDate.date)} kritik gün olarak izleniyor; tahmini bakiye ${formatTry(criticalDate.projectedBalance)}.`
+            : `${cashEventCount} nakit olayı ve ${customers.length} müşteri kaydı ile KOBİ ikizi izleniyor.`}
+        </p>
+        <div className="chip-row">
+          <span className="chip warn">{riskLabel(dashboard.liquidityRisk)} likidite</span>
+          <span className="chip accent">{cashEventCount} nakit olayı</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BusinessQuickActionsPanel() {
+  return (
+    <section className="panel quick-action-panel business-quick-action-panel">
+      <div className="section-title">
+        <span>Hızlı KOBİ işlemleri</span>
+        <strong>4</strong>
+      </div>
+      <Link href="/business?section=records">
+        <CalendarPlus size={16} />
+        Nakit / müşteri kaydı
+      </Link>
+      <Link href="/business?section=scenarios">
+        <ArrowRightLeft size={16} />
+        Senaryo çalıştır
+      </Link>
+      <Link href="/business?section=collections">
+        <UserPlus size={16} />
+        Tahsilatı izle
+      </Link>
+      <Link href="/business?section=assistant">
+        <Bot size={16} />
+        KOBİ asistanına sor
+      </Link>
     </section>
   );
 }
@@ -1128,7 +1186,7 @@ function MiniFact({ label, tone, value }: { label: string; tone?: DetailFact["to
 function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="metric">
-      {icon}
+      <span className="metric-icon">{icon}</span>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>

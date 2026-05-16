@@ -8103,9 +8103,12 @@ h1 {
 }
 
 .business-reference-cockpit,
-.business-reference-grid {
+.business-reference-grid,
+.business-reference-main,
+.business-reference-rail {
   display: grid;
   gap: 16px;
+  align-content: start;
 }
 
 .business-reference-grid {
@@ -8152,6 +8155,65 @@ h1 {
 .business-overview-records {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.business-dashboard-reference-layout {
+  align-items: start;
+}
+
+.business-dashboard-lower-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.8fr);
+}
+
+.business-risk-card h2 {
+  margin: 2px 0 6px;
+  color: var(--ink);
+  font-size: 22px;
+}
+
+.business-reference-rail .coverage-grid,
+.business-reference-rail .business-assistant-shell {
+  grid-template-columns: 1fr !important;
+}
+
+.business-reference-rail .business-assistant-avatar {
+  border-radius: 8px !important;
+  padding: 12px !important;
+}
+
+.business-reference-rail .business-assistant-avatar .agent-pet {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+}
+
+.business-reference-rail .business-assistant-question {
+  min-height: 42px;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 12px;
+}
+
+.business-reference-rail .business-assistant-answer-head {
+  grid-template-columns: 36px minmax(0, 1fr);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.business-reference-rail .business-assistant-answer-head svg {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.business-reference-rail .business-assistant-answer-head strong {
+  font-size: 15px;
+}
+
+.business-reference-rail .scenario-decision-grid,
+.business-reference-rail .business-detail-row {
+  gap: 8px;
 }
 
 .business-section-intro {
@@ -9130,25 +9192,27 @@ h1 {
 
 .business-section-nav {
   display: flex;
-  gap: 6px;
+  gap: 0;
   align-items: center;
   overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  padding: 6px;
-  box-shadow: var(--shadow-soft);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
 }
 
 .business-section-nav a {
-  min-height: 36px;
+  position: relative;
+  min-height: 42px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  color: var(--muted);
-  padding: 0 12px;
+  border: 0;
+  border-radius: 0;
+  color: #475569;
+  padding: 0 14px;
   font-size: 12px;
   font-weight: 800;
   text-decoration: none;
@@ -9157,18 +9221,23 @@ h1 {
 
 .business-section-nav a:hover {
   color: var(--ink);
-  background: #f7faff;
-  border-color: #edf2f7;
+  background: transparent;
 }
 
 .business-section-nav a.active {
   color: var(--accent);
-  background: var(--accent-soft);
-  border-color: #bfdbfe;
+  background: transparent;
 }
 
-.business-image-page .business-section-nav {
-  display: none !important;
+.business-section-nav a.active::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent);
 }
 
 @media (max-width: 1180px) {
